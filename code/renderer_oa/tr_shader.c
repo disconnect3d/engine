@@ -83,11 +83,13 @@ static glslProgram_t *R_GLSL_GetProgramByHandle(qhandle_t index) {
 	return program;
 }*/
 
+
 /*
  * R_GLSL_AllocProgram
  * Reserve memory for program
  */
 static glslProgram_t *R_GLSL_AllocProgram(void) {
+#ifdef GLSL_BACKEND
 	glslProgram_t	*program;
 
 	if (tr.numPrograms == MAX_PROGRAMS)
@@ -151,6 +153,7 @@ static glslProgram_t *R_GLSL_AllocProgram(void) {
 	tr.numPrograms++;
 
 	return program;
+#endif
 }
 
 
@@ -159,6 +162,7 @@ static glslProgram_t *R_GLSL_AllocProgram(void) {
  * Parse program for uniform locations
  */
 static void R_GLSL_ParseProgram(glslProgram_t *program, char *_text) {
+#ifdef GLSL_BACKEND
 	char	**text = &_text;
 	char	*token;
 
@@ -308,6 +312,7 @@ static void R_GLSL_ParseProgram(glslProgram_t *program, char *_text) {
 
 		token = COM_ParseExt(text, qtrue);
 	}
+#endif
 }
 
 /*
@@ -315,6 +320,7 @@ static void R_GLSL_ParseProgram(glslProgram_t *program, char *_text) {
  * Load, compile and link program
  */
 static qboolean R_GLSL_LoadProgram(glslProgram_t *program, const char *name, const char *programVertexObjects, int numVertexObjects, const char *programFragmentObjects, int numFragmentObjects) {
+#ifdef GLSL_BACKEND
 	GLcharARB		*buffer_vp[MAX_PROGRAM_OBJECTS];
 	GLcharARB		*buffer_fp[MAX_PROGRAM_OBJECTS];
 	GLcharARB		*buffer;
@@ -454,6 +460,7 @@ static qboolean R_GLSL_LoadProgram(glslProgram_t *program, const char *name, con
 		ri.FS_FreeFile(buffer_vp[i]);
 
 	return qtrue;
+#endif
 }
 
 /*
@@ -461,6 +468,7 @@ static qboolean R_GLSL_LoadProgram(glslProgram_t *program, const char *name, con
  * Loads in a program of given name
  */
 qhandle_t RE_GLSL_RegisterProgram(const char *name, const char *programVertexObjects, int numVertexObjects, const char *programFragmentObjects, int numFragmentObjects) {
+#ifdef GLSL_BACKEND
 	glslProgram_t	*program;
 	qhandle_t		hProgram;
 
@@ -509,7 +517,9 @@ qhandle_t RE_GLSL_RegisterProgram(const char *name, const char *programVertexObj
 
 	program->valid = qtrue;
 	return program->index;
+#endif
 }
+
 
 void R_RemapShader(const char *shaderName, const char *newShaderName, const char *timeOffset) {
 	char		strippedName[MAX_QPATH];
@@ -945,6 +955,55 @@ static void ParseTexMod( char *_text, shaderStage_t *stage )
 		
 		tmi->type = TMOD_STRETCH;
 	}
+//
+	// leilei - atlas
+	//
+	else if ( !Q_stricmp( token, "atlas" ) )
+	{
+		token = COM_ParseExt( text, qfalse );
+		if ( token[0] == 0 )
+		{
+			ri.Printf( PRINT_WARNING, "WARNING: missing atlas parms in shader '%s'\n", shader.name );
+			return;
+		}
+		tmi->atlas.mode = atof( token );
+
+		token = COM_ParseExt( text, qfalse );
+		if ( token[0] == 0 )
+		{
+			ri.Printf( PRINT_WARNING, "WARNING: missing atlas parms in shader '%s'\n", shader.name );
+			return;
+		}
+		tmi->atlas.frame = atof( token );
+
+		token = COM_ParseExt( text, qfalse );
+		if ( token[0] == 0 )
+		{
+			ri.Printf( PRINT_WARNING, "WARNING: missing atlas parms in shader '%s'\n", shader.name );
+			return;
+		}
+		tmi->atlas.fps = atof( token );
+
+		token = COM_ParseExt( text, qfalse );
+		if ( token[0] == 0 )
+		{
+			ri.Printf( PRINT_WARNING, "WARNING: missing atlas parms in shader '%s'\n", shader.name );
+			return;
+		}
+		tmi->atlas.width = atof( token );
+			ri.Printf( PRINT_WARNING, "shader '%s' has width %f\n", shader.name, tmi->atlas.width );
+
+		token = COM_ParseExt( text, qfalse );
+		if ( token[0] == 0 )
+		{
+			ri.Printf( PRINT_WARNING, "WARNING: missing atlas parms in shader '%s'\n", shader.name );
+			return;
+		}
+		tmi->atlas.height = atof( token );
+		
+		tmi->type = TMOD_ATLAS;
+	}
+
 	else if ( !Q_stricmp( token, "lightscale" ) )
 	{
 		token = COM_ParseExt( text, qfalse );
@@ -1095,7 +1154,7 @@ static qboolean ParseStage( shaderStage_t *stage, char **text )
 						ri.Printf(PRINT_WARNING, "WARNING: no 'fragmentProgram' specified for 'program %s' in shader '%s'\n", programName, shader.name);
 						return qfalse;
 					}
-
+#ifdef GLSL_TEXTURES
 					stage->isGLSL=0;
 					stage->program = RE_GLSL_RegisterProgram(programName, (const char *)programVertexObjects, numVertexObjects, (const char *)programFragmentObjects, numFragmentObjects);
 					if (!stage->program) {
@@ -1104,6 +1163,7 @@ static qboolean ParseStage( shaderStage_t *stage, char **text )
 					}
 					else
 						stage->isGLSL=1;
+#endif
 				}
 			} else if (numVertexObjects) {
 				ri.Printf(PRINT_WARNING, "WARNING: no 'program' specified for 'vertexProgram' in shader '%s'\n", shader.name);
@@ -1148,7 +1208,7 @@ static qboolean ParseStage( shaderStage_t *stage, char **text )
 				ri.Printf(PRINT_WARNING, "WARNING: missing parameter(s) for 'vertexProgram' keyword in shader '%s'\n", shader.name);
 				return qfalse;
 			}
-
+#ifdef GLSL_TEXTURES
 			// parse up to MAX_PROGRAM_OBJECTS files
 			for(;;) {
 				if (numVertexObjects < MAX_PROGRAM_OBJECTS) {
@@ -1163,6 +1223,9 @@ static qboolean ParseStage( shaderStage_t *stage, char **text )
 				if (!token[0])
 					break;
 			}
+#else
+		// NO!
+#endif
 		}
 		//
 		// fragmentProgram <path1> .... <pathN>
@@ -2893,6 +2956,7 @@ qboolean ParseStageSimple( shaderStage_t *stage, char **text )
 
 		if ( token[0] == '}' )
 		{
+#ifdef GLSL_TEXTURES
 			if (programName[0]) {
 				if (!Q_stricmp(programName, "skip")) {
 					stage->program = tr.skipProgram;
@@ -2923,7 +2987,7 @@ qboolean ParseStageSimple( shaderStage_t *stage, char **text )
 				ri.Printf(PRINT_WARNING, "WARNING: no 'program' specified for 'fragmentProgram' in shader '%s'\n", shader.name);
 				return qfalse;
 			}
-		
+#endif
 	break;
 	}
 		//
@@ -4264,10 +4328,11 @@ otherwise set to the generic stage function
 */
 static void ComputeStageIteratorFunc( void )
 {
-
+#ifdef GLSL_TEXTURES
 	if (vertexShaders)
 		shader.optimalStageIteratorFunc = RB_GLSL_StageIteratorGeneric;
 	else
+#endif
 		shader.optimalStageIteratorFunc = RB_StageIteratorGeneric;
 
 	//
@@ -4308,9 +4373,11 @@ static void ComputeStageIteratorFunc( void )
 						{
 							if ( !shader.numDeforms )
 							{
+#ifdef GLSL_TEXTURES
 								if (vertexShaders)
 									shader.optimalStageIteratorFunc = RB_GLSL_StageIteratorVertexLitTexture;
 								else
+#endif
 									shader.optimalStageIteratorFunc = RB_StageIteratorVertexLitTexture;
 								return;
 							}
@@ -4338,9 +4405,11 @@ static void ComputeStageIteratorFunc( void )
 					{
 						if ( shader.multitextureEnv )
 						{
+#ifdef GLSL_TEXTURES
 							if (vertexShaders)
 								shader.optimalStageIteratorFunc = RB_GLSL_StageIteratorLightmappedMultitexture;
 							else
+#endif
 								shader.optimalStageIteratorFunc = RB_StageIteratorLightmappedMultitexture;
 						}
 					}
@@ -4810,7 +4879,7 @@ static shader_t *FinishShader( void ) {
 			break;
 		}
 
-
+#ifdef GLSL_TEXTURES
 		// Try to use leifx dither here instead of postprocess for more authentic overdraw artifacts
 		if (r_leifx->integer > 1)
 		{		
@@ -4840,6 +4909,8 @@ static shader_t *FinishShader( void ) {
 		//	 R_GLSL_SetUniform_u_ScreenToNextPixelY(pStage->program, (float)1.0/(float)pStage->imgHeight);
 	
 		}
+
+#endif	// GLSL_TEXTURES
 
     // check for a missing texture
 		if ( !pStage->bundle[0].image[0] ) {
@@ -4899,16 +4970,17 @@ static shader_t *FinishShader( void ) {
     //}
 
 
-
+#ifdef GLSL_TEXTURES
 
 		// leilei - force new phong on lightdiffuse and lightdiffusespecular models
+		// FIXME: Intel HD doesn't like this.
 		if ((r_modelshader->integer) && (pStage->isGLSL==0) && (r_ext_vertex_shader->integer) && ((pStage->rgbGen == CGEN_LIGHTING_DIFFUSE) || (pStage->rgbGen == CGEN_LIGHTING_DIFFUSE_SPECULAR)))
 		{
 			pStage->program = RE_GLSL_RegisterProgram("leishade", "glsl/leishade_vp.glsl", 1, "glsl/leishade_fp.glsl", 1);
 			pStage->isGLSL=1;
 			pStage->isLeiShade=1;
 		}
-
+#endif
 		//
 		// determine sort order and fog color adjustment
 		//

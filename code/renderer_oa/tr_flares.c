@@ -91,6 +91,7 @@ typedef struct flare_s {
 						// 8 - anamorphic like it's 2009
 	struct shader_s		*theshader;	// leilei - custom flare shaders
 	int		type;			// 0 - map, 1 - dlight, 2 - sun
+	float		delay;			// update delay time
 } flare_t;
 
 #define		MAX_FLARES		256 // was 128
@@ -101,6 +102,8 @@ flare_t		*r_activeFlares, *r_inactiveFlares;
 
 vec3_t		sunorg;		// sun flare hack
 int flareCoeff;
+
+
 /*
 ==================
 R_SetFlareCoeff
@@ -148,6 +151,7 @@ This is called at surface tesselation time
 */
 
 float			flaredsize;	// leilei - dirty flare fix for widescreens
+
 
 
 void RB_AddFlare(srfFlare_t *surface, int fogNum, vec3_t point, vec3_t color, vec3_t normal, int radii, int efftype, float scaled, int type) {
@@ -356,51 +360,72 @@ static void RB_TestFlareFast( flare_t *f ) {
 	qboolean		visible;
 	float			fade;
 	float			screenZ;
+
+		backEnd.pc.c_flareTests++;
+	
+	
+		// doing a readpixels is as good as doing a glFinish(), so
+		// don't bother with another sync
+		glState.finishCalled = qfalse;
 	
 
-	backEnd.pc.c_flareTests++;
 
-//	visible = 1; // it's visible damnit
-	// doing a readpixels is as good as doing a glFinish(), so
-	// don't bother with another sync
-	glState.finishCalled = qfalse;
+	// leilei - delay hack, to speed up the renderer
 
-	// read back the z buffer contents
+	if (backEnd.refdef.time > f->delay){
+		
+		// read back the z buffer contents
 
-	qglReadPixels( f->windowX, f->windowY, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &depth );
+		qglReadPixels( f->windowX, f->windowY, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &depth );
+		f->delay = backEnd.refdef.time + r_flareDelay->value;
+		
+	
+		screenZ = backEnd.viewParms.projectionMatrix[14] / 
+			( ( 2*depth - 1 ) * backEnd.viewParms.projectionMatrix[11] - backEnd.viewParms.projectionMatrix[10] );
+	
+		visible = ( -f->eyeZ - -screenZ ) < 24;
+	
 
-
-	screenZ = backEnd.viewParms.projectionMatrix[14] / 
-		( ( 2*depth - 1 ) * backEnd.viewParms.projectionMatrix[11] - backEnd.viewParms.projectionMatrix[10] );
-
-	visible = ( -f->eyeZ - -screenZ ) < 24;
-
-
-	if ( visible ) {
-		if ( !f->visible ) {
-			f->visible = qtrue;
-			f->fadeTime = backEnd.refdef.time - 1;
+	
+		if ( visible ) {
+			if ( !f->visible ) {
+				f->visible = qtrue;
+				f->fadeTime = backEnd.refdef.time - 1;
+		
+			}
+			{
+				fade = ( ( backEnd.refdef.time - f->fadeTime ) / 1000.0f ) * r_flareFade->value;
+			}
+		} else {
+			if ( f->visible ) {
+				f->visible = qfalse;
+				f->fadeTime = backEnd.refdef.time - 1;
+			}
+			fade = 1.0f - ( ( backEnd.refdef.time - f->fadeTime ) / 1000.0f ) * r_flareFade->value;
 		}
+	
+		if ( fade < 0 ) {
+			fade = 0;
+		}
+		if ( fade > 1 ) {
+			fade = 1;
+		}
+	
+		f->drawIntensity = fade;
+		
+	}
+	else
+	// leilei - continue drawing the flare from where we last checked
+	{
+		if (f->visible) {
+			f->drawIntensity  = 1;
+		}
+		else
 		{
-			fade = 1;	// instant fade
+			f->drawIntensity  = 0;
 		}
-	} else {
-		if ( f->visible ) {
-			f->visible = qfalse;
-			f->fadeTime = backEnd.refdef.time - 1;
-		}
-		fade = 0;	// instant appear
 	}
-
-	if ( fade < 0 ) {
-		fade = 0;
-	}
-	if ( fade > 1 ) {
-		fade = 1;
-	}
-
-	f->drawIntensity = fade;
-
+	
 }
 
 /*
@@ -414,54 +439,51 @@ static void RB_TestFlare( flare_t *f ) {
 	float			fade;
 	float			screenZ;
 
-	if (f->fadeTime == -666)
-		{
-			RB_TestFlareFast(f);
-			return;
+		backEnd.pc.c_flareTests++;
+	
+	
+		// doing a readpixels is as good as doing a glFinish(), so
+		// don't bother with another sync
+		glState.finishCalled = qfalse;
+
+		// read back the z buffer contents
+
+		qglReadPixels( f->windowX, f->windowY, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &depth );
+	
+	
+		screenZ = backEnd.viewParms.projectionMatrix[14] / 
+			( ( 2*depth - 1 ) * backEnd.viewParms.projectionMatrix[11] - backEnd.viewParms.projectionMatrix[10] );
+	
+		visible = ( -f->eyeZ - -screenZ ) < 24;
+	
+
+	
+		if ( visible ) {
+			if ( !f->visible ) {
+				f->visible = qtrue;
+				f->fadeTime = backEnd.refdef.time - 1;
+		
+			}
+			{
+				fade = ( ( backEnd.refdef.time - f->fadeTime ) / 1000.0f ) * r_flareFade->value;
+			}
+		} else {
+			if ( f->visible ) {
+				f->visible = qfalse;
+				f->fadeTime = backEnd.refdef.time - 1;
+			}
+			fade = 1.0f - ( ( backEnd.refdef.time - f->fadeTime ) / 1000.0f ) * r_flareFade->value;
 		}
-
-	backEnd.pc.c_flareTests++;
-
-
-	// doing a readpixels is as good as doing a glFinish(), so
-	// don't bother with another sync
-	glState.finishCalled = qfalse;
-
-	// read back the z buffer contents
-
-	qglReadPixels( f->windowX, f->windowY, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &depth );
-
-	screenZ = backEnd.viewParms.projectionMatrix[14] / 
-		( ( 2*depth - 1 ) * backEnd.viewParms.projectionMatrix[11] - backEnd.viewParms.projectionMatrix[10] );
-
-	visible = ( -f->eyeZ - -screenZ ) < 24;
-
-
-
-	if ( visible ) {
-		if ( !f->visible ) {
-			f->visible = qtrue;
-			f->fadeTime = backEnd.refdef.time - 1;
+	
+		if ( fade < 0 ) {
+			fade = 0;
 		}
-		{
-			fade = ( ( backEnd.refdef.time - f->fadeTime ) / 1000.0f ) * r_flareFade->value;
+		if ( fade > 1 ) {
+			fade = 1;
 		}
-	} else {
-		if ( f->visible ) {
-			f->visible = qfalse;
-			f->fadeTime = backEnd.refdef.time - 1;
-		}
-		fade = 1.0f - ( ( backEnd.refdef.time - f->fadeTime ) / 1000.0f ) * r_flareFade->value;
-	}
-
-	if ( fade < 0 ) {
-		fade = 0;
-	}
-	if ( fade > 1 ) {
-		fade = 1;
-	}
-
-	f->drawIntensity = fade;
+	
+		f->drawIntensity = fade;
+	
 }
 
 
@@ -1131,7 +1153,10 @@ void RB_RenderFlares (void) {
 		f->drawIntensity = 0;
 		if ( f->frameSceneNum == backEnd.viewParms.frameSceneNum
 			&& f->inPortal == backEnd.viewParms.isPortal ) {
+	if (r_flareQuality->integer > 1)		// leilei - flare quality test
 			RB_TestFlare( f );
+		else
+			RB_TestFlareFast( f );
 
 			if ( f->drawIntensity ) {
 				draw = qtrue;

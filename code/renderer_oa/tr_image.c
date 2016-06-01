@@ -138,11 +138,11 @@ void R_PickTexturePalette(int alpha)
 {
 		qglEnable(GL_SHARED_TEXTURE_PALETTE_EXT);
 
-	if (alpha)
+		if (alpha)
 		qglColorTableEXT( GL_SHARED_TEXTURE_PALETTE_EXT, GL_RGBA, 256,  GL_RGBA, GL_UNSIGNED_BYTE,  paltable );
-	else
+			else
 		qglColorTableEXT( GL_SHARED_TEXTURE_PALETTE_EXT, GL_RGB, 256,  GL_RGB, GL_UNSIGNED_BYTE,  paltablergb );
-
+		
 		qglEnable(GL_SHARED_TEXTURE_PALETTE_EXT);
 }
 
@@ -233,6 +233,11 @@ void R_InitPalette( void ) {
 		paletteability = 1;
 	else
 		paletteability = 0;
+
+	// change the transparent color to black
+		palettemain[255*3] = 0;
+		palettemain[255*3+1] = 0;
+		palettemain[255*3+2] = 0;
 
 
 	if (paletteability)		// load this palette for GL
@@ -2008,10 +2013,13 @@ static void Upload8( unsigned *data,
 			a *= 1.9;
 			a /= 255;
 			a *= 255;
+			if (a > 1 && voodootype ==1 )	isalphaedrgba = 1; // voodoo graphics fix
 		}
+
 
 	if (paletteability)
 	 R_PickTexturePalette(1);
+
 
 	if (paletteability && !isalphaedrgba)				// Preparing for native upload
 	{
@@ -2032,6 +2040,7 @@ static void Upload8( unsigned *data,
 			thecol = 255; // transparent color
 			}
 			scan[i] = thecol;
+			samples = 1;
 		}
 
 	}
@@ -2072,7 +2081,13 @@ static void Upload8( unsigned *data,
 	{
 
 		// select proper internal format
-		if ( samples == 3 )
+
+
+		if ( samples == 1 )
+		{
+			internalFormat = GL_LUMINANCE;	// leilei - gl has no knowledge of a paletted format, so use this for imagelist
+		}
+		else if ( samples == 3 )
 		{
 			internalFormat = GL_RGB;
 		}
@@ -2080,6 +2095,7 @@ static void Upload8( unsigned *data,
 		{
 			internalFormat = GL_RGBA;
 		}
+
 	}
 
 	// copy or resample data as appropriate for first MIP level
@@ -2241,10 +2257,19 @@ image_t *R_CreateImage( const char *name, byte *pic, int width, int height,
 
 	image->width = width;
 	image->height = height;
-	if (flags & IMGFLAG_CLAMPTOEDGE)
-		glWrapClampMode = GL_CLAMP_TO_EDGE;
+	if (voodootype){			// leilei - 3dfx needs the old behavior
+		if (flags & IMGFLAG_CLAMPTOEDGE)
+			glWrapClampMode = GL_CLAMP; 
+		else
+			glWrapClampMode = GL_REPEAT;
+	}
 	else
-		glWrapClampMode = GL_REPEAT;
+	{
+		if (flags & IMGFLAG_CLAMPTOEDGE)
+			glWrapClampMode = GL_CLAMP_TO_EDGE; 
+		else
+			glWrapClampMode = GL_REPEAT;
+	}
 
 	// lightmaps are always allocated on TMU 1
 	if ( qglActiveTextureARB && isLightmap ) {

@@ -48,6 +48,7 @@ static cvar_t *r_bloom_sky_only;		// LEILEI
 extern float ScreenFrameCount;
 
 static struct {
+#ifdef GLSL_POSTPROCESSING
 	struct {
 		image_t	*texture;
 		int		width, height;
@@ -129,6 +130,7 @@ static struct {
 	} tveffect;
 
 	qboolean started;
+#endif
 } postproc;
 
 
@@ -748,6 +750,7 @@ static void ID_INLINE R_Bloom_QuadTV( int width, int height, float texX, float t
 
 
 static void R_Bloom_RestoreScreen_Postprocessed( void ) {
+#ifdef GLSL_POSTPROCESSING
 	glslProgram_t	*program;
 	if (leifxmode)
 	{
@@ -871,7 +874,7 @@ static void R_Bloom_RestoreScreen_Postprocessed( void ) {
 		}
 	if (vertexShaders) R_GLSL_UseProgram(0);
 	GL_SelectTexture(0);
-
+#endif
 }
 
 /*
@@ -1057,6 +1060,7 @@ R_Postprocess_InitTextures
 */
 static void R_Postprocess_InitTextures( void )
 {
+#ifdef GLSL_POSTPROCESSING
 	byte	*data;
 	int vidinted = glConfig.vidHeight * 0.55f;
 	int intdiv = 1;
@@ -1174,7 +1178,7 @@ if (intdiv > 1)
 
 	postproc.started = qtrue;
 	force32upload = 0;
-	
+#endif	
 }
 
 /*
@@ -1184,10 +1188,12 @@ R_InitPostprocessTextures
 */
 void R_InitPostprocessTextures( void )
 {
+#ifdef GLSL_POSTPROCESSING
 	if( !postprocess )
 		return;
 	memset( &postproc, 0, sizeof( postproc ));
 	R_Postprocess_InitTextures ();
+#endif
 }
 
 
@@ -1198,14 +1204,14 @@ Backup the full original screen to a texture for downscaling and later restorati
 =================
 */
 static void R_Postprocess_BackupScreen( void ) {
-
+#ifdef GLSL_POSTPROCESSING
 	GL_Bind( postproc.screen.texture );
 	qglCopyTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, 0, 0, glConfig.vidWidth, glConfig.vidHeight );
 
 	GL_Bind( postproc.depth.texture );
 	qglCopyTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, 0, 0, glConfig.vidWidth, glConfig.vidHeight );
 
-		
+#endif		
 }
 
 
@@ -1216,6 +1222,7 @@ R_PostprocessScreen
 */
 void R_PostprocessScreen( void )
 {
+#ifdef GLSL_POSTPROCESSING
 	if( !postprocess )
 		return;
 	if ( backEnd.donepostproc )
@@ -1233,19 +1240,6 @@ void R_PostprocessScreen( void )
 
 	if ( !backEnd.projection2D )
 		RB_SetGL2D();
-#if 0
-	// set up full screen workspace
-	GL_TexEnv( GL_MODULATE );
-	qglScissor( 0, 0, glConfig.vidWidth, glConfig.vidHeight );
-	qglViewport( 0, 0, glConfig.vidWidth, glConfig.vidHeight );
-	qglMatrixMode( GL_PROJECTION );
-    qglLoadIdentity ();
-	qglOrtho( 0, glConfig.vidWidth, glConfig.vidHeight, 0, 0, 1 );
-	qglMatrixMode( GL_MODELVIEW );
-    qglLoadIdentity ();
-
-	GL_Cull( CT_TWO_SIDED );
-#endif
 
 	qglColor4f( 1, 1, 1, 1 );
 
@@ -1253,17 +1247,24 @@ void R_PostprocessScreen( void )
 	R_Postprocess_BackupScreen();
 	//Redraw texture using GLSL program
 	R_Bloom_RestoreScreen_Postprocessed();
+#endif
 }
 
 
 
 void R_PostprocessingInit(void) {
+#ifdef GLSL_POSTPROCESSING
 	memset( &postproc, 0, sizeof( postproc ));
+#endif
 }
 
 
 // =================================================================
 // LEIFX FILTER EFFECTS
+//
+//		Some require external GLSL scripts (placed in baseoa/glsl)
+//	Some don't but are unstable on non-GL2 hardware anyway.
+//
 // =================================================================
 
 
@@ -1307,6 +1308,7 @@ void R_LeiFX_Stupid_Hack (void)
 }
 void R_LeiFXPostprocessDitherScreen( void )
 {
+#ifdef GLSL_POSTPROCESSING
 	if( !r_leifx->integer)
 		return;
 	if ( backEnd.doneleifx)
@@ -1341,12 +1343,13 @@ void R_LeiFXPostprocessDitherScreen( void )
 		}
 
 		force32upload = 0;	
-	
+#endif	
 }
 
 
 void R_LeiFXPostprocessFilterScreen( void )
 {
+#ifdef GLSL_POSTPROCESSING
 	if( !r_leifx->integer)
 		return;
 	if ( backEnd.doneleifx)
@@ -1397,19 +1400,23 @@ void R_LeiFXPostprocessFilterScreen( void )
 
 			force32upload = 0;
 	
-
+#endif
 }
 
 
 
 // =================================================================
 // NTSC EFFECTS
+//
+//		Thanks to the libretro team for their gpl ntsc shader code
+//
 // =================================================================
 
 
 
 void R_NTSCScreen( void )
 {
+#ifdef GLSL_POSTPROCESSING
 	if( !r_ntsc->integer)
 		return;
 	if ( backEnd.donentsc)
@@ -1485,7 +1492,7 @@ void R_NTSCScreen( void )
 
 			force32upload = 0;
 	
-
+#endif
 }
 
 // =================================================================
@@ -1546,6 +1553,7 @@ void R_BrightScreen( void )
 
 	if (r_alternateBrightness->integer == 1)
 		mode = 1;	// force use blend
+#ifdef GLSL_POSTPROCESSING
 	if (r_alternateBrightness->integer == 2)
 	{
 		// Automatically determine from capabilities
@@ -1558,6 +1566,7 @@ void R_BrightScreen( void )
 	// the modern pixel shader way
 	if (mode == 2)
 	{
+
 		if ( !vertexShaders )
 			return;		// leilei - cards without support for this should not ever activate this
 		if( !postproc.started ) {
@@ -1579,11 +1588,14 @@ void R_BrightScreen( void )
 		backEnd.doneAltBrightness = qtrue;
 	
 		force32upload = 0;
+
 	}	
 
 	// the fixed function quad blending way
 	else if (mode == 1)
+#endif
 	{
+
 		int eh, ah;
 		if ((r_overBrightBits->integer))
 			{
@@ -1616,6 +1628,11 @@ void R_AltBrightnessInit( void ) {
 
 // =================================================================
 // FILM POSTPROCESS
+//
+//		Really a bunch of blend planes trying to really fake
+//	some cinematic looks on fixed function hardware. Fillrate
+//	heavy.
+//
 // =================================================================
 
 void R_FilmScreen( void )
@@ -1723,6 +1740,8 @@ void R_FilmScreen( void )
 // leilei - old 2000 console-style antialiasing/antiflickering
 void R_RetroAAScreen( void )
 {
+	// this should not need glsl either, but
+#ifdef GLSL_POSTPROCESSING
 	if( !r_retroAA->integer)
 		return;
 	if ( backEnd.doneraa)
@@ -1749,7 +1768,7 @@ void R_RetroAAScreen( void )
 
 	force32upload = 0;
 	
-
+#endif
 }
 
 
@@ -1769,6 +1788,7 @@ void R_RetroAAScreen( void )
 
 void R_AnimeScreen( void )
 {
+#ifdef GLSL_POSTPROCESSING
 	if( !r_anime->integer)
 		return;
 	if ( backEnd.doneanime)
@@ -1800,7 +1820,7 @@ void R_AnimeScreen( void )
 	backEnd.doneanime = qtrue;
 
 			force32upload = 0;
-	
+#endif	
 
 }
 
@@ -1819,6 +1839,7 @@ void R_AnimeScreen( void )
 
 // leilei - motion blur hack
 void R_MotionBlur_BackupScreen(int which) {
+#ifdef GLSL_POSTPROCESSING
 	if( r_motionblur->integer < 3)
 		return;
 	if (which == 1){ GL_Bind( postproc.motion1.texture ); qglCopyTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, 0, 0, glConfig.vidWidth, glConfig.vidHeight ); }  // gather thee samples
@@ -1831,13 +1852,14 @@ void R_MotionBlur_BackupScreen(int which) {
 	if (which == 13){ GL_Bind( postproc.mpass1.texture ); qglCopyTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, 0, 0, glConfig.vidWidth, glConfig.vidHeight ); }	// to accum
 	if (which == 14){ GL_Bind( postproc.mpass1.texture ); qglCopyTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, 0, 0, glConfig.vidWidth, glConfig.vidHeight ); }	// to accum
 	if (which == 18){ GL_Bind( postproc.screen.texture ); qglCopyTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, 0, 0, glConfig.vidWidth, glConfig.vidHeight ); }	// to accum
-	
+#endif	
 	
 }
 
 
 void R_MblurScreen( void )
 {
+#ifdef GLSL_POSTPROCESSING
 	if( r_motionblur->integer < 3)
 		return;
 	if ( backEnd.donemblur)
@@ -1866,10 +1888,14 @@ void R_MblurScreen( void )
 	R_Postprocess_BackupScreen();
 	R_Bloom_RestoreScreen_Postprocessed();
 	force32upload = 0;
+#else
+	// NO! Use the accumulation buffer instead.
+#endif
 }
 
 void R_MblurScreenPost( void )
 {
+#ifdef GLSL_POSTPROCESSING
 	if( r_motionblur->integer < 3)
 		return;
 	if ( !backEnd.doneSurfaces )
@@ -1895,6 +1921,9 @@ void R_MblurScreenPost( void )
 //	R_Postprocess_BackupScreen();
 	R_Bloom_RestoreScreen_Postprocessed();
 	force32upload = 0;
+#else
+	// NO!
+#endif
 }
 
 
@@ -1904,7 +1933,7 @@ void R_MblurScreenPost( void )
 // =================================================================
 
 static void R_Postprocess_BackupScreenTV( void ) {
-
+#ifdef GLSL_POSTPROCESSING
 	int intdiv;
 	 intdiv = 1;
 
@@ -1921,18 +1950,18 @@ static void R_Postprocess_BackupScreenTV( void ) {
 
 	GL_Bind( postproc.screen.texture );
 	qglCopyTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, 0, 0, glConfig.vidWidth, glConfig.vidHeight);
-
+#endif
 }
 
 static void R_Postprocess_ScaleTV( void ) {
-
+#ifdef GLSL_POSTPROCESSING
 
 	GL_TexEnv( GL_MODULATE );
 	qglScissor( 0, 0, glConfig.vidWidth, glConfig.vidHeight );
 	qglViewport( 0, 0, glConfig.vidWidth, glConfig.vidHeight );
 	qglMatrixMode( GL_PROJECTION );
     qglLoadIdentity ();
-
+#endif
 }
 
 
@@ -1943,6 +1972,8 @@ float tvtime;
 
 void R_TVScreen( void )
 {
+	// leilei - this might not actually need glsl but we're doing this anyway.
+#ifdef GLSL_POSTPROCESSING
 	if( r_tvMode->integer < 0)
 		return;
 	if ( backEnd.donetv)
@@ -1995,7 +2026,9 @@ void R_TVScreen( void )
 	backEnd.donetv = qtrue;
 
 	force32upload = 0;
-	
+#else
+	// NO!
+#endif	
 
 }
 
@@ -2006,6 +2039,10 @@ void R_TVScreen( void )
 
 // =================================================================
 // PALLETIZING
+//
+// 		Processes the screen into having a 8-bit indexed color 
+//	palette	to suit a throwback mode better
+//
 // =================================================================
 
 
@@ -2013,6 +2050,7 @@ void R_TVScreen( void )
 
 void R_PaletteScreen( void )
 {
+#ifdef GLSL_POSTPROCESSING
 	if( !r_palletize->integer)
 		return;
 	if ( backEnd.donepalette)
@@ -2041,7 +2079,9 @@ void R_PaletteScreen( void )
 
 	force32upload = 0;
 	
-
+#else
+	// NO!
+#endif
 }
 
 

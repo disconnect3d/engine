@@ -30,11 +30,14 @@ float       displayAspect = 0.0f;
 qboolean    vertexShaders = qfalse;
 qboolean	postprocess = qfalse;
 qboolean    palettedTextureSupport = qfalse;		// leilei - paletted textures
+
 char 		depthimage;
 
 glstate_t	glState;
 
 static void GfxInfo_f( void );
+
+extern int voodootype;
 
 #ifdef USE_RENDERER_DLOPEN
 cvar_t  *com_altivec;
@@ -104,6 +107,7 @@ cvar_t	*r_ext_texture_filter_anisotropic;
 cvar_t	*r_ext_max_anisotropy;
 cvar_t	*r_ext_vertex_shader;
 cvar_t	*r_ext_paletted_texture;	// leilei - Paletted Texture
+cvar_t	*r_ext_gamma_control;		// leilei - 3dfx gamma control
 cvar_t	*r_postprocess;
 
 cvar_t	*r_ignoreGLErrors;
@@ -191,6 +195,7 @@ cvar_t	*r_lensReflectionBrightness;
 cvar_t	*r_flareMethod;		// method of flare intensity
 cvar_t	*r_flareQuality;	// testing quality of the flares. 
 cvar_t	*r_flareSun;		// type of flare to use for the sun
+cvar_t	*r_flareDelay;		// time delay for medium quality flare testing 
 
 cvar_t	*r_specMode;
 //cvar_t	*r_waveMode;
@@ -1109,6 +1114,18 @@ void GfxInfo_f( void )
 	if ( r_finish->integer ) {
 		ri.Printf( PRINT_ALL, "Forcing glFinish\n" );
 	}
+	if (voodootype){
+
+			if (voodootype == 1)
+				ri.Printf( PRINT_ALL, "3Dfx Voodoo Graphics assumed\n" );
+			else if (voodootype == 2)
+				ri.Printf( PRINT_ALL, "3Dfx Voodoo2 assumed\n" );
+			else if (voodootype == 3)
+				ri.Printf( PRINT_ALL, "3dfx Voodoo3 assumed\n" );
+			else if (voodootype == 4)
+				ri.Printf( PRINT_ALL, "3dfx Voodoo 4 or 5 assumed\n" );
+			
+		}
 }
 
 /*
@@ -1135,6 +1152,7 @@ void R_Register( void )
 			"0", CVAR_ARCHIVE | CVAR_LATCH );
 	r_ext_max_anisotropy = ri.Cvar_Get( "r_ext_max_anisotropy", "2", CVAR_ARCHIVE | CVAR_LATCH );
 	r_ext_paletted_texture = ri.Cvar_Get( "r_ext_paletted_texture", "0", CVAR_ARCHIVE | CVAR_LATCH );	// leilei - paletted texture support
+	r_ext_gamma_control = ri.Cvar_Get( "r_ext_gamma_control", "1", CVAR_ARCHIVE | CVAR_LATCH );	// leilei - 3dfx gamma support
 
 	r_postprocess = ri.Cvar_Get( "r_postprocess", "none", CVAR_ARCHIVE|CVAR_LATCH );
 	r_ext_vertex_shader = ri.Cvar_Get( "r_ext_vertex_shader", "0", CVAR_ARCHIVE|CVAR_LATCH );
@@ -1273,7 +1291,7 @@ void R_Register( void )
 	r_lensReflection2 = ri.Cvar_Get( "r_lensReflection2", "0" , CVAR_ARCHIVE); // fuzzy reflection
 	r_lensReflectionBrightness = ri.Cvar_Get( "r_lensReflectionBrightness", "0.5" , CVAR_ARCHIVE);
 
-	r_flareQuality = ri.Cvar_Get( "r_flareQuality", "0" , CVAR_ARCHIVE);	// use fast flares for default
+	r_flareQuality = ri.Cvar_Get( "r_flareQuality", "1" , CVAR_ARCHIVE);	// use medium flares for default
 	r_flareMethod = ri.Cvar_Get( "r_flareMethod", "0" , CVAR_ARCHIVE);	
 	r_flaresDlight = ri.Cvar_Get( "r_flaresDlight", "0" , CVAR_ARCHIVE );	// dynamic light flares 
 	r_flaresDlightShrink = ri.Cvar_Get( "r_flaresDlightShrink", "1" , CVAR_ARCHIVE );	// dynamic light flares shrinking when close (reducing muzzleflash blindness)
@@ -1281,6 +1299,7 @@ void R_Register( void )
 	r_flaresDlightOpacity = ri.Cvar_Get( "r_flaresDlightOpacity", "0.5" , CVAR_ARCHIVE );	// dynamic light flares (workaround poor visibility)
 	r_flaresDlightScale = ri.Cvar_Get( "r_flaresDlightScale", "0.7" , CVAR_ARCHIVE );	// dynamic light flares (workaround poor visibility)
 	r_flareSun = ri.Cvar_Get( "r_flareSun", "0" , CVAR_ARCHIVE);	// it's 0 because mappers expect 0.
+	r_flareDelay = ri.Cvar_Get( "r_flareDelay", "100" , CVAR_CHEAT);	// update delay for flare pixel read checking.
 
 
 	r_mockvr = ri.Cvar_Get( "r_mockvr", "0" , CVAR_CHEAT);	
@@ -1399,6 +1418,7 @@ static glslProgram_t *R_GLSL_AllocProgram(void) {
  */
 
 void R_GLSL_Init(void) {
+#ifdef GLSL_BACKEND
 	glslProgram_t	*program;
 	char			programVertexObjects[MAX_PROGRAM_OBJECTS][MAX_QPATH];
 	char			programFragmentObjects[MAX_PROGRAM_OBJECTS][MAX_QPATH];
@@ -1512,6 +1532,7 @@ void R_GLSL_Init(void) {
 			ri.Printf( PRINT_ALL, "WARNING: Cannot locate postprocessing glsl program %s\n" ,r_postprocess->string);
 		if (tr.postprocessingProgram) postprocess=qtrue;
 		}
+#endif
 }
 
 
@@ -1596,8 +1617,9 @@ void R_Init( void ) {
 	InitOpenGL();
 
 	R_InitImages();
-
+#ifdef GLSL_BACKEND
 	R_GLSL_Init();
+#endif
 	R_InitShaders();
 
 	R_InitSkins();

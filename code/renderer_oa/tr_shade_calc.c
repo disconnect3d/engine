@@ -1372,6 +1372,96 @@ void RB_CalcRotateTexCoords( float degsPerSecond, float *st )
 }
 
 
+
+
+/*
+** RB_CalcAtlasTexCoords
+*/
+
+
+// TODO: refactor. There is a loop in there for now
+
+void RB_CalcAtlasTexCoords( const atlas_t *at, float *st )
+{
+	float p;
+	texModInfo_t tmi;
+	int w = (int)at->width;	
+	int h = (int)at->height;
+
+	int framex, framey;
+
+	// modes:
+	// 0 - static / animated
+	// 1 - entity alpha (i.e. cgame rocket smoke)
+
+	if (at->mode == 1)	// follow alpha modulation
+	{
+		int frametotal = w * h;
+		float alha = ((0.25+backEnd.currentEntity->e.shaderRGBA[3]) / (tr.identityLight * 256.0f));
+		int framethere = frametotal - ((frametotal * alha));
+			int f;
+			framex = 0;
+			for(f=0; f<framethere; f++)
+			{
+				framex +=1;
+
+					if (framex >= w){
+						framey +=1;	// next row!
+						framex = 0; // reset column
+					}
+			}
+
+	}
+	else			// static/animated
+	{
+		//
+		// Process frame sequence for animation
+		//
+		
+		{
+			int framethere = (tess.shaderTime * at->fps) + at->frame;			
+
+				int f;
+				framex = 0;
+				for(f=0; f<framethere; f++)
+				{
+					framex +=1;
+	
+						if (framex >= w){
+							framey +=1;	// next row!
+							framex = 0; // reset column
+						}
+						if (framey >= h){
+							framey = 0; // reset row
+							framex = 0; // reset column
+						}
+				}
+				
+
+		}
+	}
+
+		
+
+	
+	//
+	// now use that information to alter our coordinates
+	//
+
+	tmi.matrix[0][0] = 1.0f / w;
+	tmi.matrix[1][0] = 0;
+	tmi.matrix[2][0] = 0;
+	tmi.translate[0] = ((1.0f / w) * framex);
+
+	tmi.matrix[0][1] = 0;
+	tmi.matrix[1][1] = 1.0f / h;
+	tmi.matrix[2][1] = 0;
+	tmi.translate[1] = ((1.0f / h) * framey);
+
+	RB_CalcTransformTexCoords( &tmi, st );
+}
+
+
 /*
 ** RB_CalcSpecularAlpha
 **

@@ -769,6 +769,11 @@ static void GLimp_InitExtensions( void )
 
 #define R_MODE_FALLBACK 3 // 640 * 480
 
+#if defined( _WIN32 ) && defined( USE_CONSOLE_WINDOW )
+void	Sys_DestroyConsole(void);
+void Sys_ShowConsole( int visLevel, qboolean quitOnClose );
+#endif
+
 /*
 ===============
 GLimp_Init
@@ -840,6 +845,15 @@ success:
 	// http://bugzilla.icculus.org/show_bug.cgi?id=4316
 	glConfig.deviceSupportsGamma = SDL_SetGamma( 1.0f, 1.0f, 1.0f ) >= 0;
 
+
+#ifdef _WIN32
+	// leilei - 3dfx gamma 
+	if ( qwglSetDeviceGammaRamp3DFX )
+	{
+		glConfig.deviceSupportsGamma = 1; // force it
+	}
+#endif
+
 	if ( -1 == r_ignorehwgamma->integer)
 		glConfig.deviceSupportsGamma = 1;
 
@@ -861,6 +875,11 @@ success:
 
 	// This depends on SDL_INIT_VIDEO, hence having it here
 	ri.IN_Init( );
+
+#if defined( _WIN32 ) && defined( USE_CONSOLE_WINDOW )
+		// leilei - hide our console window
+	Sys_ShowConsole(0, 0 );
+#endif
 }
 
 

@@ -10,6 +10,11 @@
 
 #include "tr_local.h"
 
+#ifdef _WIN32
+BOOL  ( WINAPI * qwglGetDeviceGammaRamp3DFX)( HDC, LPVOID );		// leilei - 3dfx gamma fix
+BOOL  ( WINAPI * qwglSetDeviceGammaRamp3DFX)( HDC, LPVOID );
+#endif
+
 // GL_ARB_shader_objects
 GLvoid (APIENTRYP qglDeleteObjectARB) (GLhandleARB obj);
 GLhandleARB (APIENTRYP qglGetHandleARB) (GLenum pname);
@@ -120,6 +125,7 @@ typedef enum {
 */
 
 int	softwaremode;	// leilei - detect for software mode
+int	voodootype;	// leilei - detect for voodoo revision
 
 /** From renderer_opengl2 (v28) */
 static qboolean GLimp_HaveExtension(const char *ext)
@@ -134,6 +140,7 @@ static qboolean GLimp_HaveExtension(const char *ext)
 void GLimp_InitExtraExtensions()
 {
 	vertexShaders = qfalse;
+#ifdef GLSL_BACKEND
 	if ( GLimp_HaveExtension( "GL_ARB_shader_objects" )
 	     && GLimp_HaveExtension( "GL_ARB_fragment_shader" )
 	     && GLimp_HaveExtension( "GL_ARB_vertex_shader" )
@@ -240,7 +247,7 @@ void GLimp_InitExtraExtensions()
 	{
 		ri.Printf( PRINT_ALL, "...GL_ARB_vertex_shader not found\n" );
 	}
-
+#endif
 	// leilei - paletted texturing
 	palettedTextureSupport = qfalse;
 	if ( GLimp_HaveExtension( "GL_EXT_paletted_texture" ) )
@@ -264,6 +271,41 @@ void GLimp_InitExtraExtensions()
 	{
 		ri.Printf( PRINT_ALL, "...GL_EXT_paletted_texture not found\n" );
 	}
+
+#ifdef _WIN32
+	// leilei - 3dfx gamma
+	// WGL_3DFX_gamma_control
+	qwglGetDeviceGammaRamp3DFX = NULL;
+	qwglSetDeviceGammaRamp3DFX = NULL;
+
+	if ( strstr( glConfig.extensions_string, "WGL_3DFX_gamma_control" ) )
+	{
+		if ( !r_ignorehwgamma->integer && r_ext_gamma_control->integer )
+		{
+			qwglGetDeviceGammaRamp3DFX = ( BOOL ( WINAPI * )( HDC, LPVOID ) ) SDL_GL_GetProcAddress( "wglGetDeviceGammaRamp3DFX" );
+			qwglSetDeviceGammaRamp3DFX = ( BOOL ( WINAPI * )( HDC, LPVOID ) ) SDL_GL_GetProcAddress( "wglSetDeviceGammaRamp3DFX" );
+
+			if ( qwglGetDeviceGammaRamp3DFX && qwglSetDeviceGammaRamp3DFX )
+			{
+				ri.Printf( PRINT_ALL, "...using WGL_3DFX_gamma_control\n" );
+			}
+			else
+			{
+				qwglGetDeviceGammaRamp3DFX = NULL;
+				qwglSetDeviceGammaRamp3DFX = NULL;
+			}
+		}
+		else
+		{
+			ri.Printf( PRINT_ALL, "...ignoring WGL_3DFX_gamma_control\n" );
+		}
+	}
+	else
+	{
+		ri.Printf( PRINT_ALL, "...WGL_3DFX_gamma_control not found\n" );
+	}
+#endif
+
     // XXX This is likely too late to check the com_abnormalExit cvar
     if( ri.Cvar_VariableIntegerValue( "com_abnormalExit" ) )
     {
@@ -301,6 +343,40 @@ void GLimp_InitExtraExtensions()
 	// VOODOO GRAPHICS w/ 2MB
 	else if ( strstr( buf, "voodoo graphics/1 tmu/2 mb" ) )
 	{
+		voodootype = 1;
+		ri.Printf( PRINT_ALL, "3dfx Voodoo Graphics assumed\n" );
+	}
+	// any Voodoo Graphics
+	else if ( strstr( buf, "voodoo graphics" ) )
+	{
+		voodootype = 1;
+		ri.Printf( PRINT_ALL, "3dfx Voodoo Graphics assumed\n" );
+	}
+	else if ( strstr( buf, "voodoo2" ) )
+	{
+		voodootype = 2;
+		ri.Printf( PRINT_ALL, "3dfx Voodoo2 assumed\n" );
+	}
+	else if ( strstr( buf, "voodoo3" ) )
+	{
+		voodootype = 3;
+		ri.Printf( PRINT_ALL, "3dfx Voodoo3 assumed\n" );
+	}
+	else if ( strstr( buf, "voodoo4" ) )
+	{
+		voodootype = 4;
+		ri.Printf( PRINT_ALL, "3dfx Voodoo4 assumed\n" );
+	}
+	else if ( strstr( buf, "voodoo5" ) )
+	{
+		voodootype = 4;
+		ri.Printf( PRINT_ALL, "3dfx Voodoo5 assumed\n" );
+	}
+	// Just any voodoo at this point.
+	else if ( strstr( buf, "voodoo" ) )
+	{
+		voodootype = 1;
+		ri.Printf( PRINT_ALL, "3dfx Voodoo of some sort assumed (V1 mode)\n" );
 	}
 	else if ( strstr( buf, "glzicd" ) )
 	{

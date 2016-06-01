@@ -152,6 +152,18 @@ ifndef USE_OPENAL
 USE_OPENAL=1
 endif
 
+ifndef GLSL_POSTPROCESS
+GLSL_POSTPROCESS=1
+endif
+
+ifndef GLSL_TEXTURES
+GLSL_TEXTURES=1
+endif
+
+ifndef GLSL_BACKEND
+GLSL_BACKEND=1
+endif
+
 ifndef USE_OPENAL_DLOPEN
 USE_OPENAL_DLOPEN=1
 endif
@@ -218,6 +230,10 @@ endif
 
 ifndef USE_RENDERER_DLOPEN
 USE_RENDERER_DLOPEN=1
+endif
+
+ifndef USE_CONSOLE_WINDOW
+USE_CONSOLE_WINDOW=1
 endif
 
 ifndef DEBUG_CFLAGS
@@ -295,7 +311,7 @@ ifeq ($(wildcard .git),.git)
   endif
 endif
 
-
+USE_GIT=0
 #############################################################################
 # SETUP AND BUILD -- LINUX
 #############################################################################
@@ -326,6 +342,7 @@ ifneq (,$(findstring "$(PLATFORM)", "linux" "gnu_kfreebsd" "kfreebsd-gnu"))
 
   OPTIMIZEVM = -O3 -funroll-loops -fomit-frame-pointer
   OPTIMIZE = $(OPTIMIZEVM) -ffast-math
+
 
   ifeq ($(ARCH),x86_64)
     OPTIMIZEVM = -O3 -fomit-frame-pointer -funroll-loops \
@@ -572,6 +589,7 @@ ifeq ($(PLATFORM),mingw32)
       -falign-loops=2 -funroll-loops -falign-jumps=2 -falign-functions=2 \
       -fstrength-reduce
     OPTIMIZE = $(OPTIMIZEVM) -ffast-math
+    OPTIMIZE += -flto
     HAVE_VM_COMPILED = true
   endif
 
@@ -585,10 +603,17 @@ ifeq ($(PLATFORM),mingw32)
     TOOLS_BINEXT=.exe
   endif
 
-  LIBS= -lws2_32 -lwinmm -lpsapi
+  LIBS= -lws2_32 -lwinmm 
   CLIENT_LDFLAGS += -mwindows
   CLIENT_LIBS = -lgdi32 -lole32
   RENDERER_LIBS = -lgdi32 -lole32 -lopengl32
+
+  #ifeq ($(USE_CONSOLE_WINDOW),0)
+    CLIENT_CFLAGS += -DUSE_CONSOLE_WINDOW
+    CLIENT_LIBS += -lcomdlg32 -lcomctl32
+    LIBS += -lcomdlg32 -lcomctl32
+    LIBS += -lgdi32 -lole32 -lcomctl32 -lcomdlg32 #leilei - for console. if it works. :/
+  #endif
 
   ifeq ($(USE_FREETYPE),1)
     BASE_CFLAGS += -Ifreetype2
@@ -1704,6 +1729,7 @@ Q3ROAOBJ = \
   $(B)/renderer_oa/tr_mesh.o \
   $(B)/renderer_oa/tr_model.o \
   $(B)/renderer_oa/tr_model_iqm.o \
+  $(B)/renderer_oa/tr_model_mdo.o \
   $(B)/renderer_oa/tr_noise.o \
   $(B)/renderer_oa/tr_scene.o \
   $(B)/renderer_oa/tr_shade.o \
@@ -1777,6 +1803,7 @@ Q3RSOFTOBJ = \
   $(B)/renderer_oa/tr_mesh.o \
   $(B)/renderer_oa/tr_model.o \
   $(B)/renderer_oa/tr_model_iqm.o \
+  $(B)/renderer_oa/tr_model_mdo.o \
   $(B)/renderer_oa/tr_noise.o \
   $(B)/renderer_oa/tr_scene.o \
   $(B)/renderer_oa/tr_shade.o \

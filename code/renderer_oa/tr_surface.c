@@ -854,6 +854,7 @@ static void LerpMeshVertexes(md3Surface_t *surf, float backlerp)
 	LerpMeshVertexes_scalar( surf, backlerp );
 }
 
+void RB_SurfaceMDO( mdoSurface_t *surface );
 
 /*
 =============
@@ -1300,6 +1301,7 @@ void (*rb_surfaceTable[SF_NUM_SURFACE_TYPES])( void *) = {
 	(void(*)(void*))RB_SurfacePolychain,		// SF_POLY,
 	(void(*)(void*))RB_SurfaceMesh,			// SF_MD3,
 	(void(*)(void*))RB_MDRSurfaceAnim,		// SF_MDR,
+	(void(*)(void*))RB_SurfaceMDO,			// SF_MDO,
 	(void(*)(void*))RB_IQMSurfaceAnim,		// SF_IQM,
 	(void(*)(void*))RB_SurfaceFlare,		// SF_FLARE,
 	(void(*)(void*))RB_SurfaceEntity,		// SF_ENTITY

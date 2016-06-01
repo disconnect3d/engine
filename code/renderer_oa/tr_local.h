@@ -31,10 +31,16 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "../renderercommon/tr_public.h"
 #include "../renderercommon/tr_common.h"
 #include "../renderercommon/iqm.h"
+#include "tr_mdo.h"
 #include "../renderercommon/qgl.h"
 
 #define GL_INDEX_TYPE		GL_UNSIGNED_INT
 typedef unsigned int glIndex_t;
+
+// Lousy hack
+#define GLSL_POSTPROCESSING 1
+#define GLSL_TEXTURES 1
+#define GLSL_BACKEND 1
 
 // 14 bits
 // can't be increased without changing bit packing for drawsurfs
@@ -215,6 +221,16 @@ typedef struct {
 	float frequency;
 } waveForm_t;
 
+// leilei - texture atlases
+typedef struct {
+	float width;			// columns
+	float height;			// rows
+	float fps;			// frames per second
+	int frame;			// offset frame
+	float mode;			// 0 - static/anim  1 - entityalpha
+} atlas_t;
+
+
 #define TR_MAX_TEXMODS 4
 
 typedef enum {
@@ -225,6 +241,7 @@ typedef enum {
 	TMOD_SCALE,
 	TMOD_STRETCH,
 	TMOD_LIGHTSCALE,		// leilei - cel hack
+	TMOD_ATLAS,			// leilei - atlases
 	TMOD_ROTATE,
 	TMOD_ENTITY_TRANSLATE
 } texMod_t;
@@ -260,6 +277,8 @@ typedef struct {
 	// used for TMOD_SCROLL
 	float			scroll[2];			// s' = s + scroll[0] * time
 										// t' = t + scroll[1] * time
+	// leilei - used for TMOD_ATLAS
+	atlas_t			atlas;
 
 	// + = clockwise
 	// - = counterclockwise
@@ -526,6 +545,7 @@ typedef enum {
 	SF_POLY,
 	SF_MD3,
 	SF_MDR,
+	SF_MDO,
 	SF_IQM,
 	SF_FLARE,
 	SF_ENTITY,				// beams, rails, lightning, etc that can be determined by entity
@@ -926,6 +946,7 @@ typedef enum {
 	MOD_BRUSH,
 	MOD_MESH,
 	MOD_MDR,
+	MOD_MDO,
 	MOD_IQM
 } modtype_t;
 
@@ -937,7 +958,7 @@ typedef struct model_s {
 	int			dataSize;	// just for listing purposes
 	bmodel_t	*bmodel;		// only if type == MOD_BRUSH
 	md3Header_t	*md3[MD3_MAX_LODS];	// only if type == MOD_MESH
-	void	*modelData;			// only if type == (MOD_MDR | MOD_IQM)
+	void	*modelData;			// only if type == (MOD_MDR | MOD_IQM | MOD_MDO)
 
 	int			 numLods;
 } model_t;
@@ -1231,6 +1252,7 @@ extern cvar_t	*r_flareFade;
 extern cvar_t	*r_flareQuality;
 extern cvar_t	*r_flareSun;
 extern cvar_t	*r_flareMethod;
+extern cvar_t	*r_flareDelay;
 
 // coefficient for the flare intensity falloff function.
 #define FLARE_STDCOEFF "150"
@@ -1338,6 +1360,7 @@ extern	cvar_t	*r_lensReflection2;
 extern	cvar_t	*r_lensReflectionBrightness;
 
 extern cvar_t	*r_ext_paletted_texture;		// leilei - Paletted Texture
+extern cvar_t	*r_ext_gamma_control;			// leilei - 3dfx gamma control
 extern	cvar_t	*r_specMode;		
 //extern	cvar_t	*r_waveMode;	
 
@@ -2121,6 +2144,7 @@ void	RB_CalcAlphaFromEntity( unsigned char *dstColors );
 void	RB_CalcAlphaFromOneMinusEntity( unsigned char *dstColors );
 void	RB_CalcStretchTexCoords( const waveForm_t *wf, float *texCoords );
 void	RB_CalcLightscaleTexCoords( float *texCoords );
+void	RB_CalcAtlasTexCoords( const atlas_t *at, float *st );
 void	RB_CalcColorFromEntity( unsigned char *dstColors );
 void	RB_CalcColorFromOneMinusEntity( unsigned char *dstColors );
 void	RB_CalcSpecularAlpha( unsigned char *alphas );
@@ -2307,6 +2331,7 @@ void R_AltBrightnessInit( void );
 void R_FilmScreen( void );	//	leilei - film effect
 extern int softwaremode;
 extern int leifxmode;
+extern int voodootype; // 0 - none 1 - Voodoo Graphics 2 - Voodoo2, 3 - Voodoo Banshee/3, 4 - Voodoo4/5
 
 void RB_UpdateMotionBlur (void);
 void R_MotionBlur_BackupScreen(int which);

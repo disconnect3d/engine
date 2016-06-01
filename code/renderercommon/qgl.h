@@ -740,6 +740,11 @@ extern void (APIENTRY * qglDrawBuffersARB)(GLsizei n, const GLenum *bufs);
 #define WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB 0x00000002
 #define ERROR_INVALID_VERSION_ARB                 0x2095
 #define ERROR_INVALID_PROFILE_ARB                 0x2096
+
+// leilei - 3dfx gamma fix
+extern	BOOL  ( WINAPI * qwglGetDeviceGammaRamp3DFX)( HDC, LPVOID );
+extern	BOOL  ( WINAPI * qwglSetDeviceGammaRamp3DFX)( HDC, LPVOID );
+
 #endif
 
 extern          HGLRC(APIENTRY * qwglCreateContextAttribsARB) (HDC hdC, HGLRC hShareContext, const int *attribList);

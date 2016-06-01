@@ -15,6 +15,7 @@ the build dependencies for the "ioquake3" package.
 
 ```sh
 $ sudo aptitude build-dep ioquake3
+$ sudo apt-get install libsdl1.2-dev libxmp-dev
 $ git clone git://github.com/OpenArena/engine.git
 $ cd engine
 $ make

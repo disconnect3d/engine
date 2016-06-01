@@ -23,6 +23,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #include "tr_local.h"
 
+
 #include <string.h> // memcpy
 
 trGlobals_t		tr;
@@ -42,6 +43,9 @@ refimport_t	ri;
 // entities that will have procedurally generated surfaces will just
 // point at this for their sorting surface
 surfaceType_t	entitySurface = SF_ENTITY;
+
+
+void R_AddMDOSurfaces( trRefEntity_t *ent );
 
 /*
 =================
@@ -1244,6 +1248,9 @@ void R_AddEntitySurfaces (void) {
 					break;
 				case MOD_MDR:
 					R_MDRAddAnimSurfaces( ent );
+					break;
+				case MOD_MDO:
+					R_AddMDOSurfaces( ent );
 					break;
 				case MOD_IQM:
 					R_AddIQMSurfaces( ent );
