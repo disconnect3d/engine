@@ -24,6 +24,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #ifdef USE_VOIP
 cvar_t *sv_voip;
+cvar_t *sv_voipProtocol;
 #endif
 
 serverStatic_t	svs;				// persistant server info
@@ -54,12 +55,14 @@ cvar_t	*sv_dlRate;
 cvar_t	*sv_minPing;
 cvar_t	*sv_maxPing;
 cvar_t	*sv_gametype;
+cvar_t	*sv_dorestart;
 cvar_t	*sv_pure;
 cvar_t	*sv_floodProtect;
 cvar_t	*sv_lanForceRate; // dedicated 1 (LAN) server forces local client rates to 99999 (bug #491)
 #ifndef STANDALONE
 cvar_t	*sv_strictAuth;
 #endif
+cvar_t	*sv_public;
 cvar_t	*sv_banFile;
 
 serverBan_t serverBans[SERVER_MAXBANS];
@@ -245,7 +248,7 @@ void SV_MasterHeartbeat(const char *message)
 	netenabled = Cvar_VariableIntegerValue("net_enabled");
 
 	// "dedicated 1" is for lan play, "dedicated 2" is for inet public play
-	if (!com_dedicated || com_dedicated->integer != 2 || !(netenabled & (NET_ENABLEV4 | NET_ENABLEV6)))
+	if ( ( (!com_dedicated || com_dedicated->integer != 2) && !(sv_public->integer) ) || !(netenabled & (NET_ENABLEV4 | NET_ENABLEV6)))
 		return;		// only dedicated servers send heartbeats
 
 	// if not time yet, don't send anything
@@ -487,7 +490,7 @@ qboolean SVC_RateLimit( leakyBucket_t *bucket, int burst, int period ) {
 		int expired = interval / period;
 		int expiredRemainder = interval % period;
 
-		if ( expired > bucket->burst ) {
+		if ( expired > bucket->burst || interval < 0 ) {
 			bucket->burst = 0;
 			bucket->lastTime = now;
 		} else {
@@ -665,8 +668,8 @@ void SVC_Info( netadr_t from ) {
 	Info_SetValueForKey(infostring, "g_needpass", va("%d", Cvar_VariableIntegerValue("g_needpass")));
 
 #ifdef USE_VOIP
-	if (sv_voip->integer) {
-		Info_SetValueForKey( infostring, "voip", va("%i", sv_voip->integer ) );
+	if (sv_voipProtocol->string && *sv_voipProtocol->string) {
+		Info_SetValueForKey( infostring, "voip", sv_voipProtocol->string );
 	}
 #endif
 

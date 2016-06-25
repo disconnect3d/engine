@@ -27,24 +27,30 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 // A user mod should never modify this file
 
 #ifdef STANDALONE
-  #define PRODUCT_NAME			"iofoo3"
-  #define BASEGAME			"foobar"
-  #define CLIENT_WINDOW_TITLE     	"changeme"
-  #define CLIENT_WINDOW_MIN_TITLE 	"changeme2"
-  #define HOMEPATH_NAME_UNIX		".foo"
-  #define HOMEPATH_NAME_WIN		"FooBar"
+  #define PRODUCT_NAME			"ioq3+oa"
+  #define BASEGAME			"baseoa"
+  #define CLIENT_WINDOW_TITLE     	"OpenArena"
+  #define CLIENT_WINDOW_MIN_TITLE 	"OA"
+  #define HOMEPATH_NAME_UNIX		".openarena"
+  #define HOMEPATH_NAME_WIN		"OpenArena"
   #define HOMEPATH_NAME_MACOSX		HOMEPATH_NAME_WIN
-  #define GAMENAME_FOR_MASTER		"foobar"	// must NOT contain whitespace
-//  #define LEGACY_PROTOCOL	// You probably don't need this for your standalone game
+  #define GAMENAME_FOR_MASTER		"Quake3Arena"	// must NOT contain whitespace.  No servers show up if you use "openarena"
+  #define LEGACY_PROTOCOL		1 // OA still uses the legacy protocol
+  #define CINEMATICS_LOGO		"foologo.roq"
+  #define CINEMATICS_INTRO		"intro.roq"
 #else
-  #define PRODUCT_NAME			"ioq3"
-  #define BASEGAME			"baseq3"
-  #define CLIENT_WINDOW_TITLE     	"ioquake3"
-  #define CLIENT_WINDOW_MIN_TITLE 	"ioq3"
+  #define PRODUCT_NAME				"ioq3"
+  #define BASEGAME					"baseq3"
+  #define CLIENT_WINDOW_TITLE		"ioquake3"
+  #define CLIENT_WINDOW_MIN_TITLE	"ioq3"
   #define HOMEPATH_NAME_UNIX		".q3a"
-  #define HOMEPATH_NAME_WIN		"Quake3"
+  #define HOMEPATH_NAME_WIN			"Quake3"
   #define HOMEPATH_NAME_MACOSX		HOMEPATH_NAME_WIN
+  #define STEAMPATH_NAME			"Quake 3 Arena"
+  #define STEAMPATH_APPID			"2200"
   #define GAMENAME_FOR_MASTER		"Quake3Arena"
+  #define CINEMATICS_LOGO		"idlogo.RoQ"
+  #define CINEMATICS_INTRO		"intro.RoQ"
   #define LEGACY_PROTOCOL
 #endif
 
@@ -392,8 +398,9 @@ extern	vec4_t		colorLtGrey;
 extern	vec4_t		colorMdGrey;
 extern	vec4_t		colorDkGrey;
 
+#define NUMBER_OF_COLORS 9
 #define Q_COLOR_ESCAPE	'^'
-#define Q_IsColorString(p)	((p) && *(p) == Q_COLOR_ESCAPE && *((p)+1) && isalnum(*((p)+1))) // ^[0-9a-zA-Z]
+#define Q_IsColorString(p)      ((p) && *(p) == Q_COLOR_ESCAPE && *((p)+1) && *((p)+1) >= '0' && *((p)+1) <= '8') // ^[0-8]
 
 #define COLOR_BLACK	'0'
 #define COLOR_RED	'1'
@@ -403,7 +410,9 @@ extern	vec4_t		colorDkGrey;
 #define COLOR_CYAN	'5'
 #define COLOR_MAGENTA	'6'
 #define COLOR_WHITE	'7'
-#define ColorIndex(c)	(((c) - '0') & 0x07)
+#define COLOR_MENU	'8'
+#define ColorIndexForNumber(c) ((c) % NUMBER_OF_COLORS)
+#define ColorIndex(c) (ColorIndexForNumber((c) - '0'))
 
 #define S_COLOR_BLACK	"^0"
 #define S_COLOR_RED	"^1"
@@ -413,8 +422,9 @@ extern	vec4_t		colorDkGrey;
 #define S_COLOR_CYAN	"^5"
 #define S_COLOR_MAGENTA	"^6"
 #define S_COLOR_WHITE	"^7"
+#define S_COLOR_MENU	"^8"
 
-extern vec4_t	g_color_table[8];
+extern vec4_t	g_color_table[NUMBER_OF_COLORS];
 
 #define	MAKERGB( v, r, g, b ) v[0]=r;v[1]=g;v[2]=b
 #define	MAKERGBA( v, r, g, b, a ) v[0]=r;v[1]=g;v[2]=b;v[3]=a
@@ -562,7 +572,7 @@ typedef struct {
 #define Byte4Copy(a,b)			((b)[0]=(a)[0],(b)[1]=(a)[1],(b)[2]=(a)[2],(b)[3]=(a)[3])
 
 #define	SnapVector(v) {v[0]=((int)(v[0]));v[1]=((int)(v[1]));v[2]=((int)(v[2]));}
-// just in case you do't want to use the macros
+// just in case you don't want to use the macros
 vec_t _DotProduct( const vec3_t v1, const vec3_t v2 );
 void _VectorSubtract( const vec3_t veca, const vec3_t vecb, vec3_t out );
 void _VectorAdd( const vec3_t veca, const vec3_t vecb, vec3_t out );
@@ -701,6 +711,9 @@ void MakeNormalVectors( const vec3_t forward, vec3_t right, vec3_t up );
 // perpendicular vector could be replaced by this
 
 //int	PlaneTypeForNormal (vec3_t normal);
+qboolean Matrix4Compare(const float a[16], const float b[16]);
+void Matrix4Copy(const float in[16], float out[16]);
+void Matrix4Multiply(const float a[16], const float b[16], float out[16]);
 
 void MatrixMultiply(float in1[3][3], float in2[3][3], float out[3][3]);
 void AngleVectors( const vec3_t angles, vec3_t forward, vec3_t right, vec3_t up);
@@ -920,6 +933,7 @@ struct cvar_s {
 	qboolean	integral;
 	float			min;
 	float			max;
+	char			*description;
 
 	cvar_t *next;
 	cvar_t *prev;
@@ -1395,6 +1409,9 @@ typedef enum _flag_status {
 } flagStatus_t;
 
 
+// leilei - virtual res
+int vresWidth;
+int vresHeight;
 
 #define	MAX_GLOBAL_SERVERS				4096
 #define	MAX_OTHER_SERVERS					128
@@ -1410,6 +1427,6 @@ typedef enum _flag_status {
 
 
 #define LERP( a, b, w ) ( ( a ) * ( 1.0f - ( w ) ) + ( b ) * ( w ) )
-#define LUMA( red, green, blue ) ( 0.2126f * ( red ) + 0.7152f * ( green ) + 0.0722f * ( blue ) )
+#define LUMA( red, green, blue ) ( 0.296875f * ( red ) + 0.5859375f * ( green ) + 0.109375f * ( blue ) )
 
 #endif	// __Q_SHARED_H

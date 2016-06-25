@@ -82,7 +82,7 @@ void SV_UpdateConfigstrings(client_t *client)
 {
 	int index;
 
-	for( index = 0; index <= MAX_CONFIGSTRINGS; index++ ) {
+	for( index = 0; index < MAX_CONFIGSTRINGS; index++ ) {
 		// if the CS hasn't changed since we went to CS_PRIMED, ignore
 		if(!client->csUpdated[index])
 			continue;
@@ -422,11 +422,6 @@ void SV_SpawnServer( char *server, qboolean killBots ) {
 	// clear the whole hunk because we're (re)loading the server
 	Hunk_Clear();
 
-#ifndef DEDICATED
-	// Restart renderer
-	CL_StartHunkUsers( qtrue );
-#endif
-
 	// clear collision map data
 	CM_ClearMap();
 
@@ -614,6 +609,14 @@ void SV_SpawnServer( char *server, qboolean killBots ) {
 
 	Hunk_SetMark();
 
+#ifndef DEDICATED
+	if ( com_dedicated->integer ) {
+		// restart renderer in order to show console for dedicated servers
+		// launched through the regular binary
+		CL_StartHunkUsers( qtrue );
+	}
+#endif
+
 	Com_Printf ("-----------------------------------\n");
 }
 
@@ -635,6 +638,7 @@ void SV_Init (void)
 	Cvar_Get ("fraglimit", "20", CVAR_SERVERINFO);
 	Cvar_Get ("timelimit", "0", CVAR_SERVERINFO);
 	sv_gametype = Cvar_Get ("g_gametype", "0", CVAR_SERVERINFO | CVAR_LATCH );
+	sv_dorestart = Cvar_Get ("sv_dorestart", "0",0);
 	Cvar_Get ("sv_keywords", "", CVAR_SERVERINFO);
 	sv_mapname = Cvar_Get ("mapname", "nomap", CVAR_SERVERINFO | CVAR_ROM);
 	sv_privateClients = Cvar_Get ("sv_privateClients", "0", CVAR_SERVERINFO);
@@ -653,8 +657,9 @@ void SV_Init (void)
 	sv_serverid = Cvar_Get ("sv_serverid", "0", CVAR_SYSTEMINFO | CVAR_ROM );
 	sv_pure = Cvar_Get ("sv_pure", "1", CVAR_SYSTEMINFO );
 #ifdef USE_VOIP
-	sv_voip = Cvar_Get("sv_voip", "1", CVAR_SYSTEMINFO | CVAR_LATCH);
+	sv_voip = Cvar_Get("sv_voip", "1", CVAR_LATCH);
 	Cvar_CheckRange(sv_voip, 0, 1, qtrue);
+	sv_voipProtocol = Cvar_Get("sv_voipProtocol", sv_voip->integer ? "opus" : "", CVAR_SYSTEMINFO | CVAR_ROM );
 #endif
 	Cvar_Get ("sv_paks", "", CVAR_SYSTEMINFO | CVAR_ROM );
 	Cvar_Get ("sv_pakNames", "", CVAR_SYSTEMINFO | CVAR_ROM );
@@ -686,6 +691,7 @@ void SV_Init (void)
 #ifndef STANDALONE
 	sv_strictAuth = Cvar_Get ("sv_strictAuth", "1", CVAR_ARCHIVE );
 #endif
+	sv_public = Cvar_Get( "sv_public", "0", 0);
 	sv_banFile = Cvar_Get("sv_banFile", "serverbans.dat", CVAR_ARCHIVE);
 
 	// initialize bot cvars so they are listed and can be set before loading the botlib

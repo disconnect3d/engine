@@ -35,6 +35,16 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "../sys/sys_local.h"
 #include "sdl_icon.h"
 
+int tvMode;	// leilei - tvmode
+int tvWidth;
+int tvHeight;
+int tvinterlace;	// leilei - interlace value for height
+float tvAspectW;	// leilei - for aspect correction
+
+//int vresWidth;		
+//int vresHeight;		
+
+
 typedef enum
 {
 	RSERR_OK,
@@ -49,7 +59,13 @@ SDL_Window *SDL_window = NULL;
 static SDL_GLContext SDL_glContext = NULL;
 
 cvar_t *r_allowSoftwareGL; // Don't abort out if a hardware visual can't be obtained
+cvar_t *r_tvMode; // leilei - tv mode - force 480i rendering, which is then stretched and interlaced
+cvar_t *r_tvFilter; // leilei - tv filter
+cvar_t *r_tvModeAspect; // leilei - tv mode - to do widescreen and low res tv etc
+cvar_t *r_tvModeForceAspect; // leilei - tv mode - to force the screen into its native aspect
+cvar_t *r_motionblur; // leilei - moved here to set up accumulation bits
 cvar_t *r_allowResize; // make window resizable
+cvar_t *r_conMode; // leilei - console mode - force native resolutions of various consoles
 cvar_t *r_centerWindow;
 cvar_t *r_sdlDriver;
 
@@ -128,21 +144,34 @@ GLimp_DetectAvailableModes
 */
 static void GLimp_DetectAvailableModes(void)
 {
-	int i;
+	int i, j;
 	char buf[ MAX_STRING_CHARS ] = { 0 };
-	SDL_Rect modes[ 128 ];
+	int numSDLModes;
+	SDL_Rect *modes;
 	int numModes = 0;
 
-	int display = SDL_GetWindowDisplayIndex( SDL_window );
 	SDL_DisplayMode windowMode;
-
-	if( SDL_GetWindowDisplayMode( SDL_window, &windowMode ) < 0 )
+	int display = SDL_GetWindowDisplayIndex( SDL_window );
+	if( display < 0 )
 	{
-		ri.Printf( PRINT_WARNING, "Couldn't get window display mode, no resolutions detected\n" );
+		ri.Printf( PRINT_WARNING, "Couldn't get window display index, no resolutions detected: %s\n", SDL_GetError() );
+		return;
+	}
+	numSDLModes = SDL_GetNumDisplayModes( display );
+
+	if( SDL_GetWindowDisplayMode( SDL_window, &windowMode ) < 0 || numSDLModes <= 0 )
+	{
+		ri.Printf( PRINT_WARNING, "Couldn't get window display mode, no resolutions detected: %s\n", SDL_GetError() );
 		return;
 	}
 
-	for( i = 0; i < SDL_GetNumDisplayModes( display ); i++ )
+	modes = SDL_calloc( (size_t)numSDLModes, sizeof( SDL_Rect ) );
+	if ( !modes )
+	{
+		ri.Error( ERR_FATAL, "Out of memory" );
+	}
+
+	for( i = 0; i < numSDLModes; i++ )
 	{
 		SDL_DisplayMode mode;
 
@@ -152,10 +181,22 @@ static void GLimp_DetectAvailableModes(void)
 		if( !mode.w || !mode.h )
 		{
 			ri.Printf( PRINT_ALL, "Display supports any resolution\n" );
+			SDL_free( modes );
 			return;
 		}
 
 		if( windowMode.format != mode.format )
+			continue;
+
+		// SDL can give the same resolution with different refresh rates.
+		// Only list resolution once.
+		for( j = 0; j < numModes; j++ )
+		{
+			if( mode.w == modes[ j ].w && mode.h == modes[ j ].h )
+				break;
+		}
+
+		if( j != numModes )
 			continue;
 
 		modes[ numModes ].w = mode.w;
@@ -173,7 +214,7 @@ static void GLimp_DetectAvailableModes(void)
 		if( strlen( newModeString ) < (int)sizeof( buf ) - strlen( buf ) )
 			Q_strcat( buf, sizeof( buf ), newModeString );
 		else
-			ri.Printf( PRINT_WARNING, "Skipping mode %ux%x, buffer too small\n", modes[ i ].w, modes[ i ].h );
+			ri.Printf( PRINT_WARNING, "Skipping mode %ux%u, buffer too small\n", modes[ i ].w, modes[ i ].h );
 	}
 
 	if( *buf )
@@ -182,6 +223,7 @@ static void GLimp_DetectAvailableModes(void)
 		ri.Printf( PRINT_ALL, "Available modes: '%s'\n", buf );
 		ri.Cvar_Set( "r_availableModes", buf );
 	}
+	SDL_free( modes );
 }
 
 /*
@@ -194,6 +236,7 @@ static int GLimp_SetMode(int mode, qboolean fullscreen, qboolean noborder)
 	const char *glstring;
 	int perChannelColorBits;
 	int colorBits, depthBits, stencilBits;
+	int accumbits;	// leilei - motionblur
 	int samples;
 	int i = 0;
 	SDL_Surface *icon = NULL;
@@ -224,9 +267,15 @@ static int GLimp_SetMode(int mode, qboolean fullscreen, qboolean noborder)
 
 	// If a window exists, note its display index
 	if( SDL_window != NULL )
+	{
 		display = SDL_GetWindowDisplayIndex( SDL_window );
+		if( display < 0 )
+		{
+			ri.Printf( PRINT_DEVELOPER, "SDL_GetWindowDisplayIndex() failed: %s\n", SDL_GetError() );
+		}
+	}
 
-	if( SDL_GetDesktopDisplayMode( display, &desktopMode ) == 0 )
+	if( display >= 0 && SDL_GetDesktopDisplayMode( display, &desktopMode ) == 0 )
 	{
 		displayAspect = (float)desktopMode.w / (float)desktopMode.h;
 
@@ -314,6 +363,12 @@ static int GLimp_SetMode(int mode, qboolean fullscreen, qboolean noborder)
 	stencilBits = r_stencilbits->value;
 	samples = r_ext_multisample->value;
 
+	// leilei - motion blur via accumulation buffer support
+	if (r_motionblur->integer == 1)
+	accumbits = 16;
+	else
+	accumbits = 0;
+
 	for (i = 0; i < 16; i++)
 	{
 		int testColorBits, testDepthBits, testStencilBits;
@@ -347,6 +402,7 @@ static int GLimp_SetMode(int mode, qboolean fullscreen, qboolean noborder)
 		testColorBits = colorBits;
 		testDepthBits = depthBits;
 		testStencilBits = stencilBits;
+		
 
 		if ((i % 4) == 3)
 		{ // reduce colorBits
@@ -391,6 +447,12 @@ static int GLimp_SetMode(int mode, qboolean fullscreen, qboolean noborder)
 		SDL_GL_SetAttribute( SDL_GL_DEPTH_SIZE, testDepthBits );
 		SDL_GL_SetAttribute( SDL_GL_STENCIL_SIZE, testStencilBits );
 
+		// leilei - accumulation buffer motion blur
+		SDL_GL_SetAttribute( SDL_GL_ACCUM_RED_SIZE,   accumbits );
+		SDL_GL_SetAttribute( SDL_GL_ACCUM_GREEN_SIZE, accumbits );
+		SDL_GL_SetAttribute( SDL_GL_ACCUM_BLUE_SIZE,  accumbits );
+		SDL_GL_SetAttribute( SDL_GL_ACCUM_ALPHA_SIZE, accumbits );
+
 		SDL_GL_SetAttribute( SDL_GL_MULTISAMPLEBUFFERS, samples ? 1 : 0 );
 		SDL_GL_SetAttribute( SDL_GL_MULTISAMPLESAMPLES, samples );
 
@@ -407,12 +469,14 @@ static int GLimp_SetMode(int mode, qboolean fullscreen, qboolean noborder)
 		
 		SDL_GL_SetAttribute( SDL_GL_DOUBLEBUFFER, 1 );
 
+#if 0 // if multisampling is enabled on X11, this causes create window to fail.
 		// If not allowing software GL, demand accelerated
 		if( !r_allowSoftwareGL->integer )
 			SDL_GL_SetAttribute( SDL_GL_ACCELERATED_VISUAL, 1 );
+#endif
 
 		if( ( SDL_window = SDL_CreateWindow( CLIENT_WINDOW_TITLE, x, y,
-				glConfig.vidWidth, glConfig.vidHeight, flags ) ) == 0 )
+				glConfig.vidWidth, glConfig.vidHeight, flags ) ) == NULL )
 		{
 			ri.Printf( PRINT_DEVELOPER, "SDL_CreateWindow failed: %s\n", SDL_GetError( ) );
 			continue;
@@ -449,7 +513,14 @@ static int GLimp_SetMode(int mode, qboolean fullscreen, qboolean noborder)
 			continue;
 		}
 
-		SDL_GL_SetSwapInterval( r_swapInterval->integer );
+		qglClearColor( 0, 0, 0, 1 );
+		qglClear( GL_COLOR_BUFFER_BIT );
+		SDL_GL_SwapWindow( SDL_window );
+
+		if( SDL_GL_SetSwapInterval( r_swapInterval->integer ) == -1 )
+		{
+			ri.Printf( PRINT_DEVELOPER, "SDL_GL_SetSwapInterval failed: %s\n", SDL_GetError( ) );
+		}
 
 		glConfig.colorBits = testColorBits;
 		glConfig.depthBits = testDepthBits;
@@ -462,7 +533,73 @@ static int GLimp_SetMode(int mode, qboolean fullscreen, qboolean noborder)
 
 	SDL_FreeSurface( icon );
 
+	if( !SDL_window )
+	{
+		ri.Printf( PRINT_ALL, "Couldn't get a visual\n" );
+		return RSERR_INVALID_MODE;
+	}
+	
 	GLimp_DetectAvailableModes();
+	// leilei - TV MODE
+	//
+	tvWidth = glConfig.vidWidth;
+	tvHeight = glConfig.vidHeight;
+
+	vresWidth = glConfig.vidWidth;
+	vresHeight = glConfig.vidHeight;
+
+
+
+
+	vresWidth = 640;
+	vresHeight = 480;
+	//tvAspectW = 1.0; // no change
+
+	if( r_tvMode->integer > -1){
+
+
+	if ( !R_GetModeInfo( &glConfig.vidWidth, &glConfig.vidHeight, &glConfig.windowAspect, r_tvMode->integer ) )
+	{
+		glConfig.vidWidth = 640;		// if we can't do a mode then do this mode
+		glConfig.vidHeight = 480;
+	}
+
+
+	if (glConfig.vidWidth > tvWidth)	glConfig.vidWidth = tvWidth; // clamp
+	if (glConfig.vidHeight > tvHeight)	glConfig.vidHeight = tvHeight; // clamp
+		
+
+	// leilei - make it use an aspect-corrected lower resolution that's always 640 wide for the width, but variable height
+	// then change the gl port..
+
+	vresWidth = tvWidth;
+	vresHeight = tvHeight;
+
+	if( r_tvModeForceAspect->integer ){
+		float ttw = (float)glConfig.vidWidth / ((float)tvWidth * (float)((float)glConfig.vidHeight/(float)tvHeight));			// 640 / 853 = 0.75 = ASPECT VALUE
+
+		tvAspectW = ttw; // let's try this first to see if we can get it to our renderer
+
+		//tvAspectW = 0.75f; // let's try this first to see if we can get it to our renderer
+
+		}
+
+	}
+	// leilei - tv mode hack end
+
+
+
+
+if( r_tvModeAspect->integer ){
+		float aspe = 640.0f / tvWidth;
+		glConfig.vidWidth = tvWidth * aspe;
+		glConfig.vidHeight = tvHeight * aspe;
+
+		}
+		// then change the gl port..
+
+
+
 
 	glstring = (char *) qglGetString (GL_RENDERER);
 	ri.Printf( PRINT_ALL, "GL_RENDERER: %s\n", glstring );
@@ -483,7 +620,7 @@ static qboolean GLimp_StartDriverAndSetMode(int mode, qboolean fullscreen, qbool
 	{
 		const char *driverName;
 
-		if (SDL_Init(SDL_INIT_VIDEO) == -1)
+		if (SDL_Init(SDL_INIT_VIDEO) != 0)
 		{
 			ri.Printf( PRINT_ALL, "SDL_Init( SDL_INIT_VIDEO ) FAILED (%s)\n", SDL_GetError());
 			return qfalse;
@@ -698,6 +835,11 @@ static void GLimp_InitExtensions( void )
 
 #define R_MODE_FALLBACK 3 // 640 * 480
 
+#if defined( _WIN32 ) && defined( USE_CONSOLE_WINDOW )
+void	Sys_DestroyConsole(void);
+void Sys_ShowConsole( int visLevel, qboolean quitOnClose );
+#endif
+
 /*
 ===============
 GLimp_Init
@@ -712,8 +854,17 @@ void GLimp_Init( void )
 
 	r_allowSoftwareGL = ri.Cvar_Get( "r_allowSoftwareGL", "0", CVAR_LATCH );
 	r_sdlDriver = ri.Cvar_Get( "r_sdlDriver", "", CVAR_ROM );
-	r_allowResize = ri.Cvar_Get( "r_allowResize", "0", CVAR_ARCHIVE );
-	r_centerWindow = ri.Cvar_Get( "r_centerWindow", "0", CVAR_ARCHIVE );
+	r_allowResize = ri.Cvar_Get( "r_allowResize", "0", CVAR_ARCHIVE | CVAR_LATCH );
+	r_centerWindow = ri.Cvar_Get( "r_centerWindow", "0", CVAR_ARCHIVE | CVAR_LATCH );
+// leilei - tv mode hack
+	r_tvMode = ri.Cvar_Get( "r_virtualMode", "-1", CVAR_LATCH | CVAR_ARCHIVE );
+	r_tvModeAspect = ri.Cvar_Get( "r_tvModeAspect", "0", CVAR_LATCH | CVAR_ARCHIVE ); // yes
+	r_tvModeForceAspect = ri.Cvar_Get( "r_tvModeForceAspect", "0", CVAR_LATCH | CVAR_ARCHIVE ); // yes
+
+	r_tvFilter = ri.Cvar_Get( "r_tvFilter", "1", CVAR_LATCH | CVAR_ARCHIVE );
+
+// leilei - move motionblur cvar here to get it to not upset the other renderers when setting up an accumulation buffer
+	r_motionblur = ri.Cvar_Get( "r_motionblur", "0", CVAR_LATCH | CVAR_ARCHIVE );
 
 	if( ri.Cvar_VariableIntegerValue( "com_abnormalExit" ) )
 	{
@@ -757,6 +908,15 @@ success:
 	glConfig.deviceSupportsGamma = !r_ignorehwgamma->integer &&
 		SDL_SetWindowBrightness( SDL_window, 1.0f ) >= 0;
 
+#ifdef _WIN32
+	// leilei - 3dfx gamma 
+	if ( qwglSetDeviceGammaRamp3DFX )
+	{
+		glConfig.deviceSupportsGamma = 1; // force it
+	}
+#endif
+
+
 	// get our config strings
 	Q_strncpyz( glConfig.vendor_string, (char *) qglGetString (GL_VENDOR), sizeof( glConfig.vendor_string ) );
 	Q_strncpyz( glConfig.renderer_string, (char *) qglGetString (GL_RENDERER), sizeof( glConfig.renderer_string ) );
@@ -772,6 +932,11 @@ success:
 
 	// This depends on SDL_INIT_VIDEO, hence having it here
 	ri.IN_Init( SDL_window );
+
+#if defined( _WIN32 ) && defined( USE_CONSOLE_WINDOW )
+		// leilei - hide our console window
+	Sys_ShowConsole(0, 0 );
+#endif
 }
 
 

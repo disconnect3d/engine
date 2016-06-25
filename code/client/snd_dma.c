@@ -33,6 +33,9 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "snd_codec.h"
 #include "client.h"
 
+// leilei - mod playabck support
+
+
 void S_Update_( void );
 void S_Base_StopAllSounds(void);
 void S_Base_StopBackgroundTrack( void );
@@ -54,6 +57,8 @@ static char		s_backgroundLoop[MAX_QPATH];
 channel_t   s_channels[MAX_CHANNELS];
 channel_t   loop_channels[MAX_CHANNELS];
 int			numLoopChannels;
+
+int			samplingrate;	// leilei - for snd_xmp
 
 static int	s_soundStarted;
 static		qboolean	s_soundMuted;
@@ -400,7 +405,7 @@ void S_Base_BeginRegistration( void ) {
 		Com_Memset(s_knownSfx, '\0', sizeof(s_knownSfx));
 		Com_Memset(sfxHash, '\0', sizeof(sfx_t *) * LOOP_HASH);
 
-		S_Base_RegisterSound("sound/feedback/hit.wav", qfalse);		// changed to a sound in baseq3
+		S_Base_RegisterSound("sound/misc/silence.wav", qfalse);		// changed to a sound in baseoa
 	}
 }
 
@@ -982,29 +987,34 @@ void S_Base_RawSamples( int stream, int samples, int rate, int width, int s_chan
 	int		i;
 	int		src, dst;
 	float	scale;
-	int		intVolume;
+	int		intVolumeLeft, intVolumeRight;
 	portable_samplepair_t *rawsamples;
 
 	if ( !s_soundStarted || s_soundMuted ) {
 		return;
 	}
 
-	if(entityNum >= 0)
-	{
-		// FIXME: support spatialized raw streams, e.g. for VoIP
-		return;
-	}
-
 	if ( (stream < 0) || (stream >= MAX_RAW_STREAMS) ) {
 		return;
 	}
-	
+
 	rawsamples = s_rawsamples[stream];
 
-	if(s_muted->integer)
-		intVolume = 0;
-	else
-		intVolume = 256 * volume * s_volume->value;
+	if ( s_muted->integer ) {
+		intVolumeLeft = intVolumeRight = 0;
+	} else {
+		int leftvol, rightvol;
+
+		if ( entityNum >= 0 && entityNum < MAX_GENTITIES ) {
+			// support spatialized raw streams, e.g. for VoIP
+			S_SpatializeOrigin( loopSounds[ entityNum ].origin, 256, &leftvol, &rightvol );
+		} else {
+			leftvol = rightvol = 256;
+		}
+
+		intVolumeLeft = leftvol * volume * s_volume->value;
+		intVolumeRight = rightvol * volume * s_volume->value;
+	}
 
 	if ( s_rawend[stream] < s_soundtime ) {
 		Com_DPrintf( "S_Base_RawSamples: resetting minimum: %i < %i\n", s_rawend[stream], s_soundtime );
@@ -1022,8 +1032,8 @@ void S_Base_RawSamples( int stream, int samples, int rate, int width, int s_chan
 			{
 				dst = s_rawend[stream]&(MAX_RAW_SAMPLES-1);
 				s_rawend[stream]++;
-				rawsamples[dst].left = ((short *)data)[i*2] * intVolume;
-				rawsamples[dst].right = ((short *)data)[i*2+1] * intVolume;
+				rawsamples[dst].left = ((short *)data)[i*2] * intVolumeLeft;
+				rawsamples[dst].right = ((short *)data)[i*2+1] * intVolumeRight;
 			}
 		}
 		else
@@ -1035,8 +1045,8 @@ void S_Base_RawSamples( int stream, int samples, int rate, int width, int s_chan
 					break;
 				dst = s_rawend[stream]&(MAX_RAW_SAMPLES-1);
 				s_rawend[stream]++;
-				rawsamples[dst].left = ((short *)data)[src*2] * intVolume;
-				rawsamples[dst].right = ((short *)data)[src*2+1] * intVolume;
+				rawsamples[dst].left = ((short *)data)[src*2] * intVolumeLeft;
+				rawsamples[dst].right = ((short *)data)[src*2+1] * intVolumeRight;
 			}
 		}
 	}
@@ -1049,13 +1059,14 @@ void S_Base_RawSamples( int stream, int samples, int rate, int width, int s_chan
 				break;
 			dst = s_rawend[stream]&(MAX_RAW_SAMPLES-1);
 			s_rawend[stream]++;
-			rawsamples[dst].left = ((short *)data)[src] * intVolume;
-			rawsamples[dst].right = ((short *)data)[src] * intVolume;
+			rawsamples[dst].left = ((short *)data)[src] * intVolumeLeft;
+			rawsamples[dst].right = ((short *)data)[src] * intVolumeRight;
 		}
 	}
 	else if (s_channels == 2 && width == 1)
 	{
-		intVolume *= 256;
+		intVolumeLeft *= 256;
+		intVolumeRight *= 256;
 
 		for (i=0 ; ; i++)
 		{
@@ -1064,13 +1075,14 @@ void S_Base_RawSamples( int stream, int samples, int rate, int width, int s_chan
 				break;
 			dst = s_rawend[stream]&(MAX_RAW_SAMPLES-1);
 			s_rawend[stream]++;
-			rawsamples[dst].left = ((char *)data)[src*2] * intVolume;
-			rawsamples[dst].right = ((char *)data)[src*2+1] * intVolume;
+			rawsamples[dst].left = ((char *)data)[src*2] * intVolumeLeft;
+			rawsamples[dst].right = ((char *)data)[src*2+1] * intVolumeRight;
 		}
 	}
 	else if (s_channels == 1 && width == 1)
 	{
-		intVolume *= 256;
+		intVolumeLeft *= 256;
+		intVolumeRight *= 256;
 
 		for (i=0 ; ; i++)
 		{
@@ -1079,8 +1091,8 @@ void S_Base_RawSamples( int stream, int samples, int rate, int width, int s_chan
 				break;
 			dst = s_rawend[stream]&(MAX_RAW_SAMPLES-1);
 			s_rawend[stream]++;
-			rawsamples[dst].left = (((byte *)data)[src]-128) * intVolume;
-			rawsamples[dst].right = (((byte *)data)[src]-128) * intVolume;
+			rawsamples[dst].left = (((byte *)data)[src]-128) * intVolumeLeft;
+			rawsamples[dst].right = (((byte *)data)[src]-128) * intVolumeRight;
 		}
 	}
 
@@ -1190,6 +1202,9 @@ qboolean S_ScanChannelStarts( void ) {
 
 	return newSamples;
 }
+
+
+
 
 /*
 ============
@@ -1318,6 +1333,7 @@ void S_Update_(void) {
 		sane = 11;			// 85hz
 	}
 
+	samplingrate = dma.speed;
 	ma = s_mixahead->value * dma.speed;
 	op = s_mixPreStep->value + sane*dma.speed*0.01;
 
@@ -1397,6 +1413,7 @@ static void S_OpenBackgroundStream( const char *filename ) {
 	}
 }
 
+
 /*
 ======================
 S_StartBackgroundTrack
@@ -1417,11 +1434,7 @@ void S_Base_StartBackgroundTrack( const char *intro, const char *loop ){
 		return;
 	}
 
-	if( !loop ) {
-		s_backgroundLoop[0] = 0;
-	} else {
-		Q_strncpyz( s_backgroundLoop, loop, sizeof( s_backgroundLoop ) );
-	}
+	Q_strncpyz( s_backgroundLoop, loop, sizeof( s_backgroundLoop ) );
 
 	S_OpenBackgroundStream( intro );
 }

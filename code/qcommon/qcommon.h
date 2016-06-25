@@ -252,7 +252,13 @@ PROTOCOL
 */
 
 #define	PROTOCOL_VERSION	71
-#define PROTOCOL_LEGACY_VERSION	68
+
+// Normally, legacy protocol = 68 but OA uses 71.
+//Open Arena up to 0.7.6 used 68
+//Open Arena 0.7.7 used 69
+//Open Arena 0.8.0 used protocol 70
+//Open Arena 0.8.x (0.8.1+) protocol 71
+#define PROTOCOL_LEGACY_VERSION	71
 // 1.31 - 67
 
 // maintain a list of compatible protocols for demo playing
@@ -264,7 +270,7 @@ extern int demo_protocols[];
 #endif
 // override on command line, config files etc.
 #ifndef MASTER_SERVER_NAME
-#define MASTER_SERVER_NAME	"master.quake3arena.com"
+#define MASTER_SERVER_NAME	"dpmaster.deathmask.net"
 #endif
 
 #ifndef STANDALONE
@@ -300,7 +306,8 @@ enum svc_ops_e {
 	svc_EOF,
 
 // new commands, supported only by ioquake3 protocol but not legacy
-	svc_voip,     // not wrapped in USE_VOIP, so this value is reserved.
+	svc_voipSpeex,     // not wrapped in USE_VOIP, so this value is reserved.
+	svc_voipOpus,      //
 };
 
 
@@ -316,7 +323,8 @@ enum clc_ops_e {
 	clc_EOF,
 
 // new commands, supported only by ioquake3 protocol but not legacy
-	clc_voip,   // not wrapped in USE_VOIP, so this value is reserved.
+	clc_voipSpeex,   // not wrapped in USE_VOIP, so this value is reserved.
+	clc_voipOpus,    //
 };
 
 /*
@@ -562,6 +570,7 @@ char	*Cvar_InfoString_Big( int bit );
 // in their flags ( CVAR_USERINFO, CVAR_SERVERINFO, CVAR_SYSTEMINFO, etc )
 void	Cvar_InfoStringBuffer( int bit, char *buff, int buffsize );
 void Cvar_CheckRange( cvar_t *cv, float minVal, float maxVal, qboolean shouldBeIntegral );
+void Cvar_SetDescription( cvar_t *var, const char *var_description );
 
 void	Cvar_Restart(qboolean unsetVM);
 void	Cvar_Restart_f( void );
@@ -759,6 +768,7 @@ void Field_CompleteFilename( const char *dir,
 		const char *ext, qboolean stripExt, qboolean allowNonPureFilesOnDisk );
 void Field_CompleteCommand( char *cmd,
 		qboolean doCommands, qboolean doCvars );
+void Field_CompletePlayerName( const char **names, int count );
 
 /*
 ==============================================================
@@ -837,6 +847,10 @@ void		Com_StartupVariable( const char *match );
 // checks for and removes command line "+set var arg" constructs
 // if match is NULL, all set commands will be executed, otherwise
 // only a set with the exact name.  Only used during startup.
+
+qboolean		Com_PlayerNameToFieldString( char *str, int length, const char *name );
+qboolean		Com_FieldStringToPlayerName( char *name, int length, const char *rawname );
+int QDECL	Com_strCompare( const void *a, const void *b );
 
 
 extern	cvar_t	*com_developer;
@@ -1098,6 +1112,7 @@ FILE	*Sys_Mkfifo( const char *ospath );
 char	*Sys_Cwd( void );
 void	Sys_SetDefaultInstallPath(const char *path);
 char	*Sys_DefaultInstallPath(void);
+char	*Sys_SteamPath(void);
 
 #ifdef MACOS_X
 char    *Sys_DefaultAppPath(void);

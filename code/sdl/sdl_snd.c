@@ -44,6 +44,9 @@ cvar_t *s_sdlMixSamps;
 static int dmapos = 0;
 static int dmasize = 0;
 
+// leilei - setting correct speed for xmp
+extern int xmpspeed;
+
 /*
 ===============
 SNDDMA_AudioCallback
@@ -156,7 +159,7 @@ qboolean SNDDMA_Init(void)
 
 	if (!SDL_WasInit(SDL_INIT_AUDIO))
 	{
-		if (SDL_Init(SDL_INIT_AUDIO) == -1)
+		if (SDL_Init(SDL_INIT_AUDIO) != 0)
 		{
 			Com_Printf( "FAILED (%s)\n", SDL_GetError( ) );
 			return qfalse;
@@ -177,6 +180,8 @@ qboolean SNDDMA_Init(void)
 	desired.freq = (int) s_sdlSpeed->value;
 	if(!desired.freq) desired.freq = 22050;
 	desired.format = ((tmp == 16) ? AUDIO_S16SYS : AUDIO_U8);
+
+	xmpspeed = desired.freq; // leilei
 
 	// I dunno if this is the best idea, but I'll give it a try...
 	//  should probably check a cvar for this...

@@ -375,6 +375,13 @@ int COM_Compress( char *data_p ) {
 	in = out = data_p;
 	if (in) {
 		while ((c = *in) != 0) {
+
+			// try for glsl escape sequence
+			if ( c == '/' && in[1] == '/' && in[2]=='G' && in[3]=='L' && in[4]=='S' && in[5]=='L') {
+				in+=6;
+				c = *in; if (c==0 || *in == '\n') break;
+			}
+
 			// skip double slash comments
 			if ( c == '/' && in[1] == '/' ) {
 				while (*in && *in != '\n') {
@@ -470,6 +477,13 @@ char *COM_ParseExt( char **data_p, qboolean allowLineBreaks )
 		}
 
 		c = *data;
+
+		// try for glsl program sequence
+		if ( c == '/' && data[1] == '/' && data[2]=='G' && data[3]=='L' && data[4]=='S' && data[5]=='L' )
+		{
+			data += 6;
+			c = *data; if (c==0 || *data == '\n') break;
+		}
 
 		// skip double slash comments
 		if ( c == '/' && data[1] == '/' )
@@ -600,6 +614,10 @@ void SkipRestOfLine ( char **data ) {
 	int		c;
 
 	p = *data;
+
+	if ( !*p )
+		return;
+
 	while ( (c = *p++) != 0 ) {
 		if ( c == '\n' ) {
 			com_lines++;
@@ -1252,7 +1270,7 @@ void Info_RemoveKey_Big( char *s, const char *key ) {
 
 		if (!strcmp (key, pkey) )
 		{
-			strcpy (start, s);	// remove this part
+			memmove(start, s, strlen(s) + 1); // remove this part
 			return;
 		}
 

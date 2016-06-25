@@ -62,6 +62,11 @@ typedef struct image_s {
 	imgFlags_t  flags;
 
 	struct image_s*	next;
+
+	qboolean			maptexture;	// leilei - map texture listing hack
+
+	float				loadTime;	// leilei - time taken loading image
+	float				procTime;	// leilei - time taken processing image/uploading to vram
 } image_t;
 
 // any change in the LIGHTMAP_* defines here MUST be reflected in
@@ -133,6 +138,20 @@ qhandle_t RE_RegisterShaderFromImage(const char *name, int lightmapIndex, image_
 void R_InitFreeType( void );
 void R_DoneFreeType( void );
 void RE_RegisterFont(const char *fontName, int pointSize, fontInfo_t *font);
+
+/*
+=============================================================
+
+IMAGE LOADERS
+
+=============================================================
+*/
+
+void R_LoadBMP( const char *name, byte **pic, int *width, int *height );
+void R_LoadJPG( const char *name, byte **pic, int *width, int *height );
+void R_LoadPCX( const char *name, byte **pic, int *width, int *height );
+void R_LoadPNG( const char *name, byte **pic, int *width, int *height );
+void R_LoadTGA( const char *name, byte **pic, int *width, int *height );
 
 /*
 ====================================================================

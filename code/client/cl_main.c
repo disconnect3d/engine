@@ -44,6 +44,7 @@ cvar_t	*cl_voipSendTarget;
 cvar_t	*cl_voipGainDuringCapture;
 cvar_t	*cl_voipCaptureMult;
 cvar_t	*cl_voipShowMeter;
+cvar_t	*cl_voipProtocol;
 cvar_t	*cl_voip;
 #endif
 
@@ -120,6 +121,10 @@ cvar_t	*cl_guidServerUniq;
 cvar_t	*cl_consoleKeys;
 
 cvar_t	*cl_rate;
+cvar_t  *cl_consoleType;
+cvar_t  *cl_consoleColor[4];
+
+cvar_t *cl_consoleHeight;
 
 clientActive_t		cl;
 clientConnection_t	clc;
@@ -149,7 +154,6 @@ typedef struct serverStatus_s
 } serverStatus_t;
 
 serverStatus_t cl_serverStatusList[MAX_SERVERSTATUSREQUESTS];
-int serverStatusCount;
 
 #if defined __USEA3D && defined __A3D_GEOM
 	void hA3Dg_ExportRenderGeom (refexport_t *incoming_re);
@@ -251,8 +255,8 @@ void CL_Voip_f( void )
 
 	if (clc.state != CA_ACTIVE)
 		reason = "Not connected to a server";
-	else if (!clc.speexInitialized)
-		reason = "Speex not initialized";
+	else if (!clc.voipCodecInitialized)
+		reason = "Voip codec not initialized";
 	else if (!clc.voipEnabled)
 		reason = "Server doesn't support VoIP";
 	else if (!clc.demoplaying && (Cvar_VariableValue( "g_gametype" ) == GT_SINGLE_PLAYER || Cvar_VariableValue("ui_singlePlayerActive")))
@@ -307,6 +311,8 @@ void CL_VoipNewGeneration(void)
 		clc.voipOutgoingGeneration = 1;
 	clc.voipPower = 0.0f;
 	clc.voipOutgoingSequence = 0;
+
+	opus_encoder_ctl(clc.opusEncoder, OPUS_RESET_STATE);
 }
 
 /*
@@ -395,7 +401,7 @@ void CL_VoipParseTargets(void)
 ===============
 CL_CaptureVoip
 
-Record more audio from the hardware if required and encode it into Speex
+Record more audio from the hardware if required and encode it into Opus
  data for later transmission.
 ===============
 */
@@ -425,11 +431,12 @@ void CL_CaptureVoip(void)
 			Com_Printf("Until then, VoIP is disabled.\n");
 			Cvar_Set("cl_voip", "0");
 		}
+		Cvar_Set("cl_voipProtocol", cl_voip->integer ? "opus" : "");
 		cl_voip->modified = qfalse;
 		cl_rate->modified = qfalse;
 	}
 
-	if (!clc.speexInitialized)
+	if (!clc.voipCodecInitialized)
 		return;  // just in case this gets called at a bad time.
 
 	if (clc.voipOutgoingDataSize > 0)
@@ -449,6 +456,8 @@ void CL_CaptureVoip(void)
 			dontCapture = qtrue;  // not connected to a server.
 		else if (!clc.voipEnabled)
 			dontCapture = qtrue;  // server doesn't support VoIP.
+		else if ( Cvar_VariableValue( "g_gametype" ) == GT_SINGLE_PLAYER || Cvar_VariableValue("ui_singlePlayerActive"))
+			dontCapture = qtrue;  // single player game.
 		else if (clc.demoplaying)
 			dontCapture = qtrue;  // playing back a demo.
 		else if ( cl_voip->integer == 0 )
@@ -482,80 +491,67 @@ void CL_CaptureVoip(void)
 
 	if ((cl_voipSend->integer) || (finalFrame)) { // user wants to capture audio?
 		int samples = S_AvailableCaptureSamples();
-		const int mult = (finalFrame) ? 1 : 4; // 4 == 80ms of audio.
+		const int packetSamples = (finalFrame) ? VOIP_MAX_FRAME_SAMPLES : VOIP_MAX_PACKET_SAMPLES;
 
 		// enough data buffered in audio hardware to process yet?
-		if (samples >= (clc.speexFrameSize * mult)) {
-			// audio capture is always MONO16 (and that's what speex wants!).
-			//  2048 will cover 12 uncompressed frames in narrowband mode.
-			static int16_t sampbuffer[2048];
+		if (samples >= packetSamples) {
+			// audio capture is always MONO16.
+			static int16_t sampbuffer[VOIP_MAX_PACKET_SAMPLES];
 			float voipPower = 0.0f;
-			int speexFrames = 0;
-			int wpos = 0;
-			int pos = 0;
+			int voipFrames;
+			int i, bytes;
 
-			if (samples > (clc.speexFrameSize * 4))
-				samples = (clc.speexFrameSize * 4);
+			if (samples > VOIP_MAX_PACKET_SAMPLES)
+				samples = VOIP_MAX_PACKET_SAMPLES;
 
 			// !!! FIXME: maybe separate recording from encoding, so voipPower
 			// !!! FIXME:  updates faster than 4Hz?
 
-			samples -= samples % clc.speexFrameSize;
+			samples -= samples % VOIP_MAX_FRAME_SAMPLES;
+			if (samples != 120 && samples != 240 && samples != 480 && samples != 960 && samples != 1920 && samples != 2880 ) {
+				Com_Printf("Voip: bad number of samples %d\n", samples);
+				return;
+			}
+			voipFrames = samples / VOIP_MAX_FRAME_SAMPLES;
+
 			S_Capture(samples, (byte *) sampbuffer);  // grab from audio card.
 
-			// this will probably generate multiple speex packets each time.
-			while (samples > 0) {
-				int16_t *sampptr = &sampbuffer[pos];
-				int i, bytes;
+			// check the "power" of this packet...
+			for (i = 0; i < samples; i++) {
+				const float flsamp = (float) sampbuffer[i];
+				const float s = fabs(flsamp);
+				voipPower += s * s;
+				sampbuffer[i] = (int16_t) ((flsamp) * audioMult);
+			}
 
-				// preprocess samples to remove noise...
-				speex_preprocess_run(clc.speexPreprocessor, sampptr);
-
-				// check the "power" of this packet...
-				for (i = 0; i < clc.speexFrameSize; i++) {
-					const float flsamp = (float) sampptr[i];
-					const float s = fabs(flsamp);
-					voipPower += s * s;
-					sampptr[i] = (int16_t) ((flsamp) * audioMult);
-				}
-
-				// encode raw audio samples into Speex data...
-				speex_bits_reset(&clc.speexEncoderBits);
-				speex_encode_int(clc.speexEncoder, sampptr,
-				                 &clc.speexEncoderBits);
-				bytes = speex_bits_write(&clc.speexEncoderBits,
-				                         (char *) &clc.voipOutgoingData[wpos+1],
-				                         sizeof (clc.voipOutgoingData) - (wpos+1));
-				assert((bytes > 0) && (bytes < 256));
-				clc.voipOutgoingData[wpos] = (byte) bytes;
-				wpos += bytes + 1;
-
-				// look at the data for the next packet...
-				pos += clc.speexFrameSize;
-				samples -= clc.speexFrameSize;
-				speexFrames++;
+			// encode raw audio samples into Opus data...
+			bytes = opus_encode(clc.opusEncoder, sampbuffer, samples,
+									(unsigned char *) clc.voipOutgoingData,
+									sizeof (clc.voipOutgoingData));
+			if ( bytes <= 0 ) {
+				Com_DPrintf("VoIP: Error encoding %d samples\n", samples);
+				bytes = 0;
 			}
 
 			clc.voipPower = (voipPower / (32768.0f * 32768.0f *
-			                 ((float) (clc.speexFrameSize * speexFrames)))) *
-			                 100.0f;
+			                 ((float) samples))) * 100.0f;
 
 			if ((useVad) && (clc.voipPower < cl_voipVADThreshold->value)) {
 				CL_VoipNewGeneration();  // no "talk" for at least 1/4 second.
 			} else {
-				clc.voipOutgoingDataSize = wpos;
-				clc.voipOutgoingDataFrames = speexFrames;
+				clc.voipOutgoingDataSize = bytes;
+				clc.voipOutgoingDataFrames = voipFrames;
 
 				Com_DPrintf("VoIP: Send %d frames, %d bytes, %f power\n",
-				            speexFrames, wpos, clc.voipPower);
+				            voipFrames, bytes, clc.voipPower);
 
 				#if 0
 				static FILE *encio = NULL;
 				if (encio == NULL) encio = fopen("voip-outgoing-encoded.bin", "wb");
-				if (encio != NULL) { fwrite(clc.voipOutgoingData, wpos, 1, encio); fflush(encio); }
+				if (encio != NULL) { fwrite(clc.voipOutgoingData, bytes, 1, encio); fflush(encio); }
 				static FILE *decio = NULL;
 				if (decio == NULL) decio = fopen("voip-outgoing-decoded.bin", "wb");
-				if (decio != NULL) { fwrite(sampbuffer, speexFrames * clc.speexFrameSize * 2, 1, decio); fflush(decio); }
+				if (decio != NULL) { fwrite(sampbuffer, voipFrames * VOIP_MAX_FRAME_SAMPLES * 2, 1, decio); fflush(decio); }
 				#endif
 			}
 		}
@@ -670,7 +666,7 @@ void CL_StopRecord_f( void ) {
 CL_DemoFilename
 ================== 
 */  
-void CL_DemoFilename( int number, char *fileName ) {
+void CL_DemoFilename( int number, char *fileName, int fileNameSize ) {
 	int		a,b,c,d;
 
 	if(number < 0 || number > 9999)
@@ -684,7 +680,7 @@ void CL_DemoFilename( int number, char *fileName ) {
 	number -= c*10;
 	d = number;
 
-	Com_sprintf( fileName, MAX_OSPATH, "demo%i%i%i%i"
+	Com_sprintf( fileName, fileNameSize, "demo%i%i%i%i"
 		, a, b, c, d );
 }
 
@@ -744,7 +740,7 @@ void CL_Record_f( void ) {
 
 		// scan for a free demo name
 		for ( number = 0 ; number <= 9999 ; number++ ) {
-			CL_DemoFilename( number, demoName );
+			CL_DemoFilename( number, demoName, sizeof( demoName ) );
 #ifdef LEGACY_PROTOCOL
 			if(clc.compat)
 				Com_sprintf(name, sizeof(name), "demos/%s.%s%d", demoName, DEMOEXT, com_legacyprotocol->integer);
@@ -901,6 +897,12 @@ void CL_DemoCompleted( void )
 					CL_DemoFrameDurationSDev( ) );
 			Com_Printf( "%s", buffer );
 
+
+			// leilei - shove some abridged info in a cvar for display in the UI
+			{
+			Cvar_Set( "ui_timedemoResult", va("%3.1f fps %3.1f seconds", clc.timeDemoFrames*1000.0 / time,  time/1000.0) );
+
+			}
 			// Write a log of all the frame durations
 			if( cl_timedemoLog && strlen( cl_timedemoLog->string ) > 0 )
 			{
@@ -1421,14 +1423,11 @@ void CL_Disconnect( qboolean showMainMenu ) {
 		cl_voipUseVAD->integer = tmp;
 	}
 
-	if (clc.speexInitialized) {
+	if (clc.voipCodecInitialized) {
 		int i;
-		speex_bits_destroy(&clc.speexEncoderBits);
-		speex_encoder_destroy(clc.speexEncoder);
-		speex_preprocess_state_destroy(clc.speexPreprocessor);
+		opus_encoder_destroy(clc.opusEncoder);
 		for (i = 0; i < MAX_CLIENTS; i++) {
-			speex_bits_destroy(&clc.speexDecoderBits[i]);
-			speex_decoder_destroy(clc.speexDecoder[i]);
+			opus_decoder_destroy(clc.opusDecoder[i]);
 		}
 	}
 	Cmd_RemoveCommand ("voip");
@@ -1457,6 +1456,7 @@ void CL_Disconnect( qboolean showMainMenu ) {
 	
 	// Remove pure paks
 	FS_PureServerSetLoadedPaks("", "");
+	FS_PureServerSetReferencedPaks( "", "" );
 	
 	CL_ClearState ();
 
@@ -1809,6 +1809,50 @@ static void CL_CompleteRcon( char *args, int argNum )
 }
 
 /*
+==================
+CL_CompletePlayerName
+==================
+*/
+static void CL_CompletePlayerName( char *args, int argNum )
+{
+	if( argNum == 2 )
+	{
+		char		names[MAX_CLIENTS][MAX_NAME_LENGTH];
+		const char	*namesPtr[MAX_CLIENTS];
+		int			i;
+		int			clientCount;
+		int			nameCount;
+		const char *info;
+		const char *name;
+
+		//configstring
+		info = cl.gameState.stringData + cl.gameState.stringOffsets[CS_SERVERINFO];
+		clientCount = atoi( Info_ValueForKey( info, "sv_maxclients" ) );
+
+		nameCount = 0;
+
+		for( i = 0; i < clientCount; i++ ) {
+			if( i == clc.clientNum )
+				continue;
+
+			info = cl.gameState.stringData + cl.gameState.stringOffsets[CS_PLAYERS+i];
+
+			name = Info_ValueForKey( info, "n" );
+			if( name[0] == '\0' )
+				continue;
+			Q_strncpyz( names[nameCount], name, sizeof(names[nameCount]) );
+			Q_CleanStr( names[nameCount] );
+
+			namesPtr[nameCount] = names[nameCount];
+			nameCount++;
+		}
+		qsort( (void*)namesPtr, nameCount, sizeof( namesPtr[0] ), Com_strCompare );
+
+		Field_CompletePlayerName( namesPtr, nameCount );
+	}
+}
+
+/*
 =====================
 CL_Rcon_f
 
@@ -1820,7 +1864,7 @@ void CL_Rcon_f( void ) {
 	char	message[MAX_RCON_MESSAGE];
 	netadr_t	to;
 
-	if ( !rcon_client_password->string ) {
+	if ( !rcon_client_password->string[0] ) {
 		Com_Printf ("You must set 'rconpassword' before\n"
 					"issuing an rcon command.\n");
 		return;
@@ -2300,9 +2344,9 @@ Resend a connect message if the last one has timed out
 =================
 */
 void CL_CheckForResend( void ) {
-	int		port, i;
+	int		port;
 	char	info[MAX_INFO_STRING];
-	char	data[MAX_INFO_STRING];
+	char	data[MAX_INFO_STRING + 10];
 
 	// don't send anything if playing back a demo
 	if ( clc.demoplaying ) {
@@ -2356,19 +2400,8 @@ void CL_CheckForResend( void ) {
 		Info_SetValueForKey( info, "qport", va("%i", port ) );
 		Info_SetValueForKey( info, "challenge", va("%i", clc.challenge ) );
 		
-		strcpy(data, "connect ");
-    // TTimo adding " " around the userinfo string to avoid truncated userinfo on the server
-    //   (Com_TokenizeString tokenizes around spaces)
-    data[8] = '"';
-
-		for(i=0;i<strlen(info);i++) {
-			data[9+i] = info[i];	// + (clc.challenge)&0x3;
-		}
-    data[9+i] = '"';
-		data[10+i] = 0;
-
-    // NOTE TTimo don't forget to set the right data length!
-		NET_OutOfBandData( NS_CLIENT, clc.serverAddress, (byte *) &data[0], i+10 );
+		Com_sprintf( data, sizeof(data), "connect \"%s\"", info );
+		NET_OutOfBandData( NS_CLIENT, clc.serverAddress, (byte *) data, strlen ( data ) );
 		// the most current userinfo has been sent, so watch for any
 		// newer changes to userinfo variables
 		cvar_modifiedFlags &= ~CVAR_USERINFO;
@@ -3086,6 +3119,9 @@ void CL_ShutdownRef( void ) {
 #endif
 }
 
+
+extern int vresWidth;
+extern int vresHeight;
 /*
 ============
 CL_InitRenderer
@@ -3178,7 +3214,7 @@ void CL_InitRef( void ) {
 	Com_Printf( "----- Initializing Renderer ----\n" );
 
 #ifdef USE_RENDERER_DLOPEN
-	cl_renderer = Cvar_Get("cl_renderer", "opengl1", CVAR_ARCHIVE | CVAR_LATCH);
+	cl_renderer = Cvar_Get("cl_renderer", "openarena1", CVAR_ARCHIVE | CVAR_LATCH);
 
 	Com_sprintf(dllName, sizeof(dllName), "renderer_%s_" ARCH_STRING DLL_EXT, cl_renderer->string);
 
@@ -3236,6 +3272,7 @@ void CL_InitRef( void ) {
 	ri.Cvar_Set = Cvar_Set;
 	ri.Cvar_SetValue = Cvar_SetValue;
 	ri.Cvar_CheckRange = Cvar_CheckRange;
+	ri.Cvar_SetDescription = Cvar_SetDescription;
 	ri.Cvar_VariableIntegerValue = Cvar_VariableIntegerValue;
 
 	// cinematic stuff
@@ -3406,6 +3443,56 @@ static void CL_GenerateQKey(void)
 	}
 } 
 
+void CL_Sayto_f( void ) {
+	char		*rawname;
+	char		name[MAX_NAME_LENGTH];
+	char		cleanName[MAX_NAME_LENGTH];
+	const char	*info;
+	int			count;
+	int			i;
+	int			clientNum;
+	char		*p;
+
+	if ( Cmd_Argc() < 3 ) {
+		Com_Printf ("sayto <player name> <text>\n");
+		return;
+	}
+
+	rawname = Cmd_Argv(1);
+
+	Com_FieldStringToPlayerName( name, MAX_NAME_LENGTH, rawname );
+
+	info = cl.gameState.stringData + cl.gameState.stringOffsets[CS_SERVERINFO];
+	count = atoi( Info_ValueForKey( info, "sv_maxclients" ) );
+
+	clientNum = -1;
+	for( i = 0; i < count; i++ ) {
+
+		info = cl.gameState.stringData + cl.gameState.stringOffsets[CS_PLAYERS+i];
+		Q_strncpyz( cleanName, Info_ValueForKey( info, "n" ), sizeof(cleanName) );
+		Q_CleanStr( cleanName );
+
+		if ( !Q_stricmp( cleanName, name ) ) {
+			clientNum = i;
+			break;
+		}
+	}
+	if( clientNum <= -1 )
+	{
+		Com_Printf ("No such player name: %s.\n", name);
+		return;
+	}
+
+	p = Cmd_ArgsFrom(2);
+
+	if ( *p == '"' ) {
+		p++;
+		p[strlen(p)-1] = 0;
+	}
+
+	CL_AddReliableCommand(va("tell %i \"%s\"", clientNum, p ), qfalse);
+}
+
 /*
 ====================
 CL_Init
@@ -3454,8 +3541,8 @@ void CL_Init( void ) {
 
 	rconAddress = Cvar_Get ("rconAddress", "", 0);
 
-	cl_yawspeed = Cvar_Get ("cl_yawspeed", "140", CVAR_ARCHIVE);
-	cl_pitchspeed = Cvar_Get ("cl_pitchspeed", "140", CVAR_ARCHIVE);
+	cl_yawspeed = Cvar_Get ("cl_yawspeed", "140", CVAR_CHEAT);
+	cl_pitchspeed = Cvar_Get ("cl_pitchspeed", "140", CVAR_CHEAT);
 	cl_anglespeedkey = Cvar_Get ("cl_anglespeedkey", "1.5", 0);
 
 	cl_maxpackets = Cvar_Get ("cl_maxpackets", "30", CVAR_ARCHIVE );
@@ -3493,7 +3580,7 @@ void CL_Init( void ) {
 
 	// init autoswitch so the ui will have it correctly even
 	// if the cgame hasn't been started
-	Cvar_Get ("cg_autoswitch", "1", CVAR_ARCHIVE);
+	Cvar_Get ("cg_autoswitch", "2", CVAR_ARCHIVE);
 
 	m_pitch = Cvar_Get ("m_pitch", "0.022", CVAR_ARCHIVE);
 	m_yaw = Cvar_Get ("m_yaw", "0.022", CVAR_ARCHIVE);
@@ -3535,6 +3622,14 @@ void CL_Init( void ) {
 	// ~ and `, as keys and characters
 	cl_consoleKeys = Cvar_Get( "cl_consoleKeys", "~ ` 0x7e 0x60", CVAR_ARCHIVE);
 
+	cl_consoleType = Cvar_Get( "cl_consoleType", "0", CVAR_ARCHIVE );
+	cl_consoleColor[0] = Cvar_Get( "cl_consoleColorRed", "1", CVAR_ARCHIVE );
+	cl_consoleColor[1] = Cvar_Get( "cl_consoleColorGreen", "0", CVAR_ARCHIVE );
+	cl_consoleColor[2] = Cvar_Get( "cl_consoleColorBlue", "0", CVAR_ARCHIVE );
+	cl_consoleColor[3] = Cvar_Get( "cl_consoleColorAlpha", "0.8", CVAR_ARCHIVE );
+
+	cl_consoleHeight = Cvar_Get("cl_consoleHeight", "0.5", CVAR_ARCHIVE);
+
 	// userinfo
 	Cvar_Get ("name", "UnnamedPlayer", CVAR_USERINFO | CVAR_ARCHIVE );
 	cl_rate = Cvar_Get ("rate", "25000", CVAR_USERINFO | CVAR_ARCHIVE );
@@ -3569,9 +3664,9 @@ void CL_Init( void ) {
 	cl_voipVADThreshold = Cvar_Get ("cl_voipVADThreshold", "0.25", CVAR_ARCHIVE);
 	cl_voipShowMeter = Cvar_Get ("cl_voipShowMeter", "1", CVAR_ARCHIVE);
 
-	// This is a protocol version number.
-	cl_voip = Cvar_Get ("cl_voip", "1", CVAR_USERINFO | CVAR_ARCHIVE);
+	cl_voip = Cvar_Get ("cl_voip", "1", CVAR_ARCHIVE);
 	Cvar_CheckRange( cl_voip, 0, 1, qtrue );
+	cl_voipProtocol = Cvar_Get ("cl_voipProtocol", cl_voip->integer ? "opus" : "", CVAR_USERINFO | CVAR_ROM);
 #endif
 
 
@@ -3608,6 +3703,10 @@ void CL_Init( void ) {
 	Cmd_AddCommand ("model", CL_SetModel_f );
 	Cmd_AddCommand ("video", CL_Video_f );
 	Cmd_AddCommand ("stopvideo", CL_StopVideo_f );
+	if( !com_dedicated->integer ) {
+		Cmd_AddCommand ("sayto", CL_Sayto_f );
+		Cmd_SetCommandCompletionFunc( "sayto", CL_CompletePlayerName );
+	}
 	CL_InitRef();
 
 	SCR_Init ();
@@ -3843,7 +3942,7 @@ void CL_ServerInfoPacket( netadr_t from, msg_t *msg ) {
 	Q_strncpyz( info, MSG_ReadString( msg ), MAX_INFO_STRING );
 	if (strlen(info)) {
 		if (info[strlen(info)-1] != '\n') {
-			strncat(info, "\n", sizeof(info) - 1);
+			Q_strcat(info, sizeof(info), "\n");
 		}
 		Com_Printf( "%s: %s", NET_AdrToStringwPort( from ), info );
 	}
@@ -3875,11 +3974,7 @@ serverStatus_t *CL_GetServerStatus( netadr_t from ) {
 			oldestTime = cl_serverStatusList[i].startTime;
 		}
 	}
-	if (oldest != -1) {
-		return &cl_serverStatusList[oldest];
-	}
-	serverStatusCount++;
-	return &cl_serverStatusList[serverStatusCount & (MAX_SERVERSTATUSREQUESTS-1)];
+	return &cl_serverStatusList[oldest];
 }
 
 /*
@@ -4007,7 +4102,7 @@ void CL_ServerStatusResponse( netadr_t from, msg_t *msg ) {
 
 	if (serverStatus->print) {
 		Com_Printf("\nPlayers:\n");
-		Com_Printf("num: score: ping: name:\n");
+		Com_Printf("score: ping: name:\n");
 	}
 	for (i = 0, s = MSG_ReadStringLine( msg ); *s; s = MSG_ReadStringLine( msg ), i++) {
 
@@ -4024,7 +4119,7 @@ void CL_ServerStatusResponse( netadr_t from, msg_t *msg ) {
 				s++;
 			else
 				s = "unknown";
-			Com_Printf("%-2d   %-3d    %-3d   %s\n", i, score, ping, s );
+			Com_Printf("%-2d %-3d    %-3d   %s\n", i, score, ping, s );
 		}
 	}
 	len = strlen(serverStatus->string);

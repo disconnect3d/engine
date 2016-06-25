@@ -127,6 +127,35 @@ char *Sys_ConsoleInput(void)
 	return CON_Input( );
 }
 
+/*
+==================
+Sys_GetClipboardData
+==================
+*/
+char *Sys_GetClipboardData(void)
+{
+#ifdef DEDICATED
+	return NULL;
+#else
+	char *data = NULL;
+	char *cliptext;
+
+	if ( ( cliptext = SDL_GetClipboardText() ) != NULL ) {
+		if ( cliptext[0] != '\0' ) {
+			size_t bufsize = strlen( cliptext ) + 1;
+
+			data = Z_Malloc( bufsize );
+			Q_strncpyz( data, cliptext, bufsize );
+
+			// find first listed char and set to '\0'
+			strtok( data, "\n\r\b" );
+		}
+		SDL_free( cliptext );
+	}
+	return data;
+#endif
+}
+
 #ifdef DEDICATED
 #	define PID_FILENAME PRODUCT_NAME "_server.pid"
 #else
@@ -140,7 +169,7 @@ Sys_PIDFileName
 */
 static char *Sys_PIDFileName( void )
 {
-	const char *homePath = Sys_DefaultHomePath( );
+	const char *homePath = Cvar_VariableString( "fs_homepath" );
 
 	if( *homePath != '\0' )
 		return va( "%s/%s", homePath, PID_FILENAME );
@@ -218,6 +247,8 @@ static __attribute__ ((noreturn)) void Sys_Exit( int exitCode )
 			remove( pidFile );
 	}
 
+	NET_Shutdown( );
+
 	Sys_PlatformExit( );
 
 	exit( exitCode );
@@ -243,10 +274,12 @@ cpuFeatures_t Sys_GetProcessorFeatures( void )
 	cpuFeatures_t features = 0;
 
 #ifndef DEDICATED
-	if( SDL_HasRDTSC( ) )    features |= CF_RDTSC;
-	if( SDL_HasMMX( ) )      features |= CF_MMX;
-	if( SDL_HasSSE( ) )      features |= CF_SSE;
-	if( SDL_HasSSE2( ) )     features |= CF_SSE2;
+	if( SDL_HasRDTSC( ) )      features |= CF_RDTSC;
+	if( SDL_Has3DNow( ) )      features |= CF_3DNOW;
+	if( SDL_HasMMX( ) )        features |= CF_MMX;
+	if( SDL_HasSSE( ) )        features |= CF_SSE;
+	if( SDL_HasSSE2( ) )       features |= CF_SSE2;
+	if( SDL_HasAltiVec( ) )    features |= CF_ALTIVEC;
 #endif
 
 	return features;
@@ -333,6 +366,10 @@ void Sys_AnsiColorPrint( const char *msg )
 	}
 }
 
+#if defined( _WIN32 ) && defined( USE_CONSOLE_WINDOW )
+void Conbuf_AppendText( const char *pMsg );// leilei - console restoration
+#endif
+
 /*
 =================
 Sys_Print
@@ -340,6 +377,9 @@ Sys_Print
 */
 void Sys_Print( const char *msg )
 {
+#if defined( _WIN32 ) && defined( USE_CONSOLE_WINDOW )
+	Conbuf_AppendText (msg);		// leilei - console restoration
+#endif
 	CON_LogWrite( msg );
 	CON_Print( msg );
 }

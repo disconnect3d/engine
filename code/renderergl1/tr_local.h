@@ -473,12 +473,10 @@ typedef enum {
 	SF_TRIANGLES,
 	SF_POLY,
 	SF_MD3,
-	SF_MD4,
 	SF_MDR,
 	SF_IQM,
 	SF_FLARE,
 	SF_ENTITY,				// beams, rails, lightning, etc that can be determined by entity
-	SF_DISPLAY_LIST,
 
 	SF_NUM_SURFACE_TYPES,
 	SF_MAX = 0x7fffffff			// ensures that sizeof( surfaceType_t ) == sizeof( int )
@@ -503,11 +501,6 @@ typedef struct srfPoly_s {
 	int				numVerts;
 	polyVert_t		*verts;
 } srfPoly_t;
-
-typedef struct srfDisplayList_s {
-	surfaceType_t	surfaceType;
-	int				listNum;
-} srfDisplayList_t;
 
 
 typedef struct srfFlare_s {
@@ -732,7 +725,6 @@ typedef enum {
 	MOD_BAD,
 	MOD_BRUSH,
 	MOD_MESH,
-	MOD_MD4,
 	MOD_MDR,
 	MOD_IQM
 } modtype_t;
@@ -745,7 +737,7 @@ typedef struct model_s {
 	int			dataSize;	// just for listing purposes
 	bmodel_t	*bmodel;		// only if type == MOD_BRUSH
 	md3Header_t	*md3[MD3_MAX_LODS];	// only if type == MOD_MESH
-	void	*modelData;			// only if type == (MOD_MD4 | MOD_MDR | MOD_IQM)
+	void	*modelData;			// only if type == (MOD_MDR | MOD_IQM)
 
 	int			 numLods;
 } model_t;
@@ -1390,31 +1382,14 @@ ANIMATED MODELS
 =============================================================
 */
 
-// void R_MakeAnimModel( model_t *model );      haven't seen this one really, so not needed I guess.
-void R_AddAnimSurfaces( trRefEntity_t *ent );
-void RB_SurfaceAnim( md4Surface_t *surfType );
 void R_MDRAddAnimSurfaces( trRefEntity_t *ent );
-void RB_MDRSurfaceAnim( md4Surface_t *surface );
+void RB_MDRSurfaceAnim( mdrSurface_t *surface );
 qboolean R_LoadIQM (model_t *mod, void *buffer, int filesize, const char *name );
 void R_AddIQMSurfaces( trRefEntity_t *ent );
 void RB_IQMSurfaceAnim( surfaceType_t *surface );
 int R_IQMLerpTag( orientation_t *tag, iqmData_t *data,
                   int startFrame, int endFrame,
                   float frac, const char *tagName );
-
-/*
-=============================================================
-
-IMAGE LOADERS
-
-=============================================================
-*/
-
-void R_LoadBMP( const char *name, byte **pic, int *width, int *height );
-void R_LoadJPG( const char *name, byte **pic, int *width, int *height );
-void R_LoadPCX( const char *name, byte **pic, int *width, int *height );
-void R_LoadPNG( const char *name, byte **pic, int *width, int *height );
-void R_LoadTGA( const char *name, byte **pic, int *width, int *height );
 
 /*
 =============================================================

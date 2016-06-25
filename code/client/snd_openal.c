@@ -50,6 +50,7 @@ static qboolean enumeration_all_ext = qfalse;
 #ifdef USE_VOIP
 static qboolean capture_ext = qfalse;
 #endif
+extern int xmpspeed; 		// leilei
 
 /*
 =================
@@ -481,7 +482,7 @@ qboolean S_AL_BufferInit( void )
 	numSfx = 0;
 
 	// Load the default sound, and lock it
-	default_sfx = S_AL_BufferFind("sound/feedback/hit.wav");
+	default_sfx = S_AL_BufferFind("sound/misc/silence.wav");
 	S_AL_BufferUse(default_sfx);
 	knownSfx[default_sfx].isLocked = qtrue;
 
@@ -841,7 +842,7 @@ static void S_AL_SrcSetup(srcHandle_t src, sfxHandle_t sfx, alSrcPriority_t prio
 
 /*
 =================
-S_AL_NewLoopMaster
+S_AL_SaveLoopPos
 Remove given source as loop master if it is the master and hand off master status to another source in this case.
 =================
 */
@@ -2115,7 +2116,7 @@ void S_AL_StartBackgroundTrack( const char *intro, const char *loop )
 		issame = qfalse;
 
 	// Copy the loop over
-	strncpy( s_backgroundLoop, loop, sizeof( s_backgroundLoop ) );
+	Q_strncpyz( s_backgroundLoop, loop, sizeof( s_backgroundLoop ) );
 
 	if(!issame)
 	{
@@ -2309,7 +2310,7 @@ void S_AL_Update( void )
 	}
 	if(s_alDopplerSpeed->modified)
 	{
-		qalDopplerVelocity(s_alDopplerSpeed->value);
+		qalSpeedOfSound(s_alDopplerSpeed->value);
 		s_alDopplerSpeed->modified = qfalse;
 	}
 
@@ -2506,7 +2507,7 @@ qboolean S_AL_Init( soundInterface_t *si )
 	s_alGain = Cvar_Get( "s_alGain", "1.0", CVAR_ARCHIVE );
 	s_alSources = Cvar_Get( "s_alSources", "96", CVAR_ARCHIVE );
 	s_alDopplerFactor = Cvar_Get( "s_alDopplerFactor", "1.0", CVAR_ARCHIVE );
-	s_alDopplerSpeed = Cvar_Get( "s_alDopplerSpeed", "2200", CVAR_ARCHIVE );
+	s_alDopplerSpeed = Cvar_Get( "s_alDopplerSpeed", "9000", CVAR_ARCHIVE );
 	s_alMinDistance = Cvar_Get( "s_alMinDistance", "120", CVAR_CHEAT );
 	s_alMaxDistance = Cvar_Get("s_alMaxDistance", "1024", CVAR_CHEAT);
 	s_alRolloff = Cvar_Get( "s_alRolloff", "2", CVAR_CHEAT);
@@ -2517,11 +2518,16 @@ qboolean S_AL_Init( soundInterface_t *si )
 	s_alInputDevice = Cvar_Get( "s_alInputDevice", "", CVAR_ARCHIVE | CVAR_LATCH );
 	s_alDevice = Cvar_Get("s_alDevice", "", CVAR_ARCHIVE | CVAR_LATCH);
 
+
+	xmpspeed = 48000; // leilei - force it to 48000 which is the native mixing rate post-ac'97
+
 	// Load QAL
 	if( !QAL_Init( s_alDriver->string ) )
 	{
 		Com_Printf( "Failed to load library: \"%s\".\n", s_alDriver->string );
-		return qfalse;
+		if( !Q_stricmp( s_alDriver->string, ALDRIVER_DEFAULT ) || !QAL_Init( ALDRIVER_DEFAULT ) ) {
+			return qfalse;
+		}
 	}
 
 	device = s_alDevice->string;
@@ -2621,7 +2627,7 @@ qboolean S_AL_Init( soundInterface_t *si )
 	// Set up OpenAL parameters (doppler, etc)
 	qalDistanceModel(AL_INVERSE_DISTANCE_CLAMPED);
 	qalDopplerFactor( s_alDopplerFactor->value );
-	qalDopplerVelocity( s_alDopplerSpeed->value );
+	qalSpeedOfSound( s_alDopplerSpeed->value );
 
 #ifdef USE_VOIP
 	// !!! FIXME: some of these alcCaptureOpenDevice() values should be cvars.
@@ -2667,25 +2673,24 @@ qboolean S_AL_Init( soundInterface_t *si )
 			defaultinputdevice = qalcGetString(NULL, ALC_CAPTURE_DEFAULT_DEVICE_SPECIFIER);
 
 			// dump a list of available devices to a cvar for the user to see.
-			while((curlen = strlen(inputdevicelist)))
+			if (inputdevicelist)
 			{
-				Q_strcat(inputdevicenames, sizeof(inputdevicenames), inputdevicelist);
-				Q_strcat(inputdevicenames, sizeof(inputdevicenames), "\n");
-				inputdevicelist += curlen + 1;
+				while((curlen = strlen(inputdevicelist)))
+				{
+					Q_strcat(inputdevicenames, sizeof(inputdevicenames), inputdevicelist);
+					Q_strcat(inputdevicenames, sizeof(inputdevicenames), "\n");
+					inputdevicelist += curlen + 1;
+				}
 			}
 
 			s_alAvailableInputDevices = Cvar_Get("s_alAvailableInputDevices", inputdevicenames, CVAR_ROM | CVAR_NORESTART);
 
-			// !!! FIXME: 8000Hz is what Speex narrowband mode needs, but we
-			// !!! FIXME:  should probably open the capture device after
-			// !!! FIXME:  initializing Speex so we can change to wideband
-			// !!! FIXME:  if we like.
-			Com_Printf("OpenAL default capture device is '%s'\n", defaultinputdevice);
-			alCaptureDevice = qalcCaptureOpenDevice(inputdevice, 8000, AL_FORMAT_MONO16, 4096);
+			Com_Printf("OpenAL default capture device is '%s'\n", defaultinputdevice ? defaultinputdevice : "none");
+			alCaptureDevice = qalcCaptureOpenDevice(inputdevice, 48000, AL_FORMAT_MONO16, VOIP_MAX_PACKET_SAMPLES*4);
 			if( !alCaptureDevice && inputdevice )
 			{
 				Com_Printf( "Failed to open OpenAL Input device '%s', trying default.\n", inputdevice );
-				alCaptureDevice = qalcCaptureOpenDevice(NULL, 8000, AL_FORMAT_MONO16, 4096);
+				alCaptureDevice = qalcCaptureOpenDevice(NULL, 48000, AL_FORMAT_MONO16, VOIP_MAX_PACKET_SAMPLES*4);
 			}
 			Com_Printf( "OpenAL capture device %s.\n",
 				    (alCaptureDevice == NULL) ? "failed to open" : "opened");

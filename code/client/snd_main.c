@@ -106,6 +106,8 @@ S_StartBackgroundTrack
 */
 void S_StartBackgroundTrack( const char *intro, const char *loop )
 {
+	// leilei - i used to have extension stripping here, but it crashed on looped tracks
+
 	if( si.StartBackgroundTrack ) {
 		si.StartBackgroundTrack( intro, loop );
 	}
@@ -436,6 +438,8 @@ void S_Music_f( void ) {
 	}
 
 	c = Cmd_Argc();
+
+	// leilei - strip the extension so we can play other formats if our song's not there.
 
 	if ( c == 2 ) {
 		si.StartBackgroundTrack( Cmd_Argv(1), NULL );

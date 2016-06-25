@@ -53,6 +53,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #define	RF_SHADOW_PLANE		0x0100		// use refEntity->shadowPlane
 #define	RF_WRAP_FRAMES		0x0200		// mod the model frames by the maxframes to allow continuous
+										// animation without needing to know the frame count
 
 // refdef flags
 #define RDF_NOWORLDMODEL	0x0001		// used for player configuration screen
@@ -116,6 +117,13 @@ typedef struct {
 	// extra sprite information
 	float		radius;
 	float		rotation;
+
+	// leilei - eyes
+
+	vec3_t		eyepos[2];			// looking from
+	vec3_t		eyelook;			// looking from
+
+
 } refEntity_t;
 
 
@@ -138,6 +146,7 @@ typedef struct {
 
 	// text messages for deform text shaders
 	char		text[MAX_RENDER_STRINGS][MAX_RENDER_STRING_LENGTH];
+
 } refdef_t;
 
 
@@ -213,6 +222,7 @@ typedef struct {
 	qboolean				isFullscreen;
 	qboolean				stereoEnabled;
 	qboolean				smpActive;		// UNUSED, present for compatibility
+
 } glconfig_t;
 
 #endif	// __TR_TYPES_H
