@@ -47,6 +47,11 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #endif
 #endif
 
+#include "../AL/alext.h"
+#include "../AL/efx.h"
+#include "../AL/efx-presets.h"
+
+
 /* Hack to enable compiling both on OpenAL SDK and OpenAL-soft. */
 #ifndef ALC_ENUMERATE_ALL_EXT
 #  define ALC_ENUMERATE_ALL_EXT 1
@@ -128,6 +133,16 @@ extern LPALDOPPLERFACTOR qalDopplerFactor;
 extern LPALDOPPLERVELOCITY qalDopplerVelocity;
 extern LPALSPEEDOFSOUND qalSpeedOfSound;
 extern LPALDISTANCEMODEL qalDistanceModel;
+
+extern LPALGENEFFECTS qalGenEffects;
+extern LPALEFFECTI qalEffecti;
+extern LPALEFFECTF qalEffectf;
+extern LPALEFFECTFV qalEffectfv;
+extern LPALGENAUXILIARYEFFECTSLOTS qalGenAuxiliaryEffectSlots;
+extern LPALAUXILIARYEFFECTSLOTI qalAuxiliaryEffectSloti;
+extern LPALSOURCE3I qalSource3i;
+extern LPALISEFFECT qalIsEffect;
+extern LPALDELETEEFFECTS qalDeleteEffects;
 
 extern LPALCCREATECONTEXT qalcCreateContext;
 extern LPALCMAKECONTEXTCURRENT qalcMakeContextCurrent;
@@ -223,6 +238,14 @@ extern LPALCCAPTURESAMPLES qalcCaptureSamples;
 #define qalDopplerVelocity alDopplerVelocity
 #define qalSpeedOfSound alSpeedOfSound
 #define qalDistanceModel alDistanceModel
+
+#define qalGenEffects alGenEffects
+#define qalEffecti	alEffecti
+#define qalEffectf	alEffectf
+#define qalEffectfv	alEffectfv
+#define qalGenAuxiliaryEffectSlots  alGenAuxiliaryEffectSlots;
+#define qalAuxiliaryEffectSloti alAuxiliaryEffectSloti;
+#define qalSource3i alSource3i;
 
 #define qalcCreateContext alcCreateContext
 #define qalcMakeContextCurrent alcMakeContextCurrent

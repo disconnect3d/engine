@@ -86,6 +86,16 @@ LPALDOPPLERFACTOR qalDopplerFactor;
 LPALDOPPLERVELOCITY qalDopplerVelocity;
 LPALDISTANCEMODEL qalDistanceModel;
 
+LPALEFFECTI qalEffecti;			// leilei - efx extensions
+LPALEFFECTF qalEffectf;
+LPALEFFECTFV qalEffectfv;
+LPALGENEFFECTS qalGenEffects;
+LPALGENAUXILIARYEFFECTSLOTS qalGenAuxiliaryEffectSlots;
+LPALAUXILIARYEFFECTSLOTI qalAuxiliaryEffectSloti;
+LPALSOURCE3I qalSource3i;
+LPALISEFFECT qalIsEffect;
+LPALDELETEEFFECTS qalDeleteEffects;
+
 LPALCCREATECONTEXT qalcCreateContext;
 LPALCMAKECONTEXTCURRENT qalcMakeContextCurrent;
 LPALCPROCESSCONTEXT qalcProcessContext;
@@ -204,6 +214,16 @@ qboolean QAL_Init(const char *libname)
 	qalDopplerVelocity = GPA("alDopplerVelocity");
 	qalDistanceModel = GPA("alDistanceModel");
 
+	qalGenEffects = GPA("alGenEffects");
+	qalEffecti = GPA("alEffecti");
+	qalEffectf = GPA("alEffectf");
+	qalEffectfv = GPA("alEffectfv");
+	qalGenAuxiliaryEffectSlots = GPA("alGenAuxiliaryEffectSlots");
+	qalAuxiliaryEffectSloti = GPA("alAuxiliaryEffectSloti");
+	qalSource3i = GPA("alSource3i");
+	qalIsEffect = GPA("alIsEffect");
+	qalDeleteEffects = GPA("alDeleteEffects");
+
 	qalcCreateContext = GPA("alcCreateContext");
 	qalcMakeContextCurrent = GPA("alcMakeContextCurrent");
 	qalcProcessContext = GPA("alcProcessContext");
@@ -278,6 +298,7 @@ void QAL_Shutdown( void )
 	qalSourcef = NULL;
 	qalSource3f = NULL;
 	qalSourcefv = NULL;
+	qalSource3i = NULL;
 	qalSourcei = NULL;
 	qalGetSourcef = NULL;
 	qalGetSource3f = NULL;
@@ -302,6 +323,13 @@ void QAL_Shutdown( void )
 	qalDopplerFactor = NULL;
 	qalDopplerVelocity = NULL;
 	qalDistanceModel = NULL;
+
+	qalGenEffects = NULL;
+	qalEffecti = NULL;
+	qalEffectf = NULL;
+	qalEffectfv = NULL;
+	qalDeleteEffects = NULL;
+	qalIsEffect = NULL;
 
 	qalcCreateContext = NULL;
 	qalcMakeContextCurrent = NULL;

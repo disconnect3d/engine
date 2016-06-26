@@ -27,7 +27,11 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #ifdef USE_OPENAL
 
+#define alEffectype_t_DEFINED
+
 #include "qal.h"
+
+#include "..\AL\efx-presets.h"
 
 // Console variables specific to OpenAL
 cvar_t *s_alPrecache;
@@ -44,6 +48,7 @@ cvar_t *s_alDevice;
 cvar_t *s_alInputDevice;
 cvar_t *s_alAvailableDevices;
 cvar_t *s_alAvailableInputDevices;
+cvar_t *s_alEffectTest;
 
 static qboolean enumeration_ext = qfalse;
 static qboolean enumeration_all_ext = qfalse;
@@ -51,6 +56,36 @@ static qboolean enumeration_all_ext = qfalse;
 static qboolean capture_ext = qfalse;
 #endif
 extern int xmpspeed; 		// leilei
+
+
+typedef struct alEffectype_s {
+    float flDensity;
+    float flDiffusion;
+    float flGain;
+    float flGainHF;
+    float flGainLF;
+    float flDecayTime;
+    float flDecayHFRatio;
+    float flDecayLFRatio;
+    float flReflectionsGain;
+    float flReflectionsDelay;
+    float flReflectionsPan[3];
+    float flLateReverbGain;
+    float flLateReverbDelay;
+    float flLateReverbPan[3];
+    float flEchoTime;
+    float flEchoDepth;
+    float flModulationTime;
+    float flModulationDepth;
+    float flAirAbsorptionGainHF;
+    float flHFReference;
+    float flLFReference;
+    float flRoomRolloffFactor;
+    int   iDecayHFLimit;
+} alEffectype_t;
+
+static ALuint S_AL_ReverbHack ( const alEffectype_t *reverb );
+
 
 /*
 =================
@@ -145,6 +180,16 @@ typedef struct alSfx_s
 	int				loopActiveCnt;		// number of playing loops using this sfx
 	int				masterLoopSrc;		// All other sources looping this buffer are synced to this master src
 } alSfx_t;
+
+#define	MAX_EFX 4
+
+typedef struct alEffectery_s
+{
+	ALuint		effect[MAX_EFX];					// leilei - openal effect
+	ALuint		slot[MAX_EFX];					// leilei - openal slot
+} alEffectery_t;
+
+static alEffectery_t fx;
 
 static qboolean alBuffersInitialised = qfalse;
 
@@ -581,6 +626,11 @@ typedef struct src_s
 	vec3_t		loopSpeakerPos;		// Origin of the loop speaker
 	
 	qboolean	local;			// Is this local (relative to the cam)
+	
+	ALuint		*effect;			// leilei - effect in use
+	ALuint		*slot;			
+	alEffectype_t	effectType;		// leilei - effect to use
+			
 } src_t;
 
 #ifdef MACOS_X
@@ -812,6 +862,7 @@ static void S_AL_SrcSetup(srcHandle_t src, sfxHandle_t sfx, alSrcPriority_t prio
 	curSource->curGain = s_alGain->value * s_volume->value;
 	curSource->scaleGain = curSource->curGain;
 	curSource->local = local;
+	
 
 	// Set up OpenAL source
 	if(sfx >= 0)
@@ -838,6 +889,12 @@ static void S_AL_SrcSetup(srcHandle_t src, sfxHandle_t sfx, alSrcPriority_t prio
 		qalSourcei(curSource->alSource, AL_SOURCE_RELATIVE, AL_FALSE);
 		qalSourcef(curSource->alSource, AL_ROLLOFF_FACTOR, s_alRolloff->value);
 	}
+
+	// leilei - effects hack
+	{
+		qalSource3i(curSource->alSource, AL_AUXILIARY_SEND_FILTER, fx.slot[s_alEffectTest->integer], 0, AL_FILTER_NULL); // bind an effect to our channel
+	}
+	
 }
 
 /*
@@ -1439,6 +1496,8 @@ S_AL_SrcUpdate
 Update state (move things around, manage sources, and so on)
 =================
 */
+
+
 static
 void S_AL_SrcUpdate( void )
 {
@@ -1446,7 +1505,7 @@ void S_AL_SrcUpdate( void )
 	int entityNum;
 	ALint state;
 	src_t *curSource;
-	
+
 	for(i = 0; i < srcCount; i++)
 	{
 		entityNum = srcList[i].entity;
@@ -1465,6 +1524,8 @@ void S_AL_SrcUpdate( void )
 			qalSourcef(curSource->alSource, AL_ROLLOFF_FACTOR, s_alRolloff->value);
 		if(s_alMinDistance->modified)
 			qalSourcef(curSource->alSource, AL_REFERENCE_DISTANCE, s_alMinDistance->value);
+
+
 
 		if(curSource->isLooping)
 		{
@@ -2511,13 +2572,13 @@ qboolean S_AL_Init( soundInterface_t *si )
 	s_alMinDistance = Cvar_Get( "s_alMinDistance", "120", CVAR_CHEAT );
 	s_alMaxDistance = Cvar_Get("s_alMaxDistance", "1024", CVAR_CHEAT);
 	s_alRolloff = Cvar_Get( "s_alRolloff", "2", CVAR_CHEAT);
-	s_alGraceDistance = Cvar_Get("s_alGraceDistance", "512", CVAR_CHEAT);
+	s_alGraceDistance = Cvar_Get("s_alGraceDistance", "512", CVAR_CHEAT); 
 
 	s_alDriver = Cvar_Get( "s_alDriver", ALDRIVER_DEFAULT, CVAR_ARCHIVE | CVAR_LATCH );
 
 	s_alInputDevice = Cvar_Get( "s_alInputDevice", "", CVAR_ARCHIVE | CVAR_LATCH );
 	s_alDevice = Cvar_Get("s_alDevice", "", CVAR_ARCHIVE | CVAR_LATCH);
-
+	s_alEffectTest = Cvar_Get( "s_alEffectTest", "0", CVAR_CHEAT );
 
 	xmpspeed = 48000; // leilei - force it to 48000 which is the native mixing rate post-ac'97
 
@@ -2702,6 +2763,22 @@ qboolean S_AL_Init( soundInterface_t *si )
 	}
 #endif
 
+
+	// leilei - openal efx environment pre-setup
+	{
+		int h;
+		fx.effect[0] = S_AL_ReverbHack(&(alEffectype_t)EFX_REVERB_PRESET_STONEROOM);
+		fx.effect[1] = S_AL_ReverbHack(&(alEffectype_t)EFX_REVERB_PRESET_UNDERWATER);	// might be automatic?
+		fx.effect[2] = S_AL_ReverbHack(&(alEffectype_t)EFX_REVERB_PRESET_BATHROOM);	// sounds like a vent
+		fx.effect[3] = S_AL_ReverbHack(&(alEffectype_t)EFX_REVERB_PRESET_OUTDOORS_VALLEY);
+
+		for(h=0;h<MAX_EFX;h++){
+			qalGenAuxiliaryEffectSlots(1, &fx.slot[h]);
+	
+	  		qalAuxiliaryEffectSloti(fx.slot[h], AL_EFFECTSLOT_EFFECT, fx.effect[h]);
+		}
+	}
+
 	si->Shutdown = S_AL_Shutdown;
 	si->StartSound = S_AL_StartSound;
 	si->StartLocalSound = S_AL_StartLocalSound;
@@ -2737,3 +2814,52 @@ qboolean S_AL_Init( soundInterface_t *si )
 #endif
 }
 
+
+// leilei - partially butchered from alreverb.c in the OpenAL-soft sources.
+static ALuint S_AL_ReverbHack ( const alEffectype_t *reverb )
+{
+  		ALuint effect = 0;
+    		ALenum err;
+ 		qalGenEffects(1, &effect);	
+		// leilei - do a reverb hack
+
+    {
+        qalEffecti(effect, AL_EFFECT_TYPE, AL_EFFECT_EAXREVERB);
+
+        qalEffectf(effect, AL_EAXREVERB_DENSITY, reverb->flDensity);
+        qalEffectf(effect, AL_EAXREVERB_DIFFUSION, reverb->flDiffusion);
+        qalEffectf(effect, AL_EAXREVERB_GAIN, reverb->flGain);
+        qalEffectf(effect, AL_EAXREVERB_GAINHF, reverb->flGainHF);
+        qalEffectf(effect, AL_EAXREVERB_GAINLF, reverb->flGainLF);
+        qalEffectf(effect, AL_EAXREVERB_DECAY_TIME, reverb->flDecayTime);
+        qalEffectf(effect, AL_EAXREVERB_DECAY_HFRATIO, reverb->flDecayHFRatio);
+        qalEffectf(effect, AL_EAXREVERB_DECAY_LFRATIO, reverb->flDecayLFRatio);
+        qalEffectf(effect, AL_EAXREVERB_REFLECTIONS_GAIN, reverb->flReflectionsGain);
+        qalEffectf(effect, AL_EAXREVERB_REFLECTIONS_DELAY, reverb->flReflectionsDelay);
+        qalEffectfv(effect, AL_EAXREVERB_REFLECTIONS_PAN, reverb->flReflectionsPan);
+        qalEffectf(effect, AL_EAXREVERB_LATE_REVERB_GAIN, reverb->flLateReverbGain);
+        qalEffectf(effect, AL_EAXREVERB_LATE_REVERB_DELAY, reverb->flLateReverbDelay);
+        qalEffectfv(effect, AL_EAXREVERB_LATE_REVERB_PAN, reverb->flLateReverbPan);
+        qalEffectf(effect, AL_EAXREVERB_ECHO_TIME, reverb->flEchoTime);
+        qalEffectf(effect, AL_EAXREVERB_ECHO_DEPTH, reverb->flEchoDepth);
+        qalEffectf(effect, AL_EAXREVERB_MODULATION_TIME, reverb->flModulationTime);
+        qalEffectf(effect, AL_EAXREVERB_MODULATION_DEPTH, reverb->flModulationDepth);
+        qalEffectf(effect, AL_EAXREVERB_AIR_ABSORPTION_GAINHF, reverb->flAirAbsorptionGainHF);
+        qalEffectf(effect, AL_EAXREVERB_HFREFERENCE, reverb->flHFReference);
+        qalEffectf(effect, AL_EAXREVERB_LFREFERENCE, reverb->flLFReference);
+        qalEffectf(effect, AL_EAXREVERB_ROOM_ROLLOFF_FACTOR, reverb->flRoomRolloffFactor);
+        qalEffecti(effect, AL_EAXREVERB_DECAY_HFLIMIT, reverb->iDecayHFLimit);
+    }
+
+    err = qalGetError();
+    if(err != AL_NO_ERROR)
+	if(err)
+	    {
+	        if(qalIsEffect(effect))
+	            qalDeleteEffects(1, &effect);
+	        return 0;
+	    }
+	
+    return effect;
+	
+}
