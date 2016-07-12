@@ -1038,6 +1038,9 @@ void RB_RenderDrawSurfList( drawSurf_t *drawSurfs, int numDrawSurfs ) {
 	// add light flares on lights that aren't obscured
 	RB_RenderFlares();
 
+	// add the particles
+	R_AddParticles ();
+
 	RB_DrawSun();		
 	RB_DrawSunFlare();		// leilei - sun flare
 
@@ -1695,7 +1698,7 @@ const void	*RB_SwapBuffers( const void *data ) {
 	backEnd.donentsc = qfalse;
 	backEnd.donetv = qfalse;
 	backEnd.doneraa = qfalse;
-
+	backEnd.doneParticles = qfalse;
 
 	// leilei - artificial slowness (mapper debug) - this might be windows only
 #ifdef _WIN32
@@ -1749,11 +1752,9 @@ void RB_ExecuteRenderCommands( const void *data ) {
 		case RC_STRETCH_PIC:
 			//Check if it's time for BLOOM!
 			leifxmode = 0;
-			R_WaterScreen(); // do this first
 			R_PostprocessScreen();
 			R_BloomScreen();
 			R_FilmScreen();
-			R_AnimeScreen();
 			data = RB_StretchPic( data );
 			break;
 		case RC_DRAW_SURFS:
@@ -1765,12 +1766,9 @@ void RB_ExecuteRenderCommands( const void *data ) {
 		case RC_SWAP_BUFFERS:
 			//Check if it's time for BLOOM!
 			leifxmode = 0;
-			R_WaterScreen(); // do this first
 			R_PostprocessScreen();
 			R_BloomScreen();
 			R_FilmScreen();
-			R_AnimeScreen();
-
 			data = RB_SwapBuffers( data );
 			break;
 		case RC_SCREENSHOT:

@@ -6212,6 +6212,9 @@ static void CreateExternalShaders( void ) {
 	if(!tr.placeholderFogShader->defaultShader) 		tr.placeholderFogAvail = 1;
 
 
+// leilei - lfx shaders
+
+	LFX_ShaderInit();
 }
 
 /*

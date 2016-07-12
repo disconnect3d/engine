@@ -210,6 +210,7 @@ cvar_t	*r_mockvr;		// Leilei - for debugging PVR only!
 cvar_t	*r_parseStageSimple;	// Leilei - for debugging PVR only!
 cvar_t	*r_leifx;		// Leilei - leifx nostalgia filter
 cvar_t	*r_modelshader;		// Leilei 
+cvar_t	*r_particles;		// Leilei - particle effects motif
 
 cvar_t	*r_ntsc;		// Leilei - ntsc / composite signals
 //cvar_t	*r_tvMode;		// Leilei - tv fake mode
@@ -1345,6 +1346,7 @@ void R_Register( void )
 	r_anime = ri.Cvar_Get( "r_anime", "0" , CVAR_ARCHIVE | CVAR_LATCH);	
 	r_palletize = ri.Cvar_Get( "r_palletize", "0" , CVAR_ARCHIVE | CVAR_LATCH);	
 	r_leidebug = ri.Cvar_Get( "r_leidebug", "0" , CVAR_CHEAT);	
+	r_particles = ri.Cvar_Get( "r_particles", "0" , CVAR_ARCHIVE | CVAR_LATCH);	
 	r_leidebugeye = ri.Cvar_Get( "r_leidebugeye", "0" , CVAR_CHEAT);	
 	r_slowness = ri.Cvar_Get( "r_slowness", "0" , CVAR_ARCHIVE);	// it's 0 because you want it to be the fastest possible by default.
 	r_slowness_cpu = ri.Cvar_Get( "r_slowness_cpu", "300" , CVAR_ARCHIVE);	// it's 0 because you want it to be the fastest possible by default.
@@ -1650,6 +1652,8 @@ void R_Init( void ) {
 	R_ModelInit();
 
 	R_InitFreeType();
+
+	R_ClearParticles();
 	
 	err = qglGetError();
 	if ( err != GL_NO_ERROR )
@@ -1763,6 +1767,7 @@ refexport_t *GetRefAPI ( int apiVersion, refimport_t *rimp ) {
 	re.ClearScene = RE_ClearScene;
 	re.AddRefEntityToScene = RE_AddRefEntityToScene;
 	re.AddPolyToScene = RE_AddPolyToScene;
+	re.LFX_ParticleEffect = LFX_ParticleEffect;
 	re.LightForPoint = R_LightForPoint;
 	re.AddLightToScene = RE_AddLightToScene;
 	re.AddAdditiveLightToScene = RE_AddAdditiveLightToScene;

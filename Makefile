@@ -1742,6 +1742,7 @@ Q3ROAOBJ = \
   \
   $(B)/renderer_oa/tr_bloom.o \
   $(B)/renderer_oa/tr_extensions.o \
+  $(B)/renderer_oa/tr_particles.o \
   \
   $(B)/renderergl1/sdl_gamma.o \
   $(B)/renderergl1/sdl_glimp.o
@@ -1816,6 +1817,7 @@ Q3RSOFTOBJ = \
   \
   $(B)/renderer_oa/tr_bloom.o \
   $(B)/renderer_oa/tr_extensions.o \
+  $(B)/renderer_oa/tr_particles.o \
   \
   $(B)/renderersoft/sdl_gamma.o \
   $(B)/renderersoft/sdl_glimp.o
