@@ -38,6 +38,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #define BLOODRED	2
 #define EMISIVEFADE	3
+#define LFXSTUFF	1
 #define LFXSHOCK	2
 #define LFXSMOKE	3
 #define LFXSPARK	4
@@ -46,6 +47,14 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define LFXSTRAND	7
 #define LFXTRAIL	8
 #define LFXBUBBLE	9
+#define	LFXQUAKE	10
+
+
+// color types
+
+#define	P_LFX		1	// ramp
+#define P_LFXSIMPLE	2	// solid color
+#define P_INDEXED	3	// indexed color from qpal
 
 
 #define	MAX_TRAIL_POINTS 8
@@ -99,7 +108,6 @@ typedef struct particle_s
 	float 		rollfriction;
 	int		qolor;		// quake palette color translation
 	int		ramp;		// quake color ramping (rocket trails, explosion)
-	qboolean	qarticle;	// is a quake style particle
 
 	float		cols[4][5];	// fading color cycle
 	vec3_t		dir;		// angle, direction
@@ -111,6 +119,10 @@ typedef struct particle_s
 	int		material;	// kind of material it is?
 
 	float		die;		// quake translation
+
+	int 		rendertype;	// particle type (spark, oriented, etc)
+	int		colortype;	// color type (ramp, palette, singular)
+	int			fogNum;
 } particle_t;
 
 void R_AddParticleToScene (particle_t *p, vec3_t org, float alpha);
@@ -177,8 +189,6 @@ typedef enum
 	P_SPRITE,
 	P_BEAM,	// leilei	- angle not calculated
 	P_SPARK,	// leilei	- angle and length recalculated from velocity
-	P_LFX,		
-	P_LFXSIMPLE,	
 	P_QUAKESTATIC,	
 	P_QUAKEGRAV,
 	P_QUAKESLOWGRAV,
@@ -189,6 +199,8 @@ typedef enum
 	P_QUAKEBLOB2,
 	P_QUAKE	
 } particle_type_t;
+
+
 
 
 #define	MAX_SHADER_ANIMS	32
@@ -284,6 +296,7 @@ void R_AddParticleToScene (particle_t *p, vec3_t org, float alpha)
 	float		height;
 	float		time, time2;
 	float		ratio;
+	int		fogNum;
 	float		invratio;
 	vec3_t		color;
 
@@ -293,7 +306,7 @@ void R_AddParticleToScene (particle_t *p, vec3_t org, float alpha)
 	THEtime = backEnd.refdef.time; 
 
 	// qarticle transitions
-	cl.time = THEtime / 1000; // quarticles
+	cl.time = THEtime / 10; // quarticles
 
 
 
@@ -301,121 +314,42 @@ void R_AddParticleToScene (particle_t *p, vec3_t org, float alpha)
 	time2 = p->endtime - p->time;
 	ratio = time / time2;
 
-
-
-	if (p->qarticle){	// if it's a qarticle, draw it how glquake does it
+	// Do us some fogging fogger
 	{
-		float scale;
-		p->bounce = 0; // they don't bounce
-		p->bubbleit = 0; // they don't bubble
-		p->qolor = p->color; // update our desired color
-
-		scale = 5;	// TODO: The distance scaling particles
-
-		p->width = scale;
-		p->height = scale;
-		p->pshader = alfball; // for safety
-		p->endwidth = scale;
-		p->endheight = scale;
-		p->alpha = 1;
-		p->startfade = time;
-		// leilei - set color from translation table
-		VectorSet(color, qpalette[p->qolor][0], qpalette[p->qolor][1], qpalette[p->qolor][2]);
-
-		width = p->width + ( ratio * ( p->endwidth - p->width) );
-		height = p->height + ( ratio * ( p->endheight - p->height) );
-
-				
-				{
-				int ind=0;
-					ri.Printf( PRINT_ALL, "boung!");
+		byte fogFactors[3] = {255, 255, 255};
+		if(tr.world && p->fogNum > 0 && p->fogNum < tr.world->numfogs)
+		{
+			tess.numVertexes = 1;
+			VectorCopy(org, tess.xyz[0]);
+			tess.fogNum = p->fogNum;
 		
-					VectorMA (org, -height, pvup, point);	
-					VectorMA (point, -width, pvright, point);	
-		
-				// Faded clipping test. we don't need dx10 after all :)
-
-				
-				RB_BeginSurface( alfball, 1 ); 
-
-				VectorCopy (point, tess.xyz[tess.numVertexes] );	
-				tess.texCoords[tess.numVertexes][0][0] = 0;	
-				tess.texCoords[tess.numVertexes][0][1] = 0;	
-				tess.vertexColors[tess.numVertexes][0] = 255 * color[0];	
-				tess.vertexColors[tess.numVertexes][1] = 255 * color[1];	
-				tess.vertexColors[tess.numVertexes][2] = 255 * color[2];	
-				tess.vertexColors[tess.numVertexes][3] = 255;
-				tess.numVertexes++;
-
-					VectorMA (point, 2*height, pvup, point);	
-				VectorCopy (point, tess.xyz[tess.numVertexes] );	
-				tess.texCoords[tess.numVertexes][0][0] = 0;	
-				tess.texCoords[tess.numVertexes][0][1] = 1;	
-				tess.vertexColors[tess.numVertexes][0] = 255 * color[0];	
-				tess.vertexColors[tess.numVertexes][1] = 255 * color[1];	
-				tess.vertexColors[tess.numVertexes][2] = 255 * color[2];	
-				tess.vertexColors[tess.numVertexes][3] = 255;
-				tess.numVertexes++;
-		
-				VectorMA (point, 2*width, pvright, point);	
-		
-				VectorCopy (point, tess.xyz[tess.numVertexes] );	
-				tess.texCoords[tess.numVertexes][0][0] = 1;	
-				tess.texCoords[tess.numVertexes][0][1] = 1;	
-				tess.vertexColors[tess.numVertexes][0] = 255 * color[0];	
-				tess.vertexColors[tess.numVertexes][1] = 255 * color[1];	
-				tess.vertexColors[tess.numVertexes][2] = 255 * color[2];	
-				tess.vertexColors[tess.numVertexes][3] = 255;
-				tess.numVertexes++;
-		
-		
-					VectorMA (point, -2*height, pvup, point);	
+			RB_CalcModulateColorsByFog(fogFactors);
 			
-				VectorCopy (point, tess.xyz[tess.numVertexes] );	
-				tess.texCoords[tess.numVertexes][0][0] = 1;	
-				tess.texCoords[tess.numVertexes][0][1] = 0;	
-				tess.vertexColors[tess.numVertexes][0] = 255 * color[0];	
-				tess.vertexColors[tess.numVertexes][1] = 255 * color[1];	
-				tess.vertexColors[tess.numVertexes][2] = 255 * color[2];	
-				tess.vertexColors[tess.numVertexes][3] = 255;
-				tess.numVertexes++;
-
-				tess.indexes[tess.numIndexes++] = 0;
-				tess.indexes[tess.numIndexes++] = 1;
-				tess.indexes[tess.numIndexes++] = 2;
-				tess.indexes[tess.numIndexes++] = 0;
-				tess.indexes[tess.numIndexes++] = 2;
-				tess.indexes[tess.numIndexes++] = 3;
-
-				ind+=4;
-				RB_EndSurface();
-
-				}
-			}
-		return;
-
-
-
-
+			// We don't need to render the flare if colors are 0 anyways.
+			if(!(fogFactors[0] || fogFactors[1] || fogFactors[2]))
+				return;
+		}
 	}
 
 
-	// hack to prevent that one long particle from going crazy in the world.
-	if (p->startfade > THEtime){
 
-		p->bounce = 0; p->bubbleit = 0; //no cpu expensive checks
-		return;
-
-		}
-
-	 if (p->type == P_LFX || p->type == P_LFXSIMPLE)
 	{// create a front rotating facing polygon
 		// that can change colors
 		// and........ something.
 		vec3_t	rr, ru;
 		vec3_t	rotate_ang;
 
-		 if (p->type == P_LFX){
+	 if (p->colortype == P_LFX){	// Ramp
+
+		// hack to prevent that one long particle from going crazy in the world.
+		if (p->startfade > THEtime){
+
+		p->bounce = 0; p->bubbleit = 0; //no cpu expensive checks
+		return;
+
+		}
+
+
 		if (THEtime> p->startfade)
 		{
 			float inv1,inv2,inv3,inv4;
@@ -474,6 +408,11 @@ void R_AddParticleToScene (particle_t *p, vec3_t org, float alpha)
 		if (invratio > 4)
 			invratio = 4;
 		}
+		else if (p->colortype = P_INDEXED)
+		{
+			VectorSet(color, qpalette[p->qolor][0], qpalette[p->qolor][1], qpalette[p->qolor][2]);
+			color[3] = 1.0f;
+		}
 		else	// simple
 		{
 				invratio = 1;
@@ -484,7 +423,7 @@ void R_AddParticleToScene (particle_t *p, vec3_t org, float alpha)
 
 		}
 	
-		if (p->color == LFXSHOCK)
+		if (p->rendertype == LFXSHOCK)
 		{	// ORIENTED sprite - used for shockwaves, water waves, waves, etc.
 				vec3_t	argles;
 				vec3_t		right, up;
@@ -501,7 +440,7 @@ void R_AddParticleToScene (particle_t *p, vec3_t org, float alpha)
 					AngleVectors ( rotate_ang, NULL, right, up);
 				}
 		
-				RB_BeginSurface( p->pshader, 1 ); 
+				RB_BeginSurface( p->pshader, fogNum ); 
 				VectorMA (org, -height, right, point);	
 				VectorMA (point, -width, up, point);
 
@@ -559,7 +498,7 @@ void R_AddParticleToScene (particle_t *p, vec3_t org, float alpha)
 				RB_EndSurface();	
 
 		}
-		else if (p->color == LFXSPARK)
+		else if (p->rendertype == LFXSPARK)
 		{	// STRETCHY SPARK sprite - used for sparks etc
 				vec3_t	argles;
 				vec3_t		right, up, fwd;
@@ -607,7 +546,7 @@ void R_AddParticleToScene (particle_t *p, vec3_t org, float alpha)
 				VectorMA( right, -line[0], backEnd.refdef.viewaxis[2], right );
 				VectorNormalize( right );
 
-				RB_BeginSurface( p->pshader, 1 ); 
+				RB_BeginSurface( p->pshader, fogNum ); 
 
 				VectorMA( finish, width, right, tess.xyz[tess.numVertexes] );	
 				tess.texCoords[tess.numVertexes][0][0] = 0;	
@@ -661,7 +600,7 @@ void R_AddParticleToScene (particle_t *p, vec3_t org, float alpha)
 				// center glow of softness?  Enable for 2002 particleset?
 
 		}
-		else if (p->color == LFXBURST)
+		else if (p->rendertype == LFXBURST)
 		{	// STRETCHY BURST sprite - used for explosions
 			// like spark but origin doesnt change. it just keeps stretching
 			// from where it was spawned.
@@ -712,7 +651,7 @@ void R_AddParticleToScene (particle_t *p, vec3_t org, float alpha)
 				VectorMA( right, -line[0], backEnd.refdef.viewaxis[2], right );
 				VectorNormalize( right );
 
-							RB_BeginSurface( p->pshader, 1 ); 
+							RB_BeginSurface( p->pshader, fogNum ); 
 
 				VectorMA( finish, width, right, tess.xyz[tess.numVertexes] );	
 				tess.texCoords[tess.numVertexes][0][0] = 0;	
@@ -763,7 +702,7 @@ void R_AddParticleToScene (particle_t *p, vec3_t org, float alpha)
 				RB_EndSurface();
 		}
 
-		else if (p->color == LFXTRAIL)
+		else if (p->rendertype == LFXTRAIL)
 		{	// STRETCHY TRAIL sprite - used for..... i dunno
 			// like burst but splits into more trails when the certain length is achieved
 				// TO RETURN
@@ -795,7 +734,7 @@ void R_AddParticleToScene (particle_t *p, vec3_t org, float alpha)
 				// Faded clipping test. we don't need dx10 after all :)
 
 				
-				RB_BeginSurface( p->pshader, 1 ); 
+				RB_BeginSurface( p->pshader, fogNum ); 
 
 				VectorCopy (point, tess.xyz[tess.numVertexes] );	
 				tess.texCoords[tess.numVertexes][0][0] = 0;	
@@ -907,7 +846,9 @@ void R_AddParticles (void)
 	time3 = frametime * 15;
 	time2 = frametime * 10; // 15;
 	time1 = frametime * 5;
-	grav = frametime * -800;
+	//grav = frametime * -800;
+
+	grav = PARTICLE_GRAVITY;
 	dvel = 4*frametime;
 
 	time = frametime; 
@@ -939,248 +880,47 @@ void R_AddParticles (void)
 
 
 
-
-			
-		p->vel[0] += p->accel[0]*frametime;
-		p->vel[1] += p->accel[1]*frametime;
-		p->vel[2] += p->accel[2]*frametime;
-
-		if (alpha > 1.0)
-			alpha = 1;
-
-		
-
-		oldorg[0] = p->org[0];
-		oldorg[1] = p->org[1];
-		oldorg[2] = p->org[2];
-
-
-
-
-		if (p->rollfriction){		
-			f = 1.0f - MINe(p->rollfriction * frametime, 1);
-			p->rollvel *= f;
-		}
-		
-		if (p->airfriction){		
-			f = 1.0f - MINe(p->airfriction * frametime, 1);
-			VectorScale(p->vel, f, p->vel);
-		}	
-
-		p->org[0] += p->vel[0]*frametime;
-		p->org[1] += p->vel[1]*frametime;
-		p->org[2] += p->vel[2]*frametime;
-
-		p->roll += (p->rollvel*frametime);
-
-
-		
-		alpha = p->alpha + time*p->alphavel;
-
-	// hack to prevent that one long particle from going crazy in the world.
-	if (p->startfade > THEtime){
-		p->alpha = -1; // kill it
-		}
-
-		if (alpha <= 0)
-		{	// faded out
-			p->next = free_particles;
-			free_particles = p;
-			p->type = 0;
-			p->airfriction = 0;
-			p->color = 0;
-			p->alpha = 0;
-			p->endtime = THEtime- 0.1;
-			p->active_trail = 0;
-			continue;
-		}
-
 	// if we're told to die, it's most likely a quake particle.
 	if (p->die)
 		{
-			p->endtime = THEtime + (p->die * 1000);
+			int scal = 2.6f;
+			p->endtime = THEtime + (p->die);
 			p->die = 0;
-			p->qarticle = 1;
+			p->height= scal;
+			p->width= scal;
+			p->endheight= scal;
+			p->endwidth= scal;
+			p->bounce = 0;
+			p->bubbleit = 0;
+		//	ri.Printf( PRINT_ALL, "boung!");
+			p->colortype = P_INDEXED;
+			p->alpha = 1;
+			p->qolor = p->color;
+			p->time = THEtime;
+			p->startfade = THEtime;
+			p->rendertype = LFXQUAKE;
+			p->accel[0] = p->accel[1] = p->accel[2] = 0;
+			p->pshader = alfball;
+			//p->qarticle = 1;
 		}
 
+
+
+		if (p->rendertype != LFXQUAKE){			
+		p->vel[0] += p->accel[0]*frametime;
+		p->vel[1] += p->accel[1]*frametime;
+		p->vel[2] += p->accel[2]*frametime;
+		}
 
 
 		
-
-		if (THEtime> p->endtime || p->alpha < 0.0f)
-			{
-				p->next = free_particles;
-				free_particles = p;
-				p->type = 0;
-				p->color = 0;
-				p->alpha = 0;
-				p->qolor = 0;
-				p->accel[0] = 0;
-				p->accel[1] = 0;
-				p->accel[2] = 0;
-				p->rollvel = 0;
-				p->rollfriction = 0;
-				p->qarticle = 0;
-				p->cols[0][0] = 0;	
-				p->cols[1][0] = 0;	
-				p->cols[2][0] = 0;	
-				p->cols[3][0] = 0;	
-				p->cols[0][1] = 0;	
-				p->cols[1][1] = 0;	
-				p->cols[2][1] = 0;	
-				p->cols[3][1] = 0;	
-				p->cols[0][2] = 0;	
-				p->cols[1][2] = 0;	
-				p->cols[2][2] = 0;	
-				p->cols[3][2] = 0;	
-				p->cols[0][3] = 0;	
-				p->cols[1][3] = 0;	
-				p->cols[2][3] = 0;	
-				p->cols[3][3] = 0;	
-				p->cols[0][4] = 0;	
-				p->cols[1][4] = 0;	
-				p->cols[2][4] = 0;	
-				p->cols[3][4] = 0;	
-				p->airfriction = 0;
-				p->bounce = 0;
-				p->bubbleit = 0;
-				p->material = 0;
-				p->active_trail = 0;
-				continue;
-			}
-
-		R_AddParticleToScene (p, p->org, alpha);
-
-
-
-		// leilei
-		if (p->type == P_QUAKE)
-		{
-			if (THEtime> p->endtime)
-			{
-				p->next = free_particles;
-				free_particles = p;
-				p->type = 0;
-				p->color = 0;
-				p->qolor = 0;
-				p->qarticle = 0;
-				p->alpha = 0;
-			
-				continue;
-			}
-			if (p->qarticle)
-			{
-				int i;
-				if (THEtime> p->endtime)
-							{
-					p->next = free_particles;
-					free_particles = p;
-					p->type = 0;
-					p->color = 0;
-					p->alpha = 0;
-					p->qolor = 0;
-					p->accel[0] = 0;
-					p->accel[1] = 0;
-					p->accel[2] = 0;
-					p->rollvel = 0;
-					p->rollfriction = 0;
-					p->qarticle = 0;
-					p->cols[0][0] = 0;	
-					p->cols[1][0] = 0;	
-					p->cols[2][0] = 0;	
-					p->cols[3][0] = 0;	
-					p->cols[0][1] = 0;	
-					p->cols[1][1] = 0;	
-					p->cols[2][1] = 0;	
-					p->cols[3][1] = 0;	
-					p->cols[0][2] = 0;	
-					p->cols[1][2] = 0;	
-					p->cols[2][2] = 0;	
-					p->cols[3][2] = 0;	
-					p->cols[0][3] = 0;	
-					p->cols[1][3] = 0;	
-					p->cols[2][3] = 0;	
-					p->cols[3][3] = 0;	
-					p->cols[0][4] = 0;	
-					p->cols[1][4] = 0;	
-					p->cols[2][4] = 0;	
-					p->cols[3][4] = 0;	
-					p->airfriction = 0;
-					p->bounce = 0;
-					p->bubbleit = 0;
-					p->material = 0;
-					p->active_trail = 0;
-					continue;
-				}
-	
-				//R_AddParticleToScene (p, p->org, alpha);
-	
-
-				
-			}
-
-		}
-
-		p->next = NULL;
-		if (!tail)
-			active = tail = p;
 		else
 		{
-			tail->next = p;
-			tail = p;
-		}
 
+		p->vel[0] += frametime;
+		p->vel[1] += frametime;
+		p->vel[2] += frametime;
 
-
-	// leilei - trail stuffs
-
-		vectoangles( p->vel, p->angle );
-		p->stretch = 34;
-		p->src[0] = p->org[0];
-		p->src[1] = p->org[1];
-		p->src[2] = p->org[2];
-
-		p->dest[0] = p->org[0] + p->vel[0] + p->accel[0];
-		p->dest[1] = p->org[1] + p->vel[1] + p->accel[1];
-		p->dest[2] = p->org[2] + p->vel[2] + p->accel[2];
-
-
-	// leilei - bubble conversion
-	if(p->bubbleit && p->color != LFXBUBBLE)
-		{
-			int contents = CM_PointContents( p->org, 0 );
-				if ( contents & ( CONTENTS_WATER | CONTENTS_SLIME ) ) {
-				p->color = LFXBUBBLE;
-				p->pshader = watbubble;
-				p->airfriction = 2.0f;
-				p->accel[0] = 0;
-				p->accel[1] = 0;
-				p->accel[2] = 66;
-				p->cols[0][0] = 1; p->cols[0][1] = 1; p->cols[0][2] = 1;
-				p->cols[1][0] = 1; p->cols[1][1] = 1; p->cols[1][2] = 1;
-				p->cols[2][0] = 1; p->cols[2][1] = 1; p->cols[2][2] = 1;
-				p->cols[3][0] = 1; p->cols[3][1] = 1; p->cols[3][2] = 1;
-				p->endtime += 1000; // last it a wile
-			}
-
-	}
-	if(p->color == LFXBUBBLE)
-		{
-			int contents = CM_PointContents( p->org, 0 );
-				if ( contents | ( CONTENTS_WATER | CONTENTS_SLIME ) ) {
-				p->endtime = THEtime;
-			}
-			else
-			{
-				p->accel[0] = (crandom() * 4 - 2);
-				p->accel[1] = (crandom() * 4 - 2);
-				p->accel[2] = 66;
-
-			}
-
-	}
-
-		if (p->qarticle){
 			int i;
 				switch (p->type)
 				{
@@ -1234,10 +974,218 @@ void R_AddParticles (void)
 					break;
 		
 				case pt_slowgrav:
-					p->vel[2] -= grav;
+					p->accel[2] -= grav;
 					break;
 				}
+
+
+
+
+			if (THEtime> p->endtime)
+						{
+				p->next = free_particles;
+				free_particles = p;
+				p->type = 0;
+				p->color = 0;
+				p->alpha = 0;
+				p->qolor = 0;
+				p->accel[0] = 0;
+				p->accel[1] = 0;
+				p->accel[2] = 0;
+				p->rollvel = 0;
+				p->rollfriction = 0;
+				//p->qarticle = 0;
+				p->cols[0][0] = 0;	
+				p->cols[1][0] = 0;	
+				p->cols[2][0] = 0;	
+				p->cols[3][0] = 0;	
+				p->cols[0][1] = 0;	
+				p->cols[1][1] = 0;	
+				p->cols[2][1] = 0;	
+				p->cols[3][1] = 0;	
+				p->cols[0][2] = 0;	
+				p->cols[1][2] = 0;	
+				p->cols[2][2] = 0;	
+				p->cols[3][2] = 0;	
+				p->cols[0][3] = 0;	
+				p->cols[1][3] = 0;	
+				p->cols[2][3] = 0;	
+				p->cols[3][3] = 0;	
+				p->cols[0][4] = 0;	
+				p->cols[1][4] = 0;	
+				p->cols[2][4] = 0;	
+				p->cols[3][4] = 0;	
+				p->airfriction = 0;
+				p->bounce = 0;
+				p->bubbleit = 0;
+				p->material = 0;
+				p->active_trail = 0;
+				continue;
+			}
+
 		}
+		oldorg[0] = p->org[0];
+		oldorg[1] = p->org[1];
+		oldorg[2] = p->org[2];
+
+
+
+
+
+		p->org[0] += p->vel[0]*frametime;
+		p->org[1] += p->vel[1]*frametime;
+		p->org[2] += p->vel[2]*frametime;
+			
+		if (p->rendertype != LFXQUAKE)	
+		{
+				if (alpha > 1.0)
+					alpha = 1;
+				if (p->rollfriction){		
+					f = 1.0f - MINe(p->rollfriction * frametime, 1);
+					p->rollvel *= f;
+				}
+				
+				if (p->airfriction){		
+					f = 1.0f - MINe(p->airfriction * frametime, 1);
+					VectorScale(p->vel, f, p->vel);
+				}	
+
+
+				p->roll += (p->rollvel*frametime);
+		
+		
+				
+				alpha = p->alpha + time*p->alphavel;
+		
+			// hack to prevent that one long particle from going crazy in the world.
+			if (p->startfade > THEtime){
+				p->alpha = -1; // kill it
+				}
+		
+				if (alpha <= 0)
+				{	// faded out
+					p->next = free_particles;
+					free_particles = p;
+					p->type = 0;
+					p->airfriction = 0;
+					p->color = 0;
+					p->alpha = 0;
+					p->endtime = THEtime- 0.1;
+					p->active_trail = 0;
+					continue;
+				}
+
+
+			if (THEtime> p->endtime || p->alpha < 0.0f)
+						{
+				p->next = free_particles;
+				free_particles = p;
+				p->type = 0;
+				p->color = 0;
+				p->alpha = 0;
+				p->qolor = 0;
+				p->accel[0] = 0;
+				p->accel[1] = 0;
+				p->accel[2] = 0;
+				p->rollvel = 0;
+				p->rollfriction = 0;
+				//p->qarticle = 0;
+				p->cols[0][0] = 0;	
+				p->cols[1][0] = 0;	
+				p->cols[2][0] = 0;	
+				p->cols[3][0] = 0;	
+				p->cols[0][1] = 0;	
+				p->cols[1][1] = 0;	
+				p->cols[2][1] = 0;	
+				p->cols[3][1] = 0;	
+				p->cols[0][2] = 0;	
+				p->cols[1][2] = 0;	
+				p->cols[2][2] = 0;	
+				p->cols[3][2] = 0;	
+				p->cols[0][3] = 0;	
+				p->cols[1][3] = 0;	
+				p->cols[2][3] = 0;	
+				p->cols[3][3] = 0;	
+				p->cols[0][4] = 0;	
+				p->cols[1][4] = 0;	
+				p->cols[2][4] = 0;	
+				p->cols[3][4] = 0;	
+				p->airfriction = 0;
+				p->bounce = 0;
+				p->bubbleit = 0;
+				p->material = 0;
+				p->active_trail = 0;
+				continue;
+			}
+
+
+		}
+
+		
+
+		
+		//R_AddParticleToScene (p, p->org, alpha);
+
+
+		p->next = NULL;
+		if (!tail)
+			active = tail = p;
+		else
+		{
+			tail->next = p;
+			tail = p;
+		}
+
+
+
+	// leilei - trail stuffs
+
+		vectoangles( p->vel, p->angle );
+		p->stretch = 34;
+		p->src[0] = p->org[0];
+		p->src[1] = p->org[1];
+		p->src[2] = p->org[2];
+
+		p->dest[0] = p->org[0] + p->vel[0] + p->accel[0];
+		p->dest[1] = p->org[1] + p->vel[1] + p->accel[1];
+		p->dest[2] = p->org[2] + p->vel[2] + p->accel[2];
+
+
+		// leilei - bubble conversion
+		if(p->bubbleit && p->type != LFXBUBBLE)
+			{
+				int contents = CM_PointContents( p->org, 0 );
+					if ( contents & ( CONTENTS_WATER | CONTENTS_SLIME ) ) {
+					p->type = LFXBUBBLE;
+					p->pshader = watbubble;
+					p->airfriction = 2.0f;
+					p->accel[0] = 0;
+					p->accel[1] = 0;
+					p->accel[2] = 66;
+					p->cols[0][0] = 1; p->cols[0][1] = 1; p->cols[0][2] = 1;
+					p->cols[1][0] = 1; p->cols[1][1] = 1; p->cols[1][2] = 1;
+					p->cols[2][0] = 1; p->cols[2][1] = 1; p->cols[2][2] = 1;
+					p->cols[3][0] = 1; p->cols[3][1] = 1; p->cols[3][2] = 1;
+					p->endtime += 1000; // last it a wile
+				}
+	
+		}
+		if(p->type == LFXBUBBLE)
+			{
+				int contents = CM_PointContents( p->org, 0 );
+					if ( contents | ( CONTENTS_WATER | CONTENTS_SLIME ) ) {
+					p->endtime = THEtime;
+				}
+				else
+				{
+					p->accel[0] = (crandom() * 4 - 2);
+					p->accel[1] = (crandom() * 4 - 2);
+					p->accel[2] = 66;
+	
+				}
+	
+		}
+		
 
 	// leilei - bounce physics
 	if(p->bounce > 0)
@@ -1271,7 +1219,7 @@ void R_AddParticles (void)
 			}	
 	}
 		
-		//R_AddParticleToScene (p, p->org, alpha);
+		R_AddParticleToScene (p, p->org, alpha);
 
 	}
 
@@ -1294,294 +1242,6 @@ void R_AddParticles (void)
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-void R_LeiBlood2 (vec3_t org, vec3_t vel, int duration, float x, float y, float speed, float dam)
-{
-	particle_t	*p;
-
-	if (!free_particles)
-		return;
-	p = free_particles;
-	free_particles = p->next;
-	p->next = active_particles;
-	active_particles = p;
-	p->time = THEtime;
-	
-	p->endtime = THEtime+ duration;
-	p->startfade = THEtime+ duration/2;
-	
-	p->color = EMISIVEFADE;
-	p->alpha = 1.0f;
-	p->alphavel = 0.8f;
-
-	p->height = 8 * dam;
-	p->width = 8 * dam;
-	p->endheight = 4;
-	p->endwidth = 4;
-
-	p->pshader = addsmoke;
-
-	p->type = P_SMOKE;
-	//p->type = P_SPARK;
-
-	
-	VectorCopy(org, p->org);
-	p->accel[0] = p->accel[1] = p->accel[2] = 0;
-
-	p->vel[0] += (crandom() * 824);
-	p->vel[1] += (crandom() * 824);
-	p->vel[2] += (crandom() * 824);
-
-	p->vel[0] *= vel[0] * speed;
-	p->vel[1] *= vel[1] * speed;
-	p->vel[2] *= vel[2] * speed;
-
-
-	//p->vel[2] += (20 + (crandom() `* 180));	
-
-
-		p->accel[0] = 0;
-		p->accel[1] = 0;
-		p->accel[2] = -PARTICLE_GRAVITY * 3;
-
-	//p->airfriction = 19;
-	
-}
-
-
-// a different sort of puff
-
-void R_LeiPuff (vec3_t org, vec3_t vel, int duration, float x, float y, float speed, float size)
-{
-	particle_t	*p;
-
-	if (!free_particles)
-		return;
-	p = free_particles;
-	free_particles = p->next;
-	p->next = active_particles;
-	active_particles = p;
-	p->time = THEtime;
-	
-	p->endtime = THEtime+ duration;
-	p->startfade = THEtime+ duration/2;
-	
-	p->color = EMISIVEFADE;
-	p->alpha = 0.8f;
-	p->alphavel = 0.8f;
-
-	p->height = size;
-	p->width = size;
-	p->endheight = size * 1.8;
-	p->endwidth = size * 1.8;
-
-	p->pshader = addsmoke;
-
-	p->type = P_SMOKE;
-	
-	VectorCopy(org, p->org);
-
-	p->org[0] += (crandom() * x);
-	p->org[1] += (crandom() * y);
-
-	p->vel[0] = vel[0] * speed;
-	p->vel[1] = vel[1] * speed;
-	p->vel[2] = vel[2] * speed;
-
-	p->accel[0] = p->accel[1] = p->accel[2] = 0;
-
-	p->vel[0] += (crandom() * 44);
-	p->vel[1] += (crandom() * 44);
-	p->vel[2] += (crandom() * 44);	
-	p->roll = (crandom() * 256 - 128);	
-
-
-	//	p->vel[0] += (crandom() * 24);
-	//p->vel[1] += (crandom() * 24);
-	//p->vel[2] += (20 + (crandom() * 180)) * speed;	
-
-		p->accel[0] = -2;
-		p->accel[1] = -2;
-		p->accel[2] = -2;
-	
-}
-
-// a violent blast puff
-
-void R_LeiBlast (vec3_t org, vec3_t vel, int duration, float x, float y, float speed, float size)
-{
-	particle_t	*p;
-
-	if (!free_particles)
-		return;
-	p = free_particles;
-	free_particles = p->next;
-	p->next = active_particles;
-	active_particles = p;
-	p->time = THEtime;
-	
-	p->endtime = THEtime+ duration;
-	p->startfade = THEtime+ duration/2;
-	
-	p->color = EMISIVEFADE;
-	p->alpha = 1.0f;
-	p->alphavel = 0.72f;
-
-	p->height = size;
-	p->width = size;
-	p->endheight = size * 6;
-	p->endwidth = size * 6;
-
-	p->pshader = addsmoke;
-
-	p->type = P_SMOKE;
-	
-	VectorCopy(org, p->org);
-
-	p->org[0] += (crandom() * x);
-	p->org[1] += (crandom() * y);
-
-	p->vel[0] = vel[0] * speed;
-	p->vel[1] = vel[1] * speed;
-	p->vel[2] = vel[2] * speed;
-
-	p->accel[0] = p->accel[1] = p->accel[2] = 0;
-
-	p->vel[0] += (crandom() * 84);
-	p->vel[1] += (crandom() * 84);
-	p->vel[2] += (crandom() * 84);	
-	p->roll = (crandom() * 256 - 128);	
-
-
-	//	p->vel[0] += (crandom() * 24);
-	//p->vel[1] += (crandom() * 24);
-	//p->vel[2] += (20 + (crandom() * 180)) * speed;	
-
-		p->accel[0] = -2;
-		p->accel[1] = -2;
-		p->accel[2] = -2;
-	
-}
-
-// for explosions
-
-void R_LeiSparks2 (vec3_t org, vec3_t vel, int duration, float x, float y, float speed)
-{
-	particle_t	*p;
-
-	if (!free_particles)
-		return;
-	p = free_particles;
-	free_particles = p->next;
-	p->next = active_particles;
-	active_particles = p;
-	p->time = THEtime;
-	
-	p->endtime = THEtime+ duration;
-	p->startfade = THEtime+ duration/2;
-	
-	p->color = EMISIVEFADE;
-	p->alpha = 0.8f;
-	p->alphavel = 0;
-
-	p->height = 9;
-	p->width = 9;
-	p->endheight = 32;
-	p->endwidth = 32;
-
-	p->pshader = addsmoke;
-
-	p->type = P_SMOKE;
-	
-	VectorCopy(org, p->org);
-
-	p->org[0] += (crandom() * x);
-	p->org[1] += (crandom() * y);
-
-	p->vel[0] = vel[0] * 15;
-	p->vel[1] = vel[1] * 15;
-	p->vel[2] = vel[2] * 15;
-
-	p->accel[0] = p->accel[1] = p->accel[2] = 0;
-
-	p->vel[0] += (crandom() * 524);
-	p->vel[1] += (crandom() * 524);
-	p->vel[2] += (120 + (crandom() * 780)) * speed;	
-
-	//	p->accel[0] = crandom()*76;
-	//	p->accel[1] = crandom()*76;
-	//	p->accel[2] = crandom()*76;
-	
-
-//	VectorCopy( origin, p->org );
-//	VectorCopy( vel, p->vel );
-//	VectorClear( p->accel );
-
-
-	
-}
-
-// not so friendly water splash
-void R_LeiSplash2 (vec3_t org, vec3_t vel, int duration, float x, float y, float speed)
-{
-	particle_t	*p;
-
-	if (!free_particles)
-		return;
-	p = free_particles;
-	free_particles = p->next;
-	p->next = active_particles;
-	active_particles = p;
-	p->time = THEtime;
-	
-	p->endtime = THEtime+ duration;
-	p->startfade = THEtime+ duration/2;
-	
-	p->color = EMISIVEFADE;
-	p->alpha = 0.9f;
-	p->alphavel = 0;
-
-	p->height = 4;
-	p->width = 4;
-	p->endheight = 2;
-	p->endwidth = 2;
-
-	p->pshader = addsmoke;
-
-	p->type = P_SMOKE;
-	
-	VectorCopy(org, p->org);
-
-	p->org[0] += (crandom() * x);
-	p->org[1] += (crandom() * y);
-
-	p->vel[0] = vel[0] * 44;
-	p->vel[1] = vel[1] * 44;
-	p->vel[2] = vel[2] * 872;
-
-	p->accel[0] = p->accel[1] = p->accel[2] = 0;
-
-	p->vel[0] += (crandom() * 4);
-	p->vel[1] += (crandom() * 4);
-	p->vel[2] += (20 + (crandom() * 10)) * speed;	
-
-		p->accel[0] = crandom()*3;
-		p->accel[1] = crandom()*3;
-		p->accel[2] = -PARTICLE_GRAVITY*4.2;
-	
-}
 
 
 
@@ -1617,7 +1277,7 @@ void R_LFX_Blood (vec3_t org, vec3_t dir, float pressure)
 	p->endtime = THEtime+ (1200 * (crandom() * 22));
 	//p->startfade = p->endtime;
 	//p->color = GREY75;
-	p->color = EMISIVEFADE;
+	p->rendertype = LFXSMOKE;
 	p->alpha = 1.0f;
 	p->alphavel = 2.0f;
 	p->height = 1.5;
@@ -1632,7 +1292,7 @@ void R_LFX_Blood (vec3_t org, vec3_t dir, float pressure)
 	// Manage blending Functions
 	p->pshader = addsmoke;
 
-	p->type = P_LFX;
+	p->colortype = P_LFX;
 
 	
 	VectorCopy(org, p->org);
@@ -1681,7 +1341,7 @@ void R_LFX_Smoke (vec3_t org, vec3_t dir, float spread, float speed, vec4_t colo
 	p->endtime = THEtime+ duration;
 	p->startfade = THEtime;
 	
-	p->color = LFXSMOKE;
+	p->rendertype = LFXSMOKE;
 	p->alpha = 0.1f;
 	p->alphavel = 0.0f;
 	p->height = p->width = 1.0 * (count / 3);
@@ -1731,7 +1391,7 @@ void R_LFX_Smoke (vec3_t org, vec3_t dir, float spread, float speed, vec4_t colo
 	else
 	p->pshader = alfsmoke;
 
-	p->type = P_LFX;
+	p->colortype = P_LFX;
 	
 	VectorCopy(org, p->org);
 
@@ -1776,7 +1436,7 @@ void R_LFX_Smoke2 (vec3_t org, vec3_t dir, float spread, float speed, vec4_t col
 	p->endtime = THEtime+ duration;
 	p->startfade = THEtime;
 	p->bubbleit = 1;	
-	p->color = LFXSMOKE;
+	p->rendertype = LFXSMOKE;
 	p->alpha = 0.1f;
 	p->alphavel = 0.0f;
 	p->height = p->width = (1.0 * scale);
@@ -1826,7 +1486,7 @@ void R_LFX_Smoke2 (vec3_t org, vec3_t dir, float spread, float speed, vec4_t col
 	else
 	p->pshader = alfsmoke;
 
-	p->type = P_LFX;
+	p->colortype = P_LFX;
 	
 	VectorCopy(org, p->org);
 /*
@@ -1880,9 +1540,9 @@ void R_LFX_Shock (vec3_t org, vec3_t dir, float spread, float speed, vec4_t colo
 	p->endtime = THEtime+ duration;
 	p->startfade = THEtime;
 	p->bubbleit = 0;
-	p->color = LFXSHOCK;
+	p->rendertype = LFXSHOCK;
 	
-//	p->color = BLOODRED;	// note - not actually bloodred.
+//	p->rendertype = BLOODRED;	// note - not actually bloodred.
 	p->alpha = 0.1f;
 	p->alphavel = 0.0f;
  	//p->qolor = (color & ~7) + (rand() & 7);
@@ -1940,7 +1600,7 @@ void R_LFX_Shock (vec3_t org, vec3_t dir, float spread, float speed, vec4_t colo
 	else
 
 	p->pshader = alfshock;
-	p->type = P_LFX;
+	p->colortype = P_LFX;
 	
 	VectorCopy(org, p->org);
 
@@ -1991,7 +1651,7 @@ void R_LFX_Spark (vec3_t org, vec3_t dir, float spread, float speed, vec4_t colo
 	p->endtime = THEtime+ duration;
 	p->startfade = THEtime;
 	
-	p->color = LFXSPARK;
+	p->rendertype = LFXSPARK;
 	//p->color = EMISIVEFADE;
 	p->alpha = 1.0f;
 	p->alphavel = 0.0f;
@@ -2052,7 +1712,7 @@ void R_LFX_Spark (vec3_t org, vec3_t dir, float spread, float speed, vec4_t colo
 	//p->pshader = cgs.media.whiteShader;
 //
 
-	p->type = P_LFX;
+	p->colortype = P_LFX;
 	
 	VectorCopy(org, p->org);
 
@@ -2126,7 +1786,7 @@ void R_LFX_Burst (vec3_t org, vec3_t dir, float spread, float speed, vec4_t colo
 	p->endtime = THEtime+ duration;
 	p->startfade = THEtime;
 	
-	p->color = LFXBURST;
+	p->rendertype = LFXBURST;
 	//p->color = EMISIVEFADE;
 	p->alpha = 1.0f;
 	p->alphavel = 0.0f;
@@ -2184,7 +1844,7 @@ void R_LFX_Burst (vec3_t org, vec3_t dir, float spread, float speed, vec4_t colo
 
 
 
-	p->type = P_LFX;
+	p->colortype = P_LFX;
 
 	VectorCopy(org, p->org);
 
@@ -2253,7 +1913,7 @@ void R_LFX_Generic (int type, vec3_t org, vec3_t dir, float alpha, int spread, i
 	p->endtime = THEtime+ duration;
 	p->startfade = THEtime;
 	p->bubbleit = 0;	// don't do bubble check for any generic particles. 
-	p->color = type;
+	p->rendertype = type;
 	p->alpha = alpha;
 	p->alphavel = 0.0f;
 	p->height = p->width = (1.0 * scale);
@@ -2304,7 +1964,7 @@ void R_LFX_Generic (int type, vec3_t org, vec3_t dir, float alpha, int spread, i
 	p->bounce = bounce;
 	
 
-	p->type = P_LFXSIMPLE; // it's always an lfx for this one.
+	p->colortype = P_LFXSIMPLE; // it's always an lfx for this one.
 	
 	VectorCopy(org, p->org);
 
@@ -2379,36 +2039,14 @@ void R_RunParticleEffect (vec3_t org, vec3_t dir, int color, int count)
 	free_particles = p->next;
 	p->next = active_particles;
 	active_particles = p;
-	p->time = THEtime;
-	
-	p->endtime = THEtime+ (100 * (crandom() * 5));
-	p->startfade = p->endtime;
-	
-	p->color = EMISIVEFADE;
-	p->alpha = 1.0f;
-	p->alphavel = 1.0f;
- 	p->qolor = (color & ~7) + (rand() & 7);
-	p->height = 0.5;
-	p->width = 0.5;
-	p->endheight = 0.5;
-	p->endwidth = 0.5;
-	p->bubbleit = 0;
-	p->pshader = addsmoke;
-
-	p->type = P_QUAKE;
-	
-	VectorCopy(org, p->org);
-
- for (j = 0; j < 3; j++) {
-	//p->org[j] = org[j] + ((rand() & 15) - 8);
-	p->org[j] = org[j] + ((crandom() * 8) - 4);
-	p->vel[j] = dir[j] * 15;
-	}
-
-	p->accel[0] = p->accel[1] = p->accel[2] = 0;
-	p->accel[2] = -(PARTICLE_GRAVITY / 2);
-
-	p->airfriction = 0;
+			p->die = cl.time + 0.1*(rand()%5);
+			p->color = (color&~7) + (rand()&7);
+			p->type = pt_slowgrav;
+			for (j=0 ; j<3 ; j++)
+			{
+				p->org[j] = org[j] + ((rand()&15)-8);
+				p->vel[j] = dir[j]*15;// + (rand()%300)-150;
+			}
 	}
 }
 
@@ -2428,7 +2066,7 @@ void R_QarticleExplosion(vec3_t org)
 	p->next = active_particles;
 	active_particles = p;
 
-	p->color = EMISIVEFADE;
+	p->rendertype = EMISIVEFADE;
 	p->alpha = 1.0f;
 	p->alphavel = 1.0f;
 	p->time = THEtime;
@@ -2443,21 +2081,21 @@ void R_QarticleExplosion(vec3_t org)
 	p->endwidth = 0.5;
 	p->pshader = alfsmoke;
 	p->qolor = ramp1[0];
-	p->qarticle = 2;
+
 //	p->qolor = 44;
 
 	VectorCopy(org, p->org);
 
 	p->ramp = rand() & 3;
 	if (i & 1) {
-	    p->type = P_QUAKE;
+//	    p->type = P_QUAKE;
 	    for (j = 0; j < 3; j++) {
 		p->org[j] = org[j] + ((rand() % 32) - 16);
 		p->vel[j] = (rand() % 512) - 256;
 		p->accel[j] = p->vel[j] * 4;
 	    }
 	} else {
-	    p->type = P_QUAKE;
+//	    p->type = P_QUAKE;
 	    for (j = 0; j < 3; j++) {
 		p->org[j] = org[j] + ((rand() % 32) - 16);
 		p->vel[j] = (rand() % 512) - 256;
@@ -2651,8 +2289,8 @@ void LFX_ParticleEffect1996 (int effect, vec3_t org, vec3_t dir)
 	// Smoke trails on grenades and rockets
 	if (effect == 1)
 		{
- 			//R_RunParticleEffect (org, notatall, 10, 8);
-			Q_RocketTrail(org, dir, r_leidebug->integer);
+ 			R_RunParticleEffect (org, notatall, 10, 8);
+			//Q_RocketTrail(org, dir, r_leidebug->integer);
 		}
 
 	// Bullet Hit

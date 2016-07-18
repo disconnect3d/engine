@@ -1559,7 +1559,7 @@ void R_GLSL_Init(void) {
 		}
 #endif
 }
-
+extern qboolean		initparticles;
 
 /*
 ===============
@@ -1653,8 +1653,7 @@ void R_Init( void ) {
 
 	R_InitFreeType();
 
-	R_ClearParticles();
-	
+
 	err = qglGetError();
 	if ( err != GL_NO_ERROR )
 		ri.Printf (PRINT_ALL, "glGetError() = 0x%x\n", err);
