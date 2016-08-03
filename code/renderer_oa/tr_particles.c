@@ -325,9 +325,6 @@ void R_AddParticleToScene (particle_t *p, vec3_t org, float alpha)
 		
 			RB_CalcModulateColorsByFog(fogFactors);
 			
-			// We don't need to render the flare if colors are 0 anyways.
-			if(!(fogFactors[0] || fogFactors[1] || fogFactors[2]))
-				return;
 		}
 	}
 
@@ -816,6 +813,8 @@ void R_AddParticleToScene (particle_t *p, vec3_t org, float alpha)
 static float roll = 0.0;
 #define MINe(p,q) ((p <= q) ? p : q)
 
+int reallyactive;
+
 void R_AddParticles (void)
 {
 	particle_t		*p, *next;
@@ -833,11 +832,13 @@ void R_AddParticles (void)
 
 	float f;
 
+	int intheworld = 0;
+
 	if (!initparticles)
 		R_ClearParticles ();
 
-	if (backEnd.doneParticles)
-			return; // save expensive calculations for the next frame
+	// This is supposed to prevent excessive calculations, but it's buggy and not working properly and conflicts
+	// with the hud, of all things
 
 
 	// leilei - quake time stuf
@@ -868,11 +869,14 @@ void R_AddParticles (void)
 
 	active = NULL;
 	tail = NULL;
-
+	
+	// Intended to keep physics calculations under control, but it doens't work properly. :(
+	//if ((!backEnd.doneParticles) && !(tr.refdef.rdflags & RDF_NOWORLDMODEL))
 	for (p=active_particles ; p ; p=next)
 	{
 
 		next = p->next;
+
 
 		//time = (THEtime- p->time)*0.001;
 
@@ -1124,7 +1128,6 @@ void R_AddParticles (void)
 		
 
 		
-		//R_AddParticleToScene (p, p->org, alpha);
 
 
 		p->next = NULL;
@@ -1187,44 +1190,82 @@ void R_AddParticles (void)
 		}
 		
 
-	// leilei - bounce physics
-	if(p->bounce > 0)
-		{
-			trace_t	trace;
-			float dist;
-	
-			// Do the trace of truth
-			P_Trace (&trace, oldorg, NULL, NULL, p->org, -1, CONTENTS_SOLID);
+		// leilei - bounce physics
+		if(p->bounce > 0)
 			{
-				if (trace.fraction < 1){
-				
-						VectorCopy(trace.endpos, p->org);	// particle where we've hit from
-					
-						if (p->bounce < 0)
-						{
-							// bounce -1 means remove on impact
-							p->endtime = THEtime;
-						}
-
-						// anything else - bounce off solid
-						dist = DotProduct(p->vel, trace.plane.normal) * -p->bounce;
-						VectorMA(p->vel, dist, trace.plane.normal, p->vel);
-	
-					//ri.Printf( PRINT_ALL, "boung!");
-						// lets roll
-						//p->vel[2] = 7;
-						if(p->bounce < 0.2f)
-							p->alpha = -5; // kill!
-					}
-			}	
-	}
+				trace_t	trace;
+				float dist;
 		
-		R_AddParticleToScene (p, p->org, alpha);
+				// Do the trace of truth
+				P_Trace (&trace, oldorg, NULL, NULL, p->org, -1, CONTENTS_SOLID);
+				{
+					if (trace.fraction < 1){
+					
+							VectorCopy(trace.endpos, p->org);	// particle where we've hit from
+						
+							if (p->bounce < 0)
+							{
+								// bounce -1 means remove on impact
+								p->endtime = THEtime;
+							}
+	
+							// anything else - bounce off solid
+							dist = DotProduct(p->vel, trace.plane.normal) * -p->bounce;
+							VectorMA(p->vel, dist, trace.plane.normal, p->vel);
+							// lets roll
+							//p->vel[2] = 7;
+							if(p->bounce < 0.2f)
+								p->alpha = -5; // kill!
+						}
+				}	
+		}
+			
+		//R_AddParticleToScene (p, p->org, alpha);
 
+		
 	}
 
 	active_particles = active;
+
+	reallyactive = active;
+
 	backEnd.doneParticles = qtrue; // we did it!
+}
+
+
+void R_RenderParticles (void)
+{
+	particle_t		*p, *next;
+	float			alpha;
+	float			time, time2;
+	vec3_t			oldorg;	// leilei
+	particle_t		*active, *tail;
+	vec3_t			rotate_ang;
+
+	float			frametime;
+	float			time3;
+	float			time1;
+	float			dvel;
+	float			grav;
+
+	float f;
+
+
+	if (!initparticles)
+		return;
+
+	if (!backEnd.doneParticles)
+		R_AddParticles();
+
+	active_particles = reallyactive;
+
+	for (p=active_particles ; p ; p=next)
+	{
+		next = p->next;
+		R_AddParticleToScene (p, p->org, p->alpha);
+	}
+
+	
 }
 
 
@@ -1909,7 +1950,6 @@ void R_LFX_Generic (int type, vec3_t org, vec3_t dir, float alpha, int spread, i
 	p->next = active_particles;
 	active_particles = p;
 	p->time = THEtime;
-	
 	p->endtime = THEtime+ duration;
 	p->startfade = THEtime;
 	p->bubbleit = 0;	// don't do bubble check for any generic particles. 
@@ -1922,7 +1962,7 @@ void R_LFX_Generic (int type, vec3_t org, vec3_t dir, float alpha, int spread, i
 	p->endwidth = p->width + scaleup;
 
 	p->rotate = qtrue;
-	p->roll = crandom()*randroll;
+	p->roll = 0;//crandom()*randroll;
 
 
 	// we only use one color for this fine generic function
@@ -2941,7 +2981,7 @@ void LFX_ParticleEffect1999 (int effect, vec3_t org, vec3_t dir)
 	if (effect == 2)
 		{
 			R_LFX_Generic 
-					(LFXSMOKE, 	// Particle Type
+					(777777, 	// Particle Type
 					sprOrg, 	// Origin
 					sprVel,		// Velocity
 					1.0f,		// Starting Alpha

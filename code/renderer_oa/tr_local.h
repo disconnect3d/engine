@@ -1113,6 +1113,8 @@ typedef struct {
 	qboolean	donepalette;		// leilei - done animeing this frame
 	qboolean	doneSurfaces;   // done any 3d surfaces already
 	qboolean	doneParticles;   // done any particle movement
+	qboolean	doneFlareTests;		// leilei - done testing flares
+	float		flareTestTime;
 	trRefEntity_t	entity2D;	// currentEntity will point at this when doing 2D rendering
 } backEndState_t;
 
@@ -1394,6 +1396,8 @@ extern	cvar_t	*r_flaresDlightShrink;
 extern	cvar_t	*r_flaresDlightFade;
 extern	cvar_t	*r_flaresDlightOpacity;
 extern	cvar_t	*r_flaresDlightScale;
+
+extern	cvar_t	*r_flaresMotionBlur;
 //extern	cvar_t	*r_flaresSurfradii;
 
 extern cvar_t	*r_alternateBrightness;		// leilei - alternate brightness
@@ -2367,6 +2371,7 @@ void RB_UpdateMotionBlur (void);
 void R_MotionBlur_BackupScreen(int which);
 
 void R_AddParticles (void);
+void R_RenderParticles (void);
 void R_ClearParticles (void);
 void R_LFX_Spark (vec3_t org, vec3_t dir, float spread, float speed, vec4_t color1, vec4_t color2, vec4_t color3, vec4_t color4, vec4_t color5, int count, int duration, float scaleup, int blendfunc);
 void R_LFX_Smoke (vec3_t org, vec3_t dir, float spread, float speed, vec4_t color1, vec4_t color2, vec4_t color3, vec4_t color4, vec4_t color5, int count, int duration, float scaleup, int blendfunc);

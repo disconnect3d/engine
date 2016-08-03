@@ -1035,11 +1035,12 @@ void RB_RenderDrawSurfList( drawSurf_t *drawSurfs, int numDrawSurfs ) {
 	// darken down any stencil shadows
 	RB_ShadowFinish();		
 
+	// add the particles
+	//R_AddParticles ();
+	R_RenderParticles ();
+
 	// add light flares on lights that aren't obscured
 	RB_RenderFlares();
-
-	// add the particles
-	R_AddParticles ();
 
 	RB_DrawSun();		
 	RB_DrawSunFlare();		// leilei - sun flare
@@ -1546,15 +1547,19 @@ float	mblur_timelast;
 float	time_now;
 float	time_last;
 float	mbluracc;
+int	mblurredframes;
+int	mblurredframestotal;
 void RB_AccumBlurValue (void)
 {
+	int ah, tim, oltim;
+	oltim = time_last * 10;
+	tim = time_now * 10;
 	// calculate how much we need, determined by motion blur fps
 	mblur_time = time_now - time_last;
 	mbluracc = (mblur_time) / 32;
 	mbluracc *= -1;
 	mbluracc += 1.0f;
 	mbluracc /= 2;
-	
 };
 
 void RB_DrawAccumBlur (void)
@@ -1571,8 +1576,8 @@ void RB_DrawAccumBlur (void)
 	accblur = mbluracc;
 
 	//ri.Printf( PRINT_WARNING, "accum value %f\n", mbluracc );
-	if (accblur > 1.0f)
-		accblur = 0.5f;
+//	if (accblur > 1.0f)
+//		accblur = 0.5f;
 
    if (accblur <= 0.0f)
    {
@@ -1589,6 +1594,7 @@ void RB_DrawAccumBlur (void)
    }
    else
    {
+      qglAccum (GL_LOAD, 1.0f);
       qglAccum (GL_MULT, accblur); // scale contents of accumulation buffer
       qglAccum (GL_ACCUM, 1.0f - accblur); // add screen contents
       qglAccum (GL_RETURN, 1.0f); // read result back
@@ -1606,7 +1612,6 @@ RB_SwapBuffers
 const void	*RB_SwapBuffers( const void *data ) {
 	const swapBuffersCommand_t	*cmd;
 
-	
 
 	// finish any 2D drawing if needed
 	if ( tess.numIndexes ) {
@@ -1640,7 +1645,9 @@ const void	*RB_SwapBuffers( const void *data ) {
 
 	if (r_motionblur->integer == 1){
 		RB_DrawAccumBlur ();
+
 	}
+
 	
 
 	R_BrightScreen();		// leilei - alternate brightness - do it here so we hit evereything that represents our video buffer
@@ -1699,6 +1706,12 @@ const void	*RB_SwapBuffers( const void *data ) {
 	backEnd.donetv = qfalse;
 	backEnd.doneraa = qfalse;
 	backEnd.doneParticles = qfalse;
+	
+	// leilei - only reset this every 15hz to keep it fast and synchronized
+	if (backEnd.refdef.time > backEnd.flareTestTime){
+	backEnd.doneFlareTests = qfalse;
+	backEnd.flareTestTime = backEnd.refdef.time + 100.0f;
+	}
 
 	// leilei - artificial slowness (mapper debug) - this might be windows only
 #ifdef _WIN32
