@@ -304,6 +304,14 @@ static char		*fs_serverReferencedPakNames[MAX_SEARCH_PATHS];		// pk3 names
 char lastValidBase[MAX_OSPATH];
 char lastValidGame[MAX_OSPATH];
 
+
+//#define FS_PRESENT			// leilei - track files that are read to file (for clean pak building)
+					// intended for InfoZip -@; literally the opposite of FS_MISSING
+
+#ifdef FS_PRESENT
+FILE*		presentFiles = NULL;
+#endif
+
 #ifdef FS_MISSING
 FILE*		missingFiles = NULL;
 #endif
@@ -1355,12 +1363,24 @@ long FS_FOpenFileRead(const char *filename, fileHandle_t *file, qboolean uniqueF
 		if(file == NULL)
 		{
 			if(len > 0)
-				return len;
+				{
+#ifdef FS_PRESENT
+					if(presentFiles)
+						fprintf(presentFiles, "%s\n", filename);
+#endif
+					return len;
+				}				
 		}
 		else
 		{
 			if(len >= 0 && *file)
-				return len;
+				{
+#ifdef FS_PRESENT
+					if(presentFiles)
+						fprintf(presentFiles, "%s\n", filename);
+#endif
+					return len;
+				}
 		}
 
 	}
@@ -3202,6 +3222,12 @@ void FS_Shutdown( qboolean closemfp ) {
 	Cmd_RemoveCommand( "touchFile" );
 	Cmd_RemoveCommand( "which" );
 
+#ifdef FS_PRESENT
+	if (closemfp) {
+		fclose(presentFiles);
+	}
+#endif
+
 #ifdef FS_MISSING
 	if (closemfp) {
 		fclose(missingFiles);
@@ -3346,6 +3372,12 @@ static void FS_Startup( const char *gameName )
 	fs_gamedirvar->modified = qfalse; // We just loaded, it's not modified
 
 	Com_Printf( "----------------------\n" );
+
+#ifdef FS_PRESENT
+	if (presentFiles == NULL) {
+		presentFiles = Sys_FOpen( "usedcontent.txt", "ab" );
+	}
+#endif
 
 #ifdef FS_MISSING
 	if (missingFiles == NULL) {
