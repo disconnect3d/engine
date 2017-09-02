@@ -1043,82 +1043,7 @@ Upload32
 extern qboolean charSet;
 int hqresample = 0;		// leilei - high quality texture resampling
 				// Currently 0 as there is an alignment issue I haven't fixed.
-
 int	isicon;			// leilei  - for determining if it's an icon.
-char	dumpname[ MAX_QPATH ];  // leilei - name for texture dumping
-
-static void DumpTex( unsigned *data, 
-						  int width, int height  )
-{
-
-// leilei - Do crazy dumping crap
-		byte		*scan;
-		byte *baffer, *alffer, *flipper;
-		scan = ((byte *)data);
-		size_t offset = 0;//, memcount;
-		int padlen = 0; 
-		int be, ber;
-		int scrale = width * height;
-		int scravg = width + height / 2;
-		int quality = 85; // estimate quality from total size
-		int hasalf = 0;
-		float countw = 0;
-
-		if (scravg > 511) quality = 42; // huge textures
-		else if (scravg > 255) quality = 62; // large textures
-		else if (scravg > 127) quality = 72; // large textures
-		else if (scravg < 127) quality = 95; // tiny textures
-		baffer = 	ri.Hunk_AllocateTempMemory( width * height * 3 );
-		flipper = 	ri.Hunk_AllocateTempMemory( width * height * 3 );
-		alffer = 	ri.Hunk_AllocateTempMemory( width * height * 3 );
-		// TODO: Save alpha separately
-		// I'm gonna flip......
-		int alfcnt = 0;
-
-
-
-		for (be=0; be<scrale; be++){
-			int bib;
-
-			if (countw > width)
-			countw = 0;
-			else
-			countw++;
-			ber = scrale - be - 1;
-			bib = be;
-			if (bib < 0) bib = 0;
-			if (bib > scrale) bib = 0;
-			baffer[bib*3] 	= scan[ber*4];
-			baffer[bib*3+1] 	= scan[ber*4+1];
-			baffer[bib*3+2] 	= scan[ber*4+2];
-			alffer[bib*3] 	= scan[ber*4+3];
-			alffer[bib*3+1] 	= scan[ber*4+3];
-			alffer[bib*3+2] 	= scan[ber*4+3];
-			if (scan[ber*4+3] > 1){ hasalf = 1;}
-			if (scan[ber*4+3] == 255){ alfcnt += 1; }
-		}
-
-
-		// NOW FIX IT
-
-
-
-			
-		//memcount = (width * 3 + padlen) * height;
-		if ((width > 16) && (height > 16)){
-		RE_SaveJPG( va("dump/%s.jpg", dumpname), 85,width, height, baffer, padlen);
-		if (hasalf)
-		RE_SaveJPG( va("dump/%s_alpha.jpg", dumpname), 85,width, height, alffer, padlen);
-		}
-		ri.Printf( PRINT_ALL, "TEXDUMP: %s \n", dumpname );
-
-	//	if ( baffer != 0 )
-		ri.Hunk_FreeTempMemory( baffer );
-	//	if ( alffer != 0 )
-		ri.Hunk_FreeTempMemory( alffer );
-		ri.Hunk_FreeTempMemory( flipper );
-}
-
 
 static void Upload32( unsigned *data, 
 						  int width, int height, 
@@ -2227,8 +2152,8 @@ image_t *R_CreateImage( const char *name, byte *pic, int width, int height,
 	}
 
 	// lightmaps are always allocated on TMU 1
-	if ( qglActiveTextureARB && isLightmap ) {
-		image->TMU = 1;
+	if ( qglActiveTextureARB && (isLightmap || detailhack == 2) ) {
+		image->TMU = 2;
 	} else {
 		image->TMU = 0;
 	}
@@ -2238,12 +2163,6 @@ image_t *R_CreateImage( const char *name, byte *pic, int width, int height,
 	}
 
 	GL_Bind(image);
-
-	// leilei - texture dumping
-	if (r_texdump->integer){
-			COM_StripExtension( name, dumpname, MAX_QPATH );	// leilei - transfer name for texdump
-			DumpTex( (unsigned *)pic, image->width, image->height);
-		}
 
 	if (paletteavailable && r_texturebits->integer == 8 && !isLightmap && !depthimage && !force32upload)
 	Upload8( (unsigned *)pic, image->width, image->height, 
@@ -2439,6 +2358,8 @@ image_t	*R_FindImageFile( const char *name, imgType_t type, imgFlags_t flags )
 	if ( !Q_strncmp( name, "textures/detail/", 16 )  || !Q_strncmp( name, "gfx/fx/detail/", 14 ))  {
 		ri.Printf( PRINT_DEVELOPER, "DETAILHACK: %s - mips will be gray\n", name );
 		detailhack = 1;		// leilei - attempt to fade detail mips to gray, EXPECTS DST_COLOR/SRC_COLOR for this to work right
+		if ( r_detailTextureTMU->value ) 
+			detailhack = 2; 
 		}
 
 	// leilei - iconmip hack
@@ -2577,7 +2498,11 @@ image_t	*R_FindImageFileIfItsThere( const char *name, imgType_t type, imgFlags_t
 	if ( !Q_strncmp( name, "textures/detail/", 16 )  || !Q_strncmp( name, "gfx/fx/detail/", 14 ))  {
 		ri.Printf( PRINT_DEVELOPER, "DETAILHACK: %s - mips will be gray\n", name );
 		detailhack = 1;		// leilei - attempt to fade detail mips to gray, EXPECTS DST_COLOR/SRC_COLOR for this to work right
+		if ( r_detailTextureTMU->value ) 
+			detailhack = 2; 
 		}
+
+
 
 	//
 	// load the pic from disk

@@ -4353,11 +4353,6 @@ static void ComputeStageIteratorFunc( void )
 		return;
 	}
 
-	if (r_leifx->integer)	// try not to use the multitexture shaders so we can blend
-		return; 	// lightmaps with a different dithering table
-
-
-
 	//
 	// see if this can go into the vertex lit fast path
 	//
@@ -4565,6 +4560,7 @@ static qboolean CollapseMultitexture( void ) {
 	{
 		stages[0].bundle[1] = stages[1].bundle[0];
 	}
+
 
 	// set the new blend state bits
 	shader.multitextureEnv = collapse[i].multitextureEnv;
@@ -5559,7 +5555,8 @@ shader_t *R_FindShaderReal( const char *name, int lightmapIndex, qboolean mipRaw
 		stages[1].active = qtrue;
 		stages[1].rgbGen = CGEN_IDENTITY;
 		stages[1].stateBits |= GLS_SRCBLEND_DST_COLOR | GLS_DSTBLEND_ZERO;
-		// detail
+
+			// detail
 			{
 			int f;
 				if (r_parseStageSimple->integer) hackoperation = 4;
@@ -5569,7 +5566,7 @@ shader_t *R_FindShaderReal( const char *name, int lightmapIndex, qboolean mipRaw
 				
 			 	stages[2+f].bundle[0].image[0] = R_FindImageFile( "gfx/fx/detail/d_generic.tga", IMGFLAG_MIPMAP , IMGFLAG_MIPMAP); // TODO: use metal detail for metal surfaces
 
-			// determine detail size first, our detail textures are typically 128x128
+				// determine detail size first, our detail textures are typically 128x128
 				wi = 0.25 * (f + 1)  * stages[1].bundle[0].image[0]->uploadWidth / detailScale;
 				hi = 0.25 * (f + 1) * stages[1].bundle[0].image[0]->uploadHeight / detailScale;
 
@@ -5618,6 +5615,30 @@ shader_t *R_FindShaderReal( const char *name, int lightmapIndex, qboolean mipRaw
 			stages[y].imgHeight = 128;
 	
 		}
+
+			// leilei - assigning stuff for dynamlic lights
+
+				{
+				
+					int e = 0;
+					int f = 0;
+
+					for (e=0;e<(MAX_SHADER_STAGES-1);e++)
+						{
+								if (shader.defaultShader)
+							break; 
+
+							for (f=0;f<NUM_TEXTURE_BUNDLES;f++)
+							{
+							if (stages[e].bundle[f].isLightmap){
+								shader.lmimg = e;
+								shader.lmtmu = f;
+								//shader.lmbundle = (*textureBundle_t)stages[e].bundle[f];
+								}
+							}
+	
+						}
+				}
 
 	}
 

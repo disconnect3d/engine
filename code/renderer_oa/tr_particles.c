@@ -48,8 +48,9 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define LFXTRAIL	8
 #define LFXBUBBLE	9
 #define	LFXQUAKE	10
+#define LFXDLIGHT	11
 
-
+#define PARTICLE_Z_CLIP 8
 // color types
 
 #define	P_LFX		1	// ramp
@@ -121,7 +122,9 @@ typedef struct particle_s {
 
 	int 		rendertype;	// particle type (spark, oriented, etc)
 	int		colortype;	// color type (ramp, palette, singular)
-	int			fogNum;
+	int		fogNum;
+
+	int		dlight;		// does this cast a dynamic light? MAYBE!?
 } particle_t;
 
 void R_AddParticleToScene (particle_t *p, vec3_t org, float alpha);
@@ -278,7 +281,7 @@ void R_ClearParticles (void)
 	initparticles = qtrue;
 }
 
-
+void RE_AddDynamicLightToScene( const vec3_t org, float intensity, float r, float g, float b, int additive );
 
 /*
 =====================
@@ -333,6 +336,7 @@ void R_AddParticleToScene (particle_t *p, vec3_t org, float alpha)
 		// and........ something.
 		vec3_t	rr, ru;
 		vec3_t	rotate_ang;
+
 
 		if (p->colortype == P_LFX) {
 			// Ramp
@@ -408,6 +412,9 @@ void R_AddParticleToScene (particle_t *p, vec3_t org, float alpha)
 			color[3] = p->alpha;
 
 		}
+
+
+	
 
 		if (p->rendertype == LFXSHOCK) {
 			// ORIENTED sprite - used for shockwaves, water waves, waves, etc.
@@ -692,6 +699,11 @@ void R_AddParticleToScene (particle_t *p, vec3_t org, float alpha)
 			// like burst but splits into more trails when the certain length is achieved
 			// TO RETURN
 		}
+		else if (p->rendertype == LFXDLIGHT) {
+			// Make a dynamic light.  This is probably a bad idea.
+
+			RE_AddDynamicLightToScene( org, p->width, color[0], color[1], color[2], 1);
+		}
 		else {
 			// VP PARALLEL sprite
 			//	trace_t pt1, pt2, pt3, pt4;
@@ -858,6 +870,8 @@ void R_AddParticles (void)
 	active = NULL;
 	tail = NULL;
 
+
+
 	// Intended to keep physics calculations under control, but it doens't work properly. :(
 	//if ((!backEnd.doneParticles) && !(tr.refdef.rdflags & RDF_NOWORLDMODEL))
 	for (p=active_particles ; p ; p=next) {
@@ -875,6 +889,7 @@ void R_AddParticles (void)
 			p->endwidth= scal;
 			p->bounce = 0;
 			p->bubbleit = 0;
+			p->dlight = 0;
 			//	ri.Printf( PRINT_ALL, "boung!");
 			p->colortype = P_INDEXED;
 			p->alpha = 1;
@@ -886,6 +901,7 @@ void R_AddParticles (void)
 			p->pshader = alfball;
 			//p->qarticle = 1;
 		}
+
 
 
 
@@ -990,7 +1006,10 @@ void R_AddParticles (void)
 				p->airfriction = 0;
 				p->bounce = 0;
 				p->bubbleit = 0;
+				p->dlight = 0;
 				p->material = 0;
+				p->rendertype = 0;
+				p->endtime = 0;
 				p->active_trail = 0;
 				continue;
 			}
@@ -1002,6 +1021,22 @@ void R_AddParticles (void)
 		p->org[1] += p->vel[1]*frametime;
 		p->org[2] += p->vel[2]*frametime;
 
+
+		// leilei - Clip off if too close to avoid overdraw 
+/*		{
+		vec3_t	transformed, loca;
+	
+		VectorSubtract (p->org, backEnd.or.viewOrigin, loca);
+	
+		transformed[0] = DotProduct(loca, pvright);
+		transformed[1] = DotProduct(loca, pvup);
+		transformed[2] = DotProduct(loca, pvforward);		
+	
+		if (transformed[2] < PARTICLE_Z_CLIP)
+			p->die = -1; // die.
+		}
+
+*/
 		if (p->rendertype != LFXQUAKE) {
 			if (alpha > 1.0)
 				alpha = 1;
@@ -1071,7 +1106,10 @@ void R_AddParticles (void)
 				p->airfriction = 0;
 				p->bounce = 0;
 				p->bubbleit = 0;
+				p->dlight = 0;
 				p->material = 0;
+				p->rendertype = 0;
+				p->endtime = 0;
 				p->active_trail = 0;
 				continue;
 			}
@@ -1295,6 +1333,12 @@ void R_LFX_Blood (const vec3_t org, const vec3_t dir, float pressure)
 
 }
 
+// for blendfuncs
+
+#define BLEND_ADD 1
+#define BLEND_SUB 3
+#define BLEND_ALPHA 4
+#define BLEND_MOD 2
 
 void R_LFX_Smoke (const vec3_t org, const vec3_t dir, float spread, float speed, vec4_t color1, vec4_t color2, vec4_t color3, vec4_t color4, vec4_t color5, int count, int duration, float scaleup, int blendfunc)
 {
@@ -1302,7 +1346,11 @@ void R_LFX_Smoke (const vec3_t org, const vec3_t dir, float spread, float speed,
 	int cont = 50;
 	particle_t	*p;
 
-	cont = (44 / (count / 2 + 1)) + 1;
+	cont = count;
+//		cont = (44 / (count / 2 + 1)) + 1;
+//
+	//	if (count < 8)
+	//	cont = count;		//  be exact.
 
 	for (i = 0; i < cont; i++) {
 		if (!free_particles)
@@ -1479,9 +1527,9 @@ void R_LFX_Smoke2 (const vec3_t org, const vec3_t dir, float spread, float speed
 		// Manage spread of origin and velocity
 		for (j = 0; j < 3; j++) {
 			p->org[j] = org[j];
-			p->vel[j] = (rand() & (int)spread) - (int)(spread * 0.5f);
+			p->vel[j] = (random() * spread) - (spread * 0.5f);
 			p->vel[j] += dir[j];
-			p->vel[j] += (dir[j] * (rand() & (int)speed));
+			p->vel[j] += (dir[j] * (random() * speed));
 
 		}
 
@@ -1635,7 +1683,7 @@ void R_LFX_Spark (const vec3_t org, const vec3_t dir, float spread, float speed,
 
 		p->endheight = p->height;
 		p->endwidth = p->width;
-
+		p->dlight = 1;
 
 		p->rotate = qfalse; // sparks don't rotate
 		p->roll = 0;	// sparks don't roll
@@ -1695,9 +1743,10 @@ void R_LFX_Spark (const vec3_t org, const vec3_t dir, float spread, float speed,
 		// Manage spread of origin and velocity
 		for (j = 0; j < 3; j++) {
 			p->org[j] = org[j];
-			p->vel[j] = (rand() & (int)spread) - (int)(spread * 0.5f);
+			p->vel[j] = (random() * spread) - (spread * 0.5f);
+
 			p->vel[j] += dir[j];
-			p->vel[j] += (dir[j] * (rand() & (int)speed));
+			p->vel[j] += (dir[j] * (random() * speed));
 
 		}
 
@@ -1947,9 +1996,9 @@ void R_LFX_Generic (int type, vec3_t org, vec3_t dir, float alpha, int spread, i
 		for (j = 0; j < 3; j++) {
 			p->org[j] = org[j] + ((rand() % orgoff) - (int)(orgoff * 0.5f));
 			//p->org[j] = org[j];
-			p->vel[j] = (rand() & (int)spread) - (int)(spread * 0.5f);
+			p->vel[j] = (random() * spread) - (spread * 0.5f);
 			p->vel[j] += dir[j];
-			p->vel[j] += (dir[j] * (rand() & (int)speed));
+			p->vel[j] += (dir[j] * (random() * speed));
 		}
 	}
 }
@@ -2247,6 +2296,8 @@ void LFX_ParticleEffect1996 (int effect, const vec3_t org, const vec3_t dir)
 {
 	vec3_t notatall;
 
+	notatall[0] = notatall[1] = notatall[2] = 0; // shut up gcc 
+
 	// Smoke trails on grenades and rockets
 	if (effect == 1) {
 		R_RunParticleEffect (org, notatall, 10, 8);
@@ -2362,6 +2413,26 @@ void LFX_ParticleEffect200X (int effect, const vec3_t org, const vec3_t dir)
 
 		//R_LFX_PushSmoke (sprOrg, 44);
 
+		// random chance of light smoke
+	if (random()<0.4){
+			colory[0] = 0.7;
+			colory[1] = 0.7;
+			colory[2] = 0.7;
+			colory[3] = 0.0;
+			colory2[0] = 0.7;
+			colory2[1] = 0.7;
+			colory2[2] = 0.7;
+			colory2[3] = 0.5;
+			colory3[0] = 0.6;
+			colory3[1] = 0.6;
+			colory3[2] = 0.6;
+			colory3[3] = 0.8;
+			colory4[0] = 0.6;
+			colory4[1] = 0.6;
+			colory4[2] = 0.6;
+			colory4[3] = 0.0;
+			R_LFX_Smoke2 (sprOrg, sprVel, 2 + (random()*6), 6.54+ (random()*8.7), colory, colory2, colory3, colory4, colory4, 1, 800 + (random()*2000), 2, 8+ (random()*6), 0);
+		}
 
 	}
 
@@ -2908,9 +2979,56 @@ void LFX_ParticleEffect1997 (int effect, const vec3_t org, const vec3_t dir)
 
 	// Grenade/Rocket/Prox Explosion
 	// 	should be an explosion atlas, but on later versions there's several more delayed explosion atlases to spice up the variety
+	// Grenade/Rocket/Prox Explosion
+
 	else if (effect == 5 || effect == 4 || effect == 11) {
 
 
+		// just alpha smoke puff
+		VectorMA( origin, 17, dir, sprOrg );
+		VectorScale( dir, 12, sprVel );
+
+		colory[0] = 1.0;
+		colory[1] = 0.9;
+		colory[2] = 0.6;
+		colory[3] = 1.0;
+		colory2[0] = 1.0;
+		colory2[1] = 0.3;
+		colory2[2] = 0.4;
+		colory2[3] = 0.9;
+		colory3[0] = 0.0;
+		colory3[1] = 0.0;
+		colory3[2] = 0.0;
+		colory3[3] = 0.7;
+		colory4[0] = 0.0;
+		colory4[1] = 0.0;
+		colory4[2] = 0.0;
+		colory4[3] = 0.0;
+
+		R_LFX_Generic (
+		    LFXSMOKE, 	// Particle Type
+		    sprOrg, 	// Origin
+		    sprVel,		// Velocity
+		    1.0f,		// Starting Alpha
+		    05,		// Spread Factor
+		    3,		// Random Origin Offset
+		    0,		// Random Roll Value
+		    0,		// Additional Random Speed
+		    255, 		// Particle Color Red
+		    255, 		// Particle Color Green
+		    255, 		// Particle Color Blue
+		    1,		// Particle Count
+		    700,		// Particle Life
+		    34.5f,		// Particle Scale
+		    0.5f,		// Particle Scale Towards
+		    0.1f,		// Particle Bounce Factor
+		    0,		// Air Friction (stopping particle velocity in air)
+		    0.0f,		// Particle Gravity Factor
+		    0.0f,		// Particle Rolling Friction
+		    alfball		// Particle Shader
+		);
+
+		R_LFX_Smoke (sprOrg, sprVel, 3, 3.54, colory, colory2, colory3, colory4, colory4, 1, 2500, 194, BLEND_ALPHA);
 	}
 
 	// BFG, could be an expanding sphere with an explosion atlas
@@ -3317,6 +3435,551 @@ void LFX_ParticleEffect1999 (int effect, const vec3_t org, const vec3_t dir)
 	}
 }
 
+
+// 2000 - Used for Dreamcast/PS2/99 multiplatforms
+// - Use only additive and subtractive, only alpha sparingly
+// - Avoid fillrate hitching on Voodoo2
+// - should be fast on Rage Pro as well.
+
+void LFX_ParticleEffect2000 (int effect, const vec3_t org, const vec3_t dir)
+{
+	vec3_t origin, sprOrg, sprVel; // laziness
+	vec4_t colory, colory2, colory3, colory4;
+
+	VectorCopy(org, sprOrg);
+	VectorCopy(org, origin);
+	VectorCopy(dir, sprVel);
+
+	// Smoke trails on grenades and rockets
+	if (effect == 1) {
+		colory[0] = 0.5;
+		colory[1] = 0.5;
+		colory[2] = 0.5;
+		colory[3] = 0.5;
+		colory2[0] = 0.3;
+		colory2[1] = 0.3;
+		colory2[2] = 0.3;
+		colory2[3] = 0.3;
+		colory3[0] = 0.1;
+		colory3[1] = 0.1;
+		colory3[2] = 0.1;
+		colory3[3] = 0.0;
+		colory4[0] = 0.0;
+		colory4[1] = 0.0;
+		colory4[2] = 0.0;
+		colory4[3] = 0.0;
+		
+		R_LFX_Smoke2 (sprOrg, sprVel, 2 + (random()*2), 0.94+ (random()*2), colory, colory2, colory3, colory4, colory4, 1, 2470, 4, 8+ (random()*6), BLEND_ADD);
+	}
+
+	// Bullet Hit
+	if (effect == 2) {
+		VectorMA( origin, 4, dir, sprOrg );
+		VectorScale( dir, 1, sprVel );
+		// Sparks
+		colory[0] = 1;
+		colory[1] = 1;
+		colory[2] = 1.0;
+		colory[3] = 1.0;
+		colory2[0] = 1;
+		colory2[1] = 1;
+		colory2[2] = 0.8;
+		colory2[3] = 0.9;
+		colory3[0] = 0.7;
+		colory3[1] = 0.5;
+		colory3[2] = 0.2;
+		colory3[3] = 0.7;
+		colory4[0] = 0.1;
+		colory4[1] = 0.06;
+		colory4[2] = 0.0;
+		colory4[3] = 0.0;
+
+		R_LFX_Burst (sprOrg, sprVel, 8366, 2, colory, colory2, colory3, colory4, colory4, 4, 50, 2, 1);
+
+		VectorMA( origin, 1, dir, sprOrg );
+		VectorScale( dir, 1, sprVel );
+		R_LFX_Spark (sprOrg, sprVel, 95, 325, colory, colory2, colory3, colory4, colory4, 5, 140, 0.5f, 1);
+		R_LFX_Spark (sprOrg, sprVel, 95, 85, colory, colory2, colory3, colory4, colory4, 1, 1540, 0.5f, 1);
+
+		//R_LFX_PushSmoke (sprOrg, 44);
+
+		// random chance of light smoke
+	if (random()<0.4){
+		colory[0] = 0.5;
+		colory[1] = 0.5;
+		colory[2] = 0.5;
+		colory[3] = 0.5;
+		colory2[0] = 0.3;
+		colory2[1] = 0.3;
+		colory2[2] = 0.3;
+		colory2[3] = 0.3;
+		colory3[0] = 0.1;
+		colory3[1] = 0.1;
+		colory3[2] = 0.1;
+		colory3[3] = 0.0;
+		colory4[0] = 0.0;
+		colory4[1] = 0.0;
+		colory4[2] = 0.0;
+		colory4[3] = 0.0;
+			R_LFX_Smoke2 (sprOrg, sprVel, 2 + (random()*6), 6.54+ (random()*8.7), colory, colory2, colory3, colory4, colory4, 1, 800 + (random()*2000), 2, 8+ (random()*6), BLEND_ADD);
+		}
+
+	}
+
+	// Shotgun Hit
+	if (effect == 3) {
+		colory[0] = 0.5;
+		colory[1] = 0.5;
+		colory[2] = 0.5;
+		colory[3] = 0.5;
+		colory2[0] = 0.3;
+		colory2[1] = 0.3;
+		colory2[2] = 0.3;
+		colory2[3] = 0.3;
+		colory3[0] = 0.1;
+		colory3[1] = 0.1;
+		colory3[2] = 0.1;
+		colory3[3] = 0.0;
+		colory4[0] = 0.0;
+		colory4[1] = 0.0;
+		colory4[2] = 0.0;
+		colory4[3] = 0.0;
+		VectorMA( origin, 1, dir, sprOrg );
+		VectorScale( dir, 7, sprVel );
+		R_LFX_Smoke2 (sprOrg, sprVel, 2 + (random()*6), 6.54+ (random()*8.7), colory, colory2, colory3, colory4, colory4, 1, 800 + (random()*2000), 2, 8+ (random()*6), BLEND_ADD);
+		R_LFX_Smoke2 (sprOrg, sprVel, 2 + (random()*6), 3.54+ (random()*8.7), colory, colory2, colory3, colory4, colory4, 1, 300 + (random()*2000), 2, 8+ (random()*6), BLEND_ADD);
+		colory[0] = 0.9;
+		colory[1] = 0.8;
+		colory[2] = 1.0;
+		colory[3] = 1.0;
+		colory2[0] = 0.7;
+		colory2[1] = 0.5;
+		colory2[2] = 0.2;
+		colory2[3] = 0.9;
+		colory3[0] = 0.1;
+		colory3[1] = 0.1;
+		colory3[2] = 0.1;
+		colory3[3] = 0.7;
+		colory4[0] = 0.0;
+		colory4[1] = 0.0;
+		colory4[2] = 0.0;
+		colory4[3] = 0.0;
+		VectorMA( origin, 4, dir, sprOrg );
+		VectorScale( dir, 64, sprVel );
+		R_LFX_Shock (origin, dir, 0, 32, colory, colory2, colory3, colory4, colory4, 1, 200, 50,1);
+		colory[0] = 1;
+		colory[1] = 1;
+		colory[2] = 1.0;
+		colory[3] = 1.0;
+		colory2[0] = 1;
+		colory2[1] = 1;
+		colory2[2] = 0.8;
+		colory2[3] = 0.9;
+		colory3[0] = 0.7;
+		colory3[1] = 0.5;
+		colory3[2] = 0.2;
+		colory3[3] = 0.7;
+		colory4[0] = 0.1;
+		colory4[1] = 0.06;
+		colory4[2] = 0.0;
+		colory4[3] = 0.0;
+		VectorMA( origin, 1, dir, sprOrg );
+		VectorScale( dir, 1, sprVel );
+		R_LFX_Spark (sprOrg, sprVel, 25, 85, colory, colory2, colory3, colory4, colory4, 3, 2540, 0.5f, 1);
+	}
+
+	// Plasma Hit
+	if (effect == 6) {
+		colory[0] = 1.0;
+		colory[1] = 0.7;
+		colory[2] =  1.0;
+		colory[3] = 0.0;
+		colory2[0] = 0.3;
+		colory2[1] = 0.7;
+		colory2[2] = 1.0;
+		colory2[3] = 0.5;
+		colory3[0] = 0.1;
+		colory3[1] = 0.2;
+		colory3[2] = 0.6;
+		colory3[3] = 0.8;
+		colory4[0] = 0.0;
+		colory4[1] = 0.0;
+		colory4[2] = 0.0;
+		colory4[3] = 0.0;
+		VectorMA( origin, 1, dir, sprOrg );
+		VectorScale( dir, 7, sprVel );
+		R_LFX_Smoke2 (sprOrg, sprVel, 2 + (random()*6), 6.54+ (random()*8.7), colory, colory2, colory3, colory4, colory4, 1, 800 + (random()*2000), 2, 8+ (random()*6), BLEND_ADD);
+		VectorMA( origin, 2, dir, sprOrg );
+		VectorScale( dir, 64, sprVel );
+		R_LFX_Shock (sprOrg, dir, 0, 0, colory, colory2, colory3, colory4, colory4, 1,600, 80,BLEND_ADD);
+		VectorMA( origin, 1, dir, sprOrg );
+		VectorScale( dir, 1, sprVel );
+		R_LFX_Spark (sprOrg, sprVel, 25, 85, colory, colory2, colory3, colory4, colory4, 5, 5540, 0.5f, BLEND_ADD);
+	}
+
+	// Lightning Hit
+	if (effect == 8) {
+		colory[0] = 0.5;
+		colory[1] = 0.5;
+		colory[2] = 0.5;
+		colory[3] = 0.5;
+		colory2[0] = 0.3;
+		colory2[1] = 0.3;
+		colory2[2] = 0.3;
+		colory2[3] = 0.3;
+		colory3[0] = 0.1;
+		colory3[1] = 0.1;
+		colory3[2] = 0.1;
+		colory3[3] = 0.0;
+		colory4[0] = 0.0;
+		colory4[1] = 0.0;
+		colory4[2] = 0.0;
+		colory4[3] = 0.0;
+		VectorMA( origin, 1, dir, sprOrg );
+		VectorScale( dir, 7, sprVel );
+		R_LFX_Smoke2 (sprOrg, sprVel, 2 + (random()*6), 3.54+ (random()*8.7), colory, colory2, colory3, colory4, colory4, 1, 300 + (random()*2000), 2, 8+ (random()*6), BLEND_ADD);
+	}
+
+
+	// Grenade/Rocket/Prox Explosion
+
+	else if (effect == 5 || effect == 4 || effect == 11) {
+
+
+		colory[0] = 1.0;
+		colory[1] = 1.0;
+		colory[2] = 1.0;
+		colory[3] = 1.0;
+		colory2[0] = 1.0;
+		colory2[1] = 1.0;
+		colory2[2] = 0.5;
+		colory2[3] = 0.9;
+		colory3[0] = 0.7;
+		colory3[1] = 0.3;
+		colory3[2] = 0.1;
+		colory3[3] = 0.7;
+		colory4[0] = 0.0;
+		colory4[1] = 0.0;
+		colory4[2] = 0.0;
+		colory4[3] = 0.0;
+		VectorMA( origin, 4, dir, sprOrg );
+		VectorScale( dir, 64, sprVel );
+
+		R_LFX_Shock (sprOrg, dir, 0, 0, colory, colory2, colory3, colory4, colory4, 1, 500, 270, BLEND_ADD);
+
+		// fireball
+		VectorMA( origin, 12, dir, sprOrg );
+		VectorScale( dir, 64, sprVel );
+
+		R_LFX_Smoke (sprOrg, sprVel, 1, 1.54, colory, colory2, colory3, colory4, colory4, 1, 1200, 94, 8);
+		R_LFX_Smoke (sprOrg, sprVel, 2, 2.54, colory, colory2, colory3, colory4, colory4, 2, 600, 94, BLEND_ADD);
+		R_LFX_Smoke (sprOrg, sprVel, 3, 3.54, colory, colory2, colory3, colory4, colory4, 3, 400, 94, BLEND_ADD);
+		R_LFX_Smoke (sprOrg, sprVel, 4, 4.54, colory, colory2, colory3, colory4, colory4, 4, 200, 94, BLEND_ADD);
+
+
+		// Subtractve smoke
+		VectorMA( origin, 4, dir, sprOrg );
+		VectorScale( dir, 44, sprVel );
+
+		colory[0] = 1.0;
+		colory[1] = 1.0;
+		colory[2] = 1.0;
+		colory[3] = 1.0;
+		colory2[0] = 1.0;
+		colory2[1] = 1.0;
+		colory2[2] = 1.0;
+		colory2[3] = 1.0;
+		colory3[0] = 0.6;
+		colory3[1] = 0.6;
+		colory3[2] = 0.6;
+		colory3[3] = 0.6;
+		colory4[0] = 0.0;
+		colory4[1] = 0.0;
+		colory4[2] = 0.0;
+		colory4[3] = 0.0;
+		R_LFX_Smoke (sprOrg, sprVel, 3, 1.54, colory, colory2, colory3, colory4, colory4, 1, 2000, 194, BLEND_SUB);
+		// Sparks!
+
+		colory[0] = 1;
+		colory[1] = 1;
+		colory[2] = 1.0;
+		colory[3] = 1.0;
+		colory2[0] = 1;
+		colory2[1] = 1;
+		colory2[2] = 0.8;
+		colory2[3] = 0.9;
+		colory3[0] = 0.7;
+		colory3[1] = 0.5;
+		colory3[2] = 0.2;
+		colory3[3] = 0.7;
+		colory4[0] = 0.1;
+		colory4[1] = 0.06;
+		colory4[2] = 0.0;
+		colory4[3] = 0.0;
+		VectorMA( origin, 12, dir, sprOrg );
+		VectorScale( dir, 64, sprVel );
+
+		R_LFX_Spark (sprOrg, sprVel, 175, 3, colory, colory2, colory3, colory4, colory4, 12, 1240, 0.8f, BLEND_ADD);
+
+	}
+
+	// BFG
+	else if (effect == 9) {
+		colory[0] = 1.0;
+		colory[1] = 1.0;
+		colory[2] = 1.0;
+		colory[3] = 1.0;
+		colory2[0] = 0.3;
+		colory2[1] = 1.0;
+		colory2[2] = 0.2;
+		colory2[3] = 0.9;
+		colory3[0] = 0.0;
+		colory3[1] = 0.3;
+		colory3[2] = 0.1;
+		colory3[3] = 0.7;
+		colory4[0] = 0.0;
+		colory4[1] = 0.0;
+		colory4[2] = 0.0;
+		colory4[3] = 0.0;
+		VectorMA( origin, 4, dir, sprOrg );
+		VectorScale( dir, 64, sprVel );
+
+		R_LFX_Shock (sprOrg, dir, 0, 0, colory, colory2, colory3, colory4, colory4, 1, 300, 470, 1);
+
+		// fireball
+
+
+		VectorMA( origin, 12, dir, sprOrg );
+		VectorScale( dir, 64, sprVel );
+
+		R_LFX_Smoke (sprOrg, sprVel, 1, 1.54, colory, colory2, colory3, colory4, colory4, 1, 1200, 94, 8);
+		R_LFX_Smoke (sprOrg, sprVel, 2, 2.54, colory, colory2, colory3, colory4, colory4, 2, 600, 94, BLEND_ADD);
+		R_LFX_Smoke (sprOrg, sprVel, 3, 3.54, colory, colory2, colory3, colory4, colory4, 3, 400, 94, BLEND_ADD);
+		R_LFX_Smoke (sprOrg, sprVel, 4, 4.54, colory, colory2, colory3, colory4, colory4, 4, 200, 94, BLEND_ADD);
+
+
+		// Shroom Cloud
+		VectorMA( origin, 16, dir, sprOrg );
+		VectorScale( dir, 64, sprVel );
+
+		R_LFX_Smoke (sprOrg, sprVel, 3, 1.54, colory, colory2, colory3, colory4, colory4, 1, 2000, 194, BLEND_SUB);
+
+		// Sparks!
+
+		VectorMA( origin, 12, dir, sprOrg );
+		VectorScale( dir, 64, sprVel );
+
+		R_LFX_Spark (sprOrg, sprVel, 175, 5, colory, colory2, colory3, colory4, colory4, 4, 1040, 0.8f, 1);
+	}
+
+	// Nail Hit
+	if (effect == 10) {
+		colory[0] = 0.5;
+		colory[1] = 0.5;
+		colory[2] = 0.5;
+		colory[3] = 0.5;
+		colory2[0] = 0.3;
+		colory2[1] = 0.3;
+		colory2[2] = 0.3;
+		colory2[3] = 0.3;
+		colory3[0] = 0.1;
+		colory3[1] = 0.1;
+		colory3[2] = 0.1;
+		colory3[3] = 0.0;
+		colory4[0] = 0.0;
+		colory4[1] = 0.0;
+		colory4[2] = 0.0;
+		colory4[3] = 0.0;
+		VectorMA( origin, 1, dir, sprOrg );
+		VectorScale( dir, 7, sprVel );
+		R_LFX_Smoke2 (sprOrg, sprVel, 2 + (random()*6), 3.54+ (random()*8.7), colory, colory2, colory3, colory4, colory4, 1, 300 + (random()*2000), 2, 8+ (random()*6), BLEND_ADD);
+
+		colory[0] = 0.7;
+		colory[1] = 1.0;
+		colory[2] = 1.0;
+		colory[3] = 0.0;
+		colory2[0] = 0.3;
+		colory2[1] = 0.7;
+		colory2[2] = 1.0;
+		colory2[3] = 0.5;
+		colory3[0] = 0.0;
+		colory3[1] = 0.2;
+		colory3[2] = 0.5;
+		colory3[3] = 0.8;
+		colory4[0] = 0.0;
+		colory4[1] = 0.0;
+		colory4[2] = 0.0;
+		colory4[3] = 0.0;
+
+		VectorMA( origin, 4, dir, sprOrg );
+		VectorScale( dir, 1, sprVel );
+
+		R_LFX_Burst (sprOrg, sprVel, 8366, 2, colory, colory2, colory3, colory4, colory4, 4, 150, 3, 1);
+
+		VectorMA( origin, 1, dir, sprOrg );
+		VectorScale( dir, 1, sprVel );
+
+		R_LFX_Spark (sprOrg, sprVel, 95, 225, colory, colory2, colory3, colory4, colory4, 3, 140, 0.5f, 1);
+		R_LFX_Spark (sprOrg, sprVel, 95, 185, colory, colory2, colory3, colory4, colory4, 1, 2540, 0.5f, 1);
+
+	}
+
+	// Blood Sprays for bullets
+	if (effect == 14 && com_blood->integer) {
+
+		// Subtractive part
+		sprVel[2] += 34;
+		colory[0] = 0.0;
+		colory[1] = 1.0;
+		colory[2] = 1.0;
+		colory[3] = 1.0;
+		colory2[0] = 0.0;
+		colory2[1] = 0.7;
+		colory2[2] = 0.7;
+		colory2[3] = 0.5;
+		colory3[0] = 0.0;
+		colory3[1] = 0.4;
+		colory3[2] = 0.4;
+		colory3[3] = 0.8;
+		colory4[0] = 0.0;
+		colory4[1] = 0.0;
+		colory4[2] = 0.0;
+		colory4[3] = 0.0;
+
+		// Subtractve smoke
+		VectorMA( origin, 12, dir, sprOrg );
+		VectorScale( dir, 64, sprVel );
+
+		R_LFX_Smoke (sprOrg, sprVel, 1, 2.0, colory, colory2, colory3, colory4, colory4, 5, 880, 12, BLEND_SUB);
+
+		VectorMA( origin, 12, dir, sprOrg );
+		VectorScale( dir, 64, sprVel );
+
+		sprVel[2] += 54;
+		colory[0] = 1.0;
+		colory[1] = 0.0;
+		colory[2] = 0.0;
+		colory[3] = 1.0;
+		colory2[0] = 0.7;
+		colory2[1] = 0.0;
+		colory2[2] = 0.0;
+		colory2[3] = 0.5;
+		colory3[0] = 0.4;
+		colory3[1] = 0.0;
+		colory3[2] = 0.0;
+		colory3[3] = 0.0;
+		colory4[0] = 0.0;
+		colory4[1] = 0.0;
+		colory4[2] = 0.0;
+		colory4[3] = 0.0;
+
+		R_LFX_Spark (sprOrg, sprVel, 175, 3, colory, colory2, colory3, colory4, colory4, 3, 1240, 0.8f, 1);
+		R_LFX_Spark (sprOrg, sprVel, 75, 3, colory, colory2, colory3, colory4, colory4, 5, 640, 0.8f, 1);
+		R_LFX_Spark (sprOrg, sprVel, 25, 3, colory, colory2, colory3, colory4, colory4, 8, 440, 0.8f, 1);
+	}
+
+	// "Blood" Sprays for bullets
+	if (effect == 14 && !com_blood->integer) {
+
+		// nonviolent blue center
+		colory[0] = 0.0;
+		colory[1] = 0.7;
+		colory[2] = 1.0;
+		colory[3] = 0.0;
+		colory2[0] = 0.0;
+		colory2[1] = 0.0;
+		colory2[2] = 1.0;
+		colory2[3] = 0.5;
+		colory3[0] = 0.0;
+		colory3[1] = 0.0;
+		colory3[2] = 0.6;
+		colory3[3] = 0.8;
+		colory4[0] = 0.0;
+		colory4[1] = 0.0;
+		colory4[2] = 0.0;
+		colory4[3] = 0.0;
+		R_LFX_Burst (sprOrg, sprVel, 175, 15, colory, colory2, colory3, colory4, colory4, 2, 105, 12, 1);
+		R_LFX_Smoke (sprOrg, sprVel, 0, 0, colory, colory2, colory3, colory4, colory4, 1, 400, -33, 1);
+		VectorMA( origin, 1, dir, sprOrg );
+		VectorScale( dir, 1, sprVel );
+
+		colory[0] = 1;
+		colory[1] = 1;
+		colory[2] = 1.0;
+		colory[3] = 1.0;
+		colory2[0] = 1;
+		colory2[1] = 1;
+		colory2[2] = 0.8;
+		colory2[3] = 0.9;
+		colory3[0] = 0.7;
+		colory3[1] = 0.5;
+		colory3[2] = 0.2;
+		colory3[3] = 0.7;
+		colory4[0] = 0.1;
+		colory4[1] = 0.06;
+		colory4[2] = 0.0;
+		colory4[3] = 0.0;
+
+		R_LFX_Spark (sprOrg, sprVel, 25, 85, colory, colory2, colory3, colory4, colory4, 2,586, 0.5f, 1);
+		R_LFX_Shock (origin, dir, 0, 0, colory, colory2, colory3, colory4, colory4, 1, 255, 39,1);
+	}
+
+
+	// Blood Spray for a gibbing
+	if (effect == 16 && com_blood->integer) {
+	
+		VectorMA( origin, 12, dir, sprOrg );
+		VectorScale( dir, 64, sprVel );
+
+		sprVel[2] += 154;
+		colory[0] = 1.0;
+		colory[1] = 0.0;
+		colory[2] = 0.0;
+		colory[3] = 1.0;
+		colory2[0] = 0.7;
+		colory2[1] = 0.0;
+		colory2[2] = 0.0;
+		colory2[3] = 0.5;
+		colory3[0] = 0.4;
+		colory3[1] = 0.0;
+		colory3[2] = 0.0;
+		colory3[3] = 0.0;
+		colory4[0] = 0.0;
+		colory4[1] = 0.0;
+		colory4[2] = 0.0;
+		colory4[3] = 0.0;
+
+		R_LFX_Spark (sprOrg, sprVel, 375, 3, colory, colory2, colory3, colory4, colory4, 33, 2240, 0.8f, 1);
+		R_LFX_Spark (sprOrg, sprVel, 215, 3, colory, colory2, colory3, colory4, colory4, 35, 1640, 0.8f, 1);
+		R_LFX_Spark (sprOrg, sprVel, 115, 3, colory, colory2, colory3, colory4, colory4, 38, 1440, 0.8f, 1);
+	}
+
+	// Water Splash for bullets
+	if (effect == 19) {
+		colory[0] = 1.0;
+		colory[1] = 1.0;
+		colory[2] = 1.0;
+		colory[3] = 1.0;
+		colory2[0] = 0.3;
+		colory2[1] = 0.5;
+		colory2[2] = 0.6;
+		colory2[3] = 0.6;
+		colory3[0] = 0.1;
+		colory3[1] = 0.2;
+		colory3[2] = 0.3;
+		colory3[3] = 0.3;
+		colory4[0] = 0.0;
+		colory4[1] = 0.0;
+		colory4[2] = 0.0;
+		colory4[3] = 0.0;
+		VectorScale( dir, 39, sprVel );
+		R_LFX_Shock (origin, dir, 0, 0, colory, colory2, colory3, colory4, colory4, 1, 600, 80,14);
+		R_LFX_Burst (sprOrg, sprVel, 22, 266, colory, colory2, colory3, colory4, colory4, 1, 1200, 5, 7);
+	}
+	
+}
+
+
 void LFX_ParticleEffect (int effect, const vec3_t org, const vec3_t dir)
 {
 	// choosing particle sets
@@ -3329,6 +3992,8 @@ void LFX_ParticleEffect (int effect, const vec3_t org, const vec3_t dir)
 		LFX_ParticleEffect1998(effect, org, dir);
 	else if (r_particles->value == 1999)				// Mimicing a certain competing game
 		LFX_ParticleEffect1999(effect, org, dir);
+	else if (r_particles->value == 2000)				// Mimicing ps2/dc era
+		LFX_ParticleEffect2000(effect, org, dir);
 	else
 		LFX_ParticleEffect200X(effect, org, dir);
 }

@@ -450,6 +450,12 @@ typedef struct shader_s {
   struct shader_s *remappedShader;                  // current shader this one is remapped too
 
 	struct	shader_s	*next;
+
+	// leilei dlights
+	int			lmtmu;			// leilei - for combine dlights
+	//int			lmbundle;			// leilei - for combine dlights
+	int			lmimg;			// leilei - for combine dlights
+	textureBundle_t		*lmbundle;		// pwanter to bundle
 } shader_t;
 
 
@@ -1431,10 +1437,9 @@ extern	cvar_t	*r_iconBits;	// leilei - icon color depth for 2d icons
 
 extern	cvar_t	*r_lightmapBits;	// leilei - lightmap color depth
 
-extern	cvar_t	*r_texdump;	// leilei - texture dumping
-
 extern  cvar_t	*r_detailTextureScale;		// leilei - scale tweak the detail textures, 0 doesn't tweak at all.
 extern  cvar_t	*r_detailTextureLayers;		// leilei - add in more smaller detail texture layers, expensive!
+extern  cvar_t	*r_detailTextureTMU;		// leilei - debug - hack to try to force detail textures on to the tmu with the lightmap
 
 extern  cvar_t	*r_textureDither;		// leilei - apply dithering for lower texture bits
 

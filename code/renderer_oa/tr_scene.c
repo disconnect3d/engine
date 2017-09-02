@@ -252,6 +252,16 @@ void RE_AddDynamicLightToScene( const vec3_t org, float intensity, float r, floa
 	dl->color[1] = g;
 	dl->color[2] = b;
 	dl->additive = additive;
+
+	// leilei - q3r/alice mode
+
+	if ( r_dynamiclight->integer == 2){
+
+		dl->color[0] = r * 0.1;
+		dl->color[1] = g * 0.1;
+		dl->color[2] = b * 0.1;
+		dl->additive = 1;
+	}
 }
 
 /*
