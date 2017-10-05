@@ -35,7 +35,7 @@ int	xmpspeed = 22050; // assume 22050hz unless........
 
 
 
-// leilei - XMP 
+// leilei - XMP
 xmp_context xmpsong;
 //int sound_init(int, int);
 void sound_play(void *, int);
@@ -46,13 +46,15 @@ void sound_deinit(void);
 
 extern	int	samplingrate;		// from snd_dma
 
-void S_XMP_StartSong ( void ){
-	
+void S_XMP_StartSong ( void )
+{
+
 
 
 }
 
-void S_XMP_EndSong ( void ){
+void S_XMP_EndSong ( void )
+{
 
 
 
@@ -80,68 +82,61 @@ S_XMP_CodecOpenStream
 // FIXME: there's a memory leak here if you start the same song many many many many times.
 snd_stream_t *S_XMP_CodecOpenStream(const char *filename)
 {
-	snd_stream_t *rv;
-
 	// First let's close whatever song we had....
 
 	// Open
-	rv = S_CodecUtilOpen(filename, &xmp_codec);
-	if(!rv)
+	snd_stream_t *rv = S_CodecUtilOpen(filename, &xmp_codec);
+	if(!rv) {
 		return NULL;
+	}
 
 //	Com_Printf("OPENSTREAM %s\n", filename);
-	
+
 	{
-	fileHandle_t file;
-	void *buffer;
+		fileHandle_t file;
 
-	// Try to open the file
-	FS_FOpenFileRead(filename, &file, qtrue);
-	if(!file)
-	{
-		Com_Printf( S_COLOR_RED "ERROR: No.\"%s\"\n",filename);
-		return NULL;
-	}
+		// Try to open the file
+		FS_FOpenFileRead(filename, &file, qtrue);
+		if(!file) {
+			Com_Printf( S_COLOR_RED "ERROR: No.\"%s\"\n",filename);
+			return NULL;
+		}
 
 
-	// Allocate some memory
-	long	thelength = FS_ReadFile(filename, buffer);
+		// Allocate some memory
+		long	thelength = FS_ReadFile(filename, NULL);
 
 
-	buffer = Hunk_AllocateTempMemory(thelength);
-	if(!buffer)
-	{
-		FS_FCloseFile(file);
-		Com_Printf( S_COLOR_RED "ERROR: Out of memory reading \"%s\"\n",
-				filename);
-		return NULL;
-	}
+		void *buffer = Hunk_AllocateTempMemory(thelength);
+		if(!buffer) {
+			FS_FCloseFile(file);
+			Com_Printf( S_COLOR_RED "ERROR: Out of memory reading \"%s\"\n", filename);
+			return NULL;
+		}
 
-	FS_Read(buffer, thelength, file);
+		FS_Read(buffer, thelength, file);
 
 
-	// OK!
-	struct xmp_module_info mi;
+		// OK!
+		struct xmp_module_info mi;
 
-	xmpsong = xmp_create_context();
-	int itsloaded = 0;
+		xmpsong = xmp_create_context();
+		int itsloaded = 0;
 
-	itsloaded = xmp_load_module_from_memory(xmpsong, buffer, 0);
+		itsloaded = xmp_load_module_from_memory(xmpsong, buffer, 0);
 
-	// Free our memory and close the file.
-	Hunk_FreeTempMemory(buffer);
-	FS_FCloseFile(file);		// unfortunately these do not help with the leak
+		// Free our memory and close the file.
+		Hunk_FreeTempMemory(buffer);
+		FS_FCloseFile(file);		// unfortunately these do not help with the leak
 
-	if (itsloaded == 0)
-	itsloaded = xmp_start_player(xmpsong, xmpspeed, 0);	// TODO: do sample rate of the mixer.
-	
-		if (itsloaded == 0){
-	
-	//	Com_Printf("XMP loaded our buffer of the file %s which is %i long \n", filename, thelength);
-		xmp_get_module_info(xmpsong, &mi);
-	//	Com_Printf("Song Name: %s\n", mi.mod->name);
-	//	Com_Printf("CODECLOAD %s\n", filename);
-		
+		if (itsloaded == 0)
+			itsloaded = xmp_start_player(xmpsong, xmpspeed, 0);	// TODO: do sample rate of the mixer.
+
+		if (itsloaded == 0) {
+			//	Com_Printf("XMP loaded our buffer of the file %s which is %i long \n", filename, thelength);
+			xmp_get_module_info(xmpsong, &mi);
+			//	Com_Printf("Song Name: %s\n", mi.mod->name);
+			//	Com_Printf("CODECLOAD %s\n", filename);
 		}
 
 	}
@@ -183,64 +178,30 @@ int S_XMP_CodecReadStream(snd_stream_t *stream, int bytes, void *buffer)
 	struct xmp_module_info mi;
 	struct xmp_frame_info fi;
 
-	int bytesRead, bytesLeft, c;
-	char *bufPtr;
-	
 	// check if input is valid
-	if(!(stream && buffer))
-	{
+	if(!(stream && buffer)) {
 		return 0;
 	}
 
-	if(bytes <= 0)
-	{
+	if(bytes <= 0) {
 		return 0;
 	}
 
-	bytesRead = 0;
-	bytesLeft = bytes;
-	bufPtr = buffer;
+	int yeah=xmp_play_buffer(xmpsong, buffer, bytes, 0);
 
-	// cycle until we have the requested or all available bytes read
-	while(-1)
-	{
-		int yeah=xmp_play_buffer(xmpsong, buffer, bytesLeft, 0);
-		
-		if (yeah == 0){	// if we can play it...
+	if (yeah == 0) {	// if we can play it...
 		xmp_get_frame_info(xmpsong, &fi);
-
-		c = fi.buffer;
-
-		// no more bytes are left
-		if(c <= 0)
-		{
-			break;
-		}
-
-		bytesRead += c;
-		bytesLeft -= c;
-		bufPtr += c;
-  		xmp_get_module_info(xmpsong, &mi);
-
-		// we have enough bytes
-		if(bytesLeft <= 0)
-		{
-			break;
-		}
-		}
-		else	// if we can't play it JUST STOP OK
-		{
-			break;
-
-		}
+		xmp_get_module_info(xmpsong, &mi);
+	}
+	else {
+		return 0;
 	}
 
 	return bytes;
 }
 
 
-snd_codec_t xmp_codec =
-{
+snd_codec_t xmp_codec = {
 	"umx",
 	S_XMP_CodecLoad,
 	S_XMP_CodecOpenStream,
@@ -249,8 +210,7 @@ snd_codec_t xmp_codec =
 	NULL
 };
 
-snd_codec_t xmp_mod_codec =
-{
+snd_codec_t xmp_mod_codec = {
 	"mod",
 	S_XMP_CodecLoad,
 	S_XMP_CodecOpenStream,
@@ -259,8 +219,7 @@ snd_codec_t xmp_mod_codec =
 	NULL
 };
 
-snd_codec_t xmp_it_codec =
-{
+snd_codec_t xmp_it_codec = {
 	"it",
 	S_XMP_CodecLoad,
 	S_XMP_CodecOpenStream,
@@ -269,8 +228,7 @@ snd_codec_t xmp_it_codec =
 	NULL
 };
 
-snd_codec_t xmp_s3m_codec =
-{
+snd_codec_t xmp_s3m_codec = {
 	"s3m",
 	S_XMP_CodecLoad,
 	S_XMP_CodecOpenStream,
@@ -279,8 +237,7 @@ snd_codec_t xmp_s3m_codec =
 	NULL
 };
 
-snd_codec_t xmp_xm_codec =
-{
+snd_codec_t xmp_xm_codec = {
 	"xm",
 	S_XMP_CodecLoad,
 	S_XMP_CodecOpenStream,

@@ -400,7 +400,7 @@ void GLimp_InitExtraExtensions()
 	{
 	//	glConfig.hardwareType = GLHW_PCX2;
 	}
-	else if ( strstr( buf, "generic" ) ||  strstr( buf, "brian" ) ||  strstr( buf, "paul" ) ||  strstr( buf, "GDI" ) )	 // software mode opengl needs speedup tricks
+	else if ( strstr( buf, "brian" ) ||  strstr( buf, "paul" ) ||  strstr( buf, "GDI" ) )	 // software mode opengl needs speedup tricks
 	{
 		softwaremode = 1;
 	}

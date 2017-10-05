@@ -153,7 +153,8 @@ typedef enum {
 	DEFORM_TEXT4,
 	DEFORM_TEXT5,
 	DEFORM_TEXT6,
-	DEFORM_TEXT7
+	DEFORM_TEXT7,
+	DEFORM_LFX
 } deform_t;
 
 typedef enum {
@@ -221,6 +222,25 @@ typedef struct {
 	float frequency;
 } waveForm_t;
 
+typedef struct {
+	int    lfxtype; // ... later
+/*
+	int amount;
+	int radiusmode;
+	float radius
+
+	float minsize
+	float maxsize
+	float r
+	vec3_t vel;
+	vec3_t org;
+	float spread;
+	int blend;
+	int shader;
+*/
+} lfx_t;
+
+
 // leilei - texture atlases
 typedef struct {
 	float width;			// columns
@@ -257,6 +277,8 @@ typedef struct {
 	float		bulgeWidth;
 	float		bulgeHeight;
 	float		bulgeSpeed;
+
+	lfx_t		deformationLfx;
 } deformStage_t;
 
 
@@ -1090,6 +1112,9 @@ typedef struct {
 	qboolean	donentsc;	// leilei - done ntsc'ing this frame
 	qboolean	donepalette;		// leilei - done animeing this frame
 	qboolean	doneSurfaces;   // done any 3d surfaces already
+	qboolean	doneParticles;   // done any particle movement
+	qboolean	doneFlareTests;		// leilei - done testing flares
+	float		flareTestTime;
 	trRefEntity_t	entity2D;	// currentEntity will point at this when doing 2D rendering
 } backEndState_t;
 
@@ -1232,6 +1257,8 @@ typedef struct {
 	qboolean				placeholderFogAvail;
 	qboolean				placeholderAvail;
 
+
+
 } trGlobals_t;
 
 extern backEndState_t	backEnd;
@@ -1369,6 +1396,8 @@ extern	cvar_t	*r_flaresDlightShrink;
 extern	cvar_t	*r_flaresDlightFade;
 extern	cvar_t	*r_flaresDlightOpacity;
 extern	cvar_t	*r_flaresDlightScale;
+
+extern	cvar_t	*r_flaresMotionBlur;
 //extern	cvar_t	*r_flaresSurfradii;
 
 extern cvar_t	*r_alternateBrightness;		// leilei - alternate brightness
@@ -1395,6 +1424,7 @@ extern cvar_t	*r_anime;	// Leilei - anime filter
 extern cvar_t	*r_palletize;	// Leilei - anime filter
 extern cvar_t	*r_leidebug;	// Leilei - debug only!
 extern cvar_t	*r_leidebugeye;	// Leilei - debug only!
+extern cvar_t	*r_particles;	// Leilei - particles!
 
 extern	cvar_t	*r_iconmip;	// leilei - icon mip - picmip for 2d icons
 extern	cvar_t	*r_iconBits;	// leilei - icon color depth for 2d icons
@@ -1580,6 +1610,10 @@ typedef struct shaderCommands_s
 	int			numPasses;
 	void		(*currentStageIteratorFunc)( void );
 	shaderStage_t	**xstages;
+
+	// lfx stuf
+	float		lfxTime;
+	float		lfxTimeNext;
 } shaderCommands_t;
 
 extern	shaderCommands_t	tess;
@@ -2335,5 +2369,22 @@ extern int voodootype; // 0 - none 1 - Voodoo Graphics 2 - Voodoo2, 3 - Voodoo B
 
 void RB_UpdateMotionBlur (void);
 void R_MotionBlur_BackupScreen(int which);
+
+void R_AddParticles (void);
+void R_RenderParticles (void);
+void R_ClearParticles (void);
+void R_LFX_Spark (const vec3_t org, const vec3_t dir, float spread, float speed, vec4_t color1, vec4_t color2, vec4_t color3, vec4_t color4, vec4_t color5, int count, int duration, float scaleup, int blendfunc);
+void R_LFX_Smoke (const vec3_t org, const vec3_t dir, float spread, float speed, vec4_t color1, vec4_t color2, vec4_t color3, vec4_t color4, vec4_t color5, int count, int duration, float scaleup, int blendfunc);
+void R_LFX_Smoke2 (const vec3_t org, const vec3_t dir, float spread, float speed, vec4_t color1, vec4_t color2, vec4_t color3, vec4_t color4, vec4_t color5, int count, int duration, float scale, float scaleup, int blendfunc);
+void R_LFX_Shock (const vec3_t org, const vec3_t dir, float spread, float speed, vec4_t color1, vec4_t color2, vec4_t color3, vec4_t color4, vec4_t color5, int count, int duration, float scaleup, int blendfunc);
+void R_LFX_Burst (const vec3_t org, const vec3_t dir, float spread, float speed, vec4_t color1, vec4_t color2, vec4_t color3, vec4_t color4, vec4_t color5, int count, int duration, float scaleup, int blendfunc);
+void R_LFX_PushSmoke (const vec3_t there, float force);
+
+void R_RunParticleEffect (const vec3_t org, const vec3_t dir, int color, int count);
+void R_QarticleExplosion(const vec3_t org);
+void R_LFX_Blood (const vec3_t org, const vec3_t dir, float pressure) ;
+void LFX_ShaderInit(void);
+void LFX_ParticleEffect (int effect, const vec3_t org, const vec3_t dir);
+
 #endif //TR_LOCAL_H
 

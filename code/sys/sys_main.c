@@ -691,7 +691,7 @@ int main( int argc, char **argv )
 
 	while( 1 )
 	{
-		IN_Frame( );
+		IN_Frame( qfalse );	// youurayy input lag fix
 		Com_Frame( );
 	}
 

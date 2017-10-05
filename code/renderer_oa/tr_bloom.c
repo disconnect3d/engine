@@ -8,7 +8,7 @@ of the License, or (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 See the GNU General Public License for more details.
 
@@ -18,7 +18,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 */
 // tr_bloom.c: General post-processing shader stuff including bloom, leifx, and everything else
-//		that's postprocessed.  Maintained by leilei and Hitchiker 
+//		that's postprocessed.  Maintained by leilei and Hitchiker
 
 #include "tr_local.h"
 
@@ -68,7 +68,7 @@ static struct {
 		int		width, height;
 	} work;
 
-		// leilei - motion blur
+	// leilei - motion blur
 	struct {
 		image_t	*texture;
 		int		width, height;
@@ -136,7 +136,7 @@ static struct {
 
 
 cvar_t *r_film;
-extern int	force32upload;		
+extern int	force32upload;
 int		leifxmode;
 int		leifxpass;
 int		fakeit = 0;
@@ -148,16 +148,15 @@ extern int tvHeight;
 extern float tvAspectW;	// aspect correction
 extern int vresWidth;
 extern int vresHeight;
-/* 
-============================================================================== 
- 
-						LIGHT BLOOMS
- 
-============================================================================== 
-*/ 
+/*
+==============================================================================
 
-static float Diamond8x[8][8] =
-{ 
+						LIGHT BLOOMS
+
+==============================================================================
+*/
+
+static float Diamond8x[8][8] = {
 	{ 0.0f, 0.0f, 0.0f, 0.1f, 0.1f, 0.0f, 0.0f, 0.0f, },
 	{ 0.0f, 0.0f, 0.2f, 0.3f, 0.3f, 0.2f, 0.0f, 0.0f, },
 	{ 0.0f, 0.2f, 0.4f, 0.6f, 0.6f, 0.4f, 0.2f, 0.0f, },
@@ -169,8 +168,7 @@ static float Diamond8x[8][8] =
 };
 
 
-static float Star8x[8][8] =
-{ 
+static float Star8x[8][8] = {
 	{ 0.4f, 0.1f, 0.0f, 0.0f, 0.0f, 0.0f, 0.1f, 0.4f, },
 	{ 0.1f, 0.6f, 0.2f, 0.0f, 0.0f, 0.2f, 0.6f, 0.1f, },
 	{ 0.0f, 0.2f, 0.7f, 0.6f, 0.6f, 0.7f, 0.2f, 0.0f, },
@@ -182,18 +180,16 @@ static float Star8x[8][8] =
 };
 
 
-static float Diamond6x[6][6] =
-{ 
+static float Diamond6x[6][6] = {
 	{ 0.0f, 0.0f, 0.1f, 0.1f, 0.0f, 0.0f, },
-	{ 0.0f, 0.3f, 0.5f, 0.5f, 0.3f, 0.0f, }, 
+	{ 0.0f, 0.3f, 0.5f, 0.5f, 0.3f, 0.0f, },
 	{ 0.1f, 0.5f, 0.9f, 0.9f, 0.5f, 0.1f, },
 	{ 0.1f, 0.5f, 0.9f, 0.9f, 0.5f, 0.1f, },
 	{ 0.0f, 0.3f, 0.5f, 0.5f, 0.3f, 0.0f, },
 	{ 0.0f, 0.0f, 0.1f, 0.1f, 0.0f, 0.0f  }
 };
 
-static float Diamond4x[4][4] =
-{  
+static float Diamond4x[4][4] = {
 	{ 0.3f, 0.4f, 0.4f, 0.3f, },
 	{ 0.4f, 0.9f, 0.9f, 0.4f, },
 	{ 0.4f, 0.9f, 0.9f, 0.4f, },
@@ -224,29 +220,30 @@ static struct {
 
 
 
-static void ID_INLINE R_Bloom_Quad( int width, int height, float texX, float texY, float texWidth, float texHeight ) {
+static void ID_INLINE R_Bloom_Quad( int width, int height, float texX, float texY, float texWidth, float texHeight )
+{
 	int x = 0;
 	int y = 0;
 	x = 0;
 	y += glConfig.vidHeight - height;
 	width += x;
 	height += y;
-	
+
 	texWidth += texX;
 	texHeight += texY;
 
-	qglBegin( GL_QUADS );							
-	qglTexCoord2f(	texX,						texHeight	);	
+	qglBegin( GL_QUADS );
+	qglTexCoord2f(	texX,						texHeight	);
 	qglVertex2f(	x,							y	);
 
-	qglTexCoord2f(	texX,						texY	);				
-	qglVertex2f(	x,							height	);	
+	qglTexCoord2f(	texX,						texY	);
+	qglVertex2f(	x,							height	);
 
-	qglTexCoord2f(	texWidth,					texY	);				
-	qglVertex2f(	width,						height	);	
+	qglTexCoord2f(	texWidth,					texY	);
+	qglVertex2f(	width,						height	);
 
-	qglTexCoord2f(	texWidth,					texHeight	);	
-	qglVertex2f(	width,						y	);				
+	qglTexCoord2f(	texWidth,					texHeight	);
+	qglVertex2f(	width,						y	);
 	qglEnd ();
 }
 
@@ -254,7 +251,8 @@ static void ID_INLINE R_Bloom_Quad( int width, int height, float texX, float tex
 // LEILEI - Bloom Reflection
 
 
-static void ID_INLINE R_Bloom_Quad_Lens(float offsert, int width, int height, float texX, float texY, float texWidth, float texHeight) {
+static void ID_INLINE R_Bloom_Quad_Lens(float offsert, int width, int height, float texX, float texY, float texWidth, float texHeight)
+{
 	int x = 0;
 	int y = 0;
 	x = 0;
@@ -265,18 +263,18 @@ static void ID_INLINE R_Bloom_Quad_Lens(float offsert, int width, int height, fl
 	texWidth -= texX;
 	texHeight -= texY;
 
-	qglBegin( GL_QUADS );							
-	qglTexCoord2f(	texX,						texHeight	);	
+	qglBegin( GL_QUADS );
+	qglTexCoord2f(	texX,						texHeight	);
 	qglVertex2f(	width + offsert,							height + offsert	);
 
-	qglTexCoord2f(	texX,						texY	);				
-	qglVertex2f(	width + offsert,							y	- offsert);	
+	qglTexCoord2f(	texX,						texY	);
+	qglVertex2f(	width + offsert,							y	- offsert);
 
-	qglTexCoord2f(	texWidth,					texY	);				
-	qglVertex2f(	x - offsert,						y	- offsert);	
+	qglTexCoord2f(	texWidth,					texY	);
+	qglVertex2f(	x - offsert,						y	- offsert);
 
-	qglTexCoord2f(	texWidth,					texHeight	);	
-	qglVertex2f(	x - offsert,						height	+ offsert);			
+	qglTexCoord2f(	texWidth,					texHeight	);
+	qglVertex2f(	x - offsert,						height	+ offsert);
 	qglEnd ();
 }
 
@@ -292,37 +290,37 @@ static void R_Bloom_InitTextures( void )
 {
 	byte	*data;
 
-	// find closer power of 2 to screen size 
-	for (bloom.screen.width = 1;bloom.screen.width< glConfig.vidWidth;bloom.screen.width *= 2);
-	for (bloom.screen.height = 1;bloom.screen.height < glConfig.vidHeight;bloom.screen.height *= 2);
+	// find closer power of 2 to screen size
+	for (bloom.screen.width = 1; bloom.screen.width< glConfig.vidWidth; bloom.screen.width *= 2);
+	for (bloom.screen.height = 1; bloom.screen.height < glConfig.vidHeight; bloom.screen.height *= 2);
 
 	bloom.screen.readW = glConfig.vidWidth / (float)bloom.screen.width;
 	bloom.screen.readH = glConfig.vidHeight / (float)bloom.screen.height;
 
-	// find closer power of 2 to effect size 
+	// find closer power of 2 to effect size
 	bloom.work.width = r_bloom_sample_size->integer;
 	bloom.work.height = bloom.work.width * ( glConfig.vidWidth / glConfig.vidHeight );
 
-	for (bloom.effect.width = 1;bloom.effect.width < bloom.work.width;bloom.effect.width *= 2);
-	for (bloom.effect.height = 1;bloom.effect.height < bloom.work.height;bloom.effect.height *= 2);
+	for (bloom.effect.width = 1; bloom.effect.width < bloom.work.width; bloom.effect.width *= 2);
+	for (bloom.effect.height = 1; bloom.effect.height < bloom.work.height; bloom.effect.height *= 2);
 
 	bloom.effect.readW = bloom.work.width / (float)bloom.effect.width;
 	bloom.effect.readH = bloom.work.height / (float)bloom.effect.height;
-	
+
 	bloom.effect2.readW=bloom.effect.readW;
 	bloom.effect2.readH=bloom.effect.readH;
 	bloom.effect2.width=bloom.effect.width;
 	bloom.effect2.height=bloom.effect.height;
-	
+
 
 	// disable blooms if we can't handle a texture of that size
 	if( bloom.screen.width > glConfig.maxTextureSize ||
-		bloom.screen.height > glConfig.maxTextureSize ||
-		bloom.effect.width > glConfig.maxTextureSize ||
-		bloom.effect.height > glConfig.maxTextureSize ||
-		bloom.work.width > glConfig.vidWidth ||
-		bloom.work.height > glConfig.vidHeight
-	) {
+	        bloom.screen.height > glConfig.maxTextureSize ||
+	        bloom.effect.width > glConfig.maxTextureSize ||
+	        bloom.effect.height > glConfig.maxTextureSize ||
+	        bloom.work.width > glConfig.vidWidth ||
+	        bloom.work.height > glConfig.vidHeight
+	  ) {
 		ri.Cvar_Set( "r_bloom", "0" );
 		Com_Printf( S_COLOR_YELLOW"WARNING: 'R_InitBloomTextures' too high resolution for light bloom, effect disabled\n" );
 		return;
@@ -369,7 +367,7 @@ static void R_Bloom_DrawEffect( void )
 	float alpha=r_bloom_alpha->value;
 	GL_Bind( bloom.effect.texture );
 	GL_State( GLS_DEPTHTEST_DISABLE | GLS_SRCBLEND_ONE | GLS_DSTBLEND_ONE );
-	if(r_bloom_cascade->integer){
+	if(r_bloom_cascade->integer) {
 		alpha=r_bloom_cascade_alpha->value;
 	}
 	qglColor4f( alpha,alpha,alpha, 1.0f );
@@ -433,7 +431,8 @@ static void R_Bloom_LensEffect( void )
  =================
  Tcpp: sorry for my poor English skill.
  */
-static void R_Bloom_Cascaded( void ){
+static void R_Bloom_Cascaded( void )
+{
 	int scale;
 	int oldWorkW, oldWorkH;
 	int newWorkW, newWorkH;
@@ -441,7 +440,7 @@ static void R_Bloom_Cascaded( void ){
 	float bloomShiftY=r_bloom_cascade_blur->value/(float)bloom.effect.height;
 	float intensity=r_bloom_cascade_intensity->value;
 	float intensity2;
-	
+
 	qglColor4f( 1.0f, 1.0f, 1.0f, 1.0f );
 	//Take the backup texture and downscale it
 	GL_Bind( bloom.screen.texture );
@@ -450,88 +449,89 @@ static void R_Bloom_Cascaded( void ){
 	//Copy downscaled framebuffer into a texture
 	GL_Bind( bloom.effect.texture );
 	qglCopyTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, 0, 0, bloom.work.width, bloom.work.height );
-	
+
 	/* Copy the result to the effect texture */
 	GL_Bind( bloom.effect2.texture );
 	qglCopyTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, 0, 0, bloom.work.width, bloom.work.height );
-	
+
 	// do blurs..
 	scale=32;
 	while(bloom.work.width<scale)
 		scale>>=1;
 	while(bloom.work.height<scale)
 		scale>>=1;
-	
+
 	// prepare the first level.
 	newWorkW=bloom.work.width/scale;
 	newWorkH=bloom.work.height/scale;
-	
+
 	GL_Bind( bloom.effect2.texture );
 	GL_State( GLS_DEPTHTEST_DISABLE | GLS_SRCBLEND_ONE | GLS_DSTBLEND_ZERO );
 	intensity2=intensity/(float)scale;
 	qglColor4f( intensity2, intensity2, intensity2, 1.0 );
-	R_Bloom_Quad( newWorkW, newWorkH, 
-				 0, 0, 
-				 bloom.effect2.readW, bloom.effect2.readH );
-	
+	R_Bloom_Quad( newWorkW, newWorkH,
+	              0, 0,
+	              bloom.effect2.readW, bloom.effect2.readH );
+
 	// go through levels.
-	while(scale>1){
+	while(scale>1) {
 		float oldScaleInv=1.f/(float)scale;
 		scale>>=1;
 		oldWorkH=newWorkH;
 		oldWorkW=newWorkW;
 		newWorkW=bloom.work.width/scale;
 		newWorkH=bloom.work.height/scale;
-		
+
 		// get effect texture.
 		GL_Bind( bloom.effect.texture );
 		qglCopyTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, 0, 0, oldWorkW, oldWorkH);
-		
+
 		// maginfy the previous level.
-		if(r_bloom_cascade_blur->value<.01f){
+		if(r_bloom_cascade_blur->value<.01f) {
 			// don't blur.
 			qglColor4f( 1.f, 1.f, 1.f, 1.0 );
 			GL_State( GLS_DEPTHTEST_DISABLE | GLS_SRCBLEND_ONE | GLS_DSTBLEND_ZERO );
-			R_Bloom_Quad( newWorkW, newWorkH, 
-						 0, 0, 
-						 bloom.effect.readW*oldScaleInv, bloom.effect.readH*oldScaleInv );
-		}else{
+			R_Bloom_Quad( newWorkW, newWorkH,
+			              0, 0,
+			              bloom.effect.readW*oldScaleInv, bloom.effect.readH*oldScaleInv );
+		}
+		else {
 			// blur.
 			qglColor4f( .25f, .25f, .25f, 1.0 );
 			GL_State( GLS_DEPTHTEST_DISABLE | GLS_SRCBLEND_ONE | GLS_DSTBLEND_ZERO );
-			R_Bloom_Quad( newWorkW, newWorkH, 
-						 -bloomShiftX, -bloomShiftY, 
-						 bloom.effect.readW*oldScaleInv, bloom.effect.readH*oldScaleInv );
-			
+			R_Bloom_Quad( newWorkW, newWorkH,
+			              -bloomShiftX, -bloomShiftY,
+			              bloom.effect.readW*oldScaleInv, bloom.effect.readH*oldScaleInv );
+
 			GL_State( GLS_DEPTHTEST_DISABLE | GLS_SRCBLEND_ONE | GLS_DSTBLEND_ONE );
-			R_Bloom_Quad( newWorkW, newWorkH, 
-						 bloomShiftX, -bloomShiftY, 
-						 bloom.effect.readW*oldScaleInv, bloom.effect.readH*oldScaleInv );
-			R_Bloom_Quad( newWorkW, newWorkH, 
-						 -bloomShiftX, bloomShiftY, 
-						 bloom.effect.readW*oldScaleInv, bloom.effect.readH*oldScaleInv );
-			R_Bloom_Quad( newWorkW, newWorkH, 
-						 bloomShiftX, bloomShiftY, 
-						 bloom.effect.readW*oldScaleInv, bloom.effect.readH*oldScaleInv );
+			R_Bloom_Quad( newWorkW, newWorkH,
+			              bloomShiftX, -bloomShiftY,
+			              bloom.effect.readW*oldScaleInv, bloom.effect.readH*oldScaleInv );
+			R_Bloom_Quad( newWorkW, newWorkH,
+			              -bloomShiftX, bloomShiftY,
+			              bloom.effect.readW*oldScaleInv, bloom.effect.readH*oldScaleInv );
+			R_Bloom_Quad( newWorkW, newWorkH,
+			              bloomShiftX, bloomShiftY,
+			              bloom.effect.readW*oldScaleInv, bloom.effect.readH*oldScaleInv );
 		}
-		
+
 		// add the input.
 		intensity2=intensity/(float)scale;
 		qglColor4f( intensity2, intensity2, intensity2, 1.0 );
-		
+
 		GL_State( GLS_DEPTHTEST_DISABLE | GLS_SRCBLEND_ONE | GLS_DSTBLEND_ONE );
 		GL_Bind( bloom.effect2.texture );
-		
-		R_Bloom_Quad( newWorkW, newWorkH, 
-					 0, 0, 
-					 bloom.effect2.readW, bloom.effect2.readH );
-		
-		
+
+		R_Bloom_Quad( newWorkW, newWorkH,
+		              0, 0,
+		              bloom.effect2.readW, bloom.effect2.readH );
+
+
 	}
-	
+
 	GL_Bind( bloom.effect.texture );
 	qglCopyTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, 0, 0, bloom.work.width, bloom.work.height );
-	
+
 }
 
 /*
@@ -559,9 +559,9 @@ static void R_Bloom_WarsowEffect( void )
 		GL_State( GLS_DEPTHTEST_DISABLE | GLS_SRCBLEND_DST_COLOR | GLS_DSTBLEND_ZERO );
 
 		for( i = 0; i < r_bloom_darken->integer; i++ ) {
-			R_Bloom_Quad( bloom.work.width, bloom.work.height, 
-				0, 0, 
-				bloom.effect.readW, bloom.effect.readH );
+			R_Bloom_Quad( bloom.work.width, bloom.work.height,
+			              0, 0,
+			              bloom.effect.readW, bloom.effect.readH );
 		}
 		qglCopyTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, 0, 0, bloom.work.width, bloom.work.height );
 	}
@@ -575,37 +575,39 @@ static void R_Bloom_WarsowEffect( void )
 	if( r_bloom_diamond_size->integer > 7 || r_bloom_diamond_size->integer <= 3 ) {
 		if( r_bloom_diamond_size->integer != 8 )
 			ri.Cvar_Set( "r_bloom_diamond_size", "8" );
-	} else if( r_bloom_diamond_size->integer > 5 ) {
+	}
+	else if( r_bloom_diamond_size->integer > 5 ) {
 		if( r_bloom_diamond_size->integer != 6 )
 			ri.Cvar_Set( "r_bloom_diamond_size", "6" );
-	} else if( r_bloom_diamond_size->integer > 3 ) {
+	}
+	else if( r_bloom_diamond_size->integer > 3 ) {
 		if( r_bloom_diamond_size->integer != 4 )
 			ri.Cvar_Set( "r_bloom_diamond_size", "4" );
 	}
 
 	switch( r_bloom_diamond_size->integer ) {
-		case 4:
-			k = 2;
-			diamond = &Diamond4x[0][0];
-			scale = r_bloom_intensity->value * 0.8f;
-			break;
-		case 6:
-			k = 3;
-			diamond = &Diamond6x[0][0];
-			scale = r_bloom_intensity->value * 0.5f;
-			break;
-		case 9:
-			k = 4;
-			diamond = &Star8x[0][0];
-			scale = r_bloom_intensity->value * 0.3f;
-			break;
+	case 4:
+		k = 2;
+		diamond = &Diamond4x[0][0];
+		scale = r_bloom_intensity->value * 0.8f;
+		break;
+	case 6:
+		k = 3;
+		diamond = &Diamond6x[0][0];
+		scale = r_bloom_intensity->value * 0.5f;
+		break;
+	case 9:
+		k = 4;
+		diamond = &Star8x[0][0];
+		scale = r_bloom_intensity->value * 0.3f;
+		break;
 
-		default:
-		case 8:
-			k = 4;
-			diamond = &Diamond8x[0][0];
-			scale = r_bloom_intensity->value * 0.3f;
-			break;
+	default:
+	case 8:
+		k = 4;
+		diamond = &Diamond8x[0][0];
+		scale = r_bloom_intensity->value * 0.3f;
+		break;
 	}
 
 	for( i = 0; i < r_bloom_diamond_size->integer; i++ ) {
@@ -622,7 +624,7 @@ static void R_Bloom_WarsowEffect( void )
 		}
 	}
 	qglCopyTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, 0, 0, bloom.work.width, bloom.work.height );
-}											
+}
 
 /*
 =================
@@ -630,7 +632,8 @@ R_Bloom_BackupScreen
 Backup the full original screen to a texture for downscaling and later restoration
 =================
 */
-static void R_Bloom_BackupScreen( void ) {
+static void R_Bloom_BackupScreen( void )
+{
 	GL_Bind( bloom.screen.texture );
 	qglCopyTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, 0, 0, glConfig.vidWidth, glConfig.vidHeight );
 }
@@ -641,21 +644,23 @@ R_Bloom_RestoreScreen
 Restore the temporary framebuffer section we used with the backup texture
 =================
 */
-static void R_Bloom_RestoreScreen( void ) {
+static void R_Bloom_RestoreScreen( void )
+{
 	float dry=r_bloom_dry->value;
 	if(r_bloom_cascade->integer)
 		dry=r_bloom_cascade_dry->value;
 	GL_State( GLS_DEPTHTEST_DISABLE | GLS_SRCBLEND_ONE | GLS_DSTBLEND_ZERO );
 	GL_Bind( bloom.screen.texture );
 	qglColor4f( dry,dry,dry, 1 );
-	if(dry<.99f){
+	if(dry<.99f) {
 		R_Bloom_Quad( bloom.screen.width, bloom.screen.height, 0, 0,
-					1.f,
-					1.f );
-	}else{
+		              1.f,
+		              1.f );
+	}
+	else {
 		R_Bloom_Quad( bloom.work.width, bloom.work.height, 0, 0,
-			bloom.work.width / (float)bloom.screen.width,
-			bloom.work.height / (float)bloom.screen.height );
+		              bloom.work.width / (float)bloom.screen.width,
+		              bloom.work.height / (float)bloom.screen.height );
 	}
 }
 /*
@@ -666,11 +671,9 @@ Restore the temporary framebuffer section we used with the backup texture
 */
 extern int mpasses;
 
-static void ID_INLINE R_Bloom_QuadTV( int width, int height, float texX, float texY, float texWidth, float texHeight, int aa ) {
-	int x = 0;
-	int y = 0;
+static void ID_INLINE R_Bloom_QuadTV( int width, int height, float texX, float texY, float texWidth, float texHeight, int aa )
+{
 	float aspcenter = 0;
-	int aspoff = 0;
 	float raa = r_retroAA->value;
 	if (raa < 1) raa = 1;
 
@@ -678,103 +681,158 @@ static void ID_INLINE R_Bloom_QuadTV( int width, int height, float texX, float t
 	float ypix = 1.0f / height / (4 / raa);
 	float xaa;
 	float yaa;
-	x = 0;
-	y = 0;
-
-	
+	int x = 0;
+	int y = 0;
 
 
-	if (aa == 0){	xaa = 0; yaa = 0;   }
-	if (aa == 1){	xaa = -xpix; yaa = ypix;   }
-	if (aa == 2){	xaa = -xpix; yaa = -ypix;   }
-	if (aa == 3){	xaa = xpix; yaa = -ypix;   }
-	if (aa == 4){	xaa = xpix; yaa = ypix;   }
+
+
+	if (aa == 0) {
+		xaa = 0;
+		yaa = 0;
+	}
+	if (aa == 1) {
+		xaa = -xpix;
+		yaa = ypix;
+	}
+	if (aa == 2) {
+		xaa = -xpix;
+		yaa = -ypix;
+	}
+	if (aa == 3) {
+		xaa = xpix;
+		yaa = -ypix;
+	}
+	if (aa == 4) {
+		xaa = xpix;
+		yaa = ypix;
+	}
 
 
 
 	//y += tvHeight - height;
 	width += x;
 	height += y;
-	
+
 	texWidth += texX;
 	texHeight += texY;
 
-	if (tvAspectW != 1.0){
+	if (tvAspectW != 1.0) {
 		aspcenter = tvWidth * ((1.0f - tvAspectW) / 2);
 		// leilei - also do a quad that is 100% black, hiding our actual rendered viewport
 
-	//	qglViewport	(0, 0, 	tvWidth, tvHeight );
-	//	qglScissor	(0, 0,	tvWidth, tvHeight );
-		qglBegin( GL_QUADS );	
-	if (r_tvFilter->integer)	// bilinear filter
-	{
-		qglTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
-		qglTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
-	}
-	else
-	{
-		qglTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST );
-		qglTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST );
-	}
-		qglColor4f( 0.0, 0.0, 0.0, 1 );		
+		//	qglViewport	(0, 0, 	tvWidth, tvHeight );
+		//	qglScissor	(0, 0,	tvWidth, tvHeight );
+		qglBegin( GL_QUADS );
+		if (r_tvFilter->integer) {	// bilinear filter
+			qglTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
+			qglTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
+		}
+		else {
+			qglTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST );
+			qglTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST );
+		}
+		qglColor4f( 0.0, 0.0, 0.0, 1 );
 		qglVertex2f(0,0	);
-		qglVertex2f(0,height);	
-		qglVertex2f(width,height);	
-		qglVertex2f(width,0);	
+		qglVertex2f(0,height);
+		qglVertex2f(width,height);
+		qglVertex2f(width,0);
 		qglEnd ();
-		qglColor4f( 1.0, 1.0, 1.0, 1 );	
+		qglColor4f( 1.0, 1.0, 1.0, 1 );
 	}
 
-
-	//aspcenter = 0;
-	aspoff = tvWidth * tvAspectW;
-
-	if (!aa){
-	qglViewport(aspcenter, 0, 	(tvWidth * tvAspectW), tvHeight );
-	qglScissor(aspcenter, 0,	(tvWidth * tvAspectW), tvHeight );
+	if (!aa) {
+		qglViewport(aspcenter, 0, 	(tvWidth * tvAspectW), tvHeight );
+		qglScissor(aspcenter, 0,	(tvWidth * tvAspectW), tvHeight );
 	}
-	qglBegin( GL_QUADS );	
+	qglBegin( GL_QUADS );
 	//GL_State( GLS_DEPTHTEST_DISABLE | GLS_SRCBLEND_ONE | GLS_DSTBLEND_ONE );
 	if (aa)
-	qglColor4f( 0.25, 0.25, 0.25, 1 );						
-	qglTexCoord2f(	texX + xaa,						texHeight + yaa);	
+		qglColor4f( 0.25, 0.25, 0.25, 1 );
+	qglTexCoord2f(	texX + xaa,						texHeight + yaa);
 	qglVertex2f(	x,							y	);
-	qglTexCoord2f(	texX + xaa,						texY + yaa	);				
-	qglVertex2f(	x,							height	);	
-	qglTexCoord2f(	texWidth + xaa,					texY	+ yaa );				
-	qglVertex2f(	width,						height	);	
-	qglTexCoord2f(	texWidth + xaa,					texHeight + yaa	);	
-	qglVertex2f(	width,						y	);				
+	qglTexCoord2f(	texX + xaa,						texY + yaa	);
+	qglVertex2f(	x,							height	);
+	qglTexCoord2f(	texWidth + xaa,					texY	+ yaa );
+	qglVertex2f(	width,						height	);
+	qglTexCoord2f(	texWidth + xaa,					texHeight + yaa	);
+	qglVertex2f(	width,						y	);
 	qglEnd ();
 }
 
 
-static void R_Bloom_RestoreScreen_Postprocessed( void ) {
+static void R_Bloom_RestoreScreen_Postprocessed( void )
+{
 #ifdef GLSL_POSTPROCESSING
-	glslProgram_t	*program;
-	if (leifxmode)
-	{
-	if (leifxmode == 1){ if (vertexShaders) R_GLSL_UseProgram(tr.leiFXDitherProgram); program=tr.programs[tr.leiFXDitherProgram];}
-	if (leifxmode == 2){ if (vertexShaders) R_GLSL_UseProgram(tr.leiFXGammaProgram); program=tr.programs[tr.leiFXGammaProgram];}
-	if (leifxmode == 3){ if (vertexShaders) R_GLSL_UseProgram(tr.leiFXFilterProgram); program=tr.programs[tr.leiFXFilterProgram];}
-	if (leifxmode == 888){ if (vertexShaders) R_GLSL_UseProgram(tr.animeProgram); program=tr.programs[tr.animeProgram];}
-	if (leifxmode == 999){ if (vertexShaders) R_GLSL_UseProgram(tr.animeFilmProgram); program=tr.programs[tr.animeFilmProgram];}
-	if (leifxmode == 777){ if (vertexShaders) R_GLSL_UseProgram(tr.motionBlurProgram); program=tr.programs[tr.motionBlurProgram];}
-	if (leifxmode == 778){ if (vertexShaders) R_GLSL_UseProgram(tr.motionBlurProgram); program=tr.programs[tr.motionBlurProgram];}
-	if (leifxmode == 779){ if (vertexShaders) R_GLSL_UseProgram(tr.motionBlurPostProgram); program=tr.programs[tr.motionBlurPostProgram];}
-	if (leifxmode == 632){ if (vertexShaders) R_GLSL_UseProgram(tr.NTSCEncodeProgram); program=tr.programs[tr.NTSCEncodeProgram];}
-	if (leifxmode == 633){ if (vertexShaders) R_GLSL_UseProgram(tr.NTSCDecodeProgram); program=tr.programs[tr.NTSCDecodeProgram];}
-	if (leifxmode == 634){ if (vertexShaders) R_GLSL_UseProgram(tr.NTSCBleedProgram); program=tr.programs[tr.NTSCBleedProgram];}
-	if (leifxmode == 666){ if (vertexShaders) R_GLSL_UseProgram(tr.BrightnessProgram); program=tr.programs[tr.BrightnessProgram];}
-	if (leifxmode == 1236){ if (vertexShaders) R_GLSL_UseProgram(tr.CRTProgram); program=tr.programs[tr.CRTProgram];}
-	if (leifxmode == 1997){ if (vertexShaders) R_GLSL_UseProgram(tr.paletteProgram); program=tr.programs[tr.paletteProgram];}
-	
+	glslProgram_t	*program = NULL;
+	if (leifxmode) {
+		if (leifxmode == 1) {
+			if (vertexShaders) R_GLSL_UseProgram(tr.leiFXDitherProgram);
+			program=tr.programs[tr.leiFXDitherProgram];
+		}
+		if (leifxmode == 2) {
+			if (vertexShaders) R_GLSL_UseProgram(tr.leiFXGammaProgram);
+			program=tr.programs[tr.leiFXGammaProgram];
+		}
+		if (leifxmode == 3) {
+			if (vertexShaders) R_GLSL_UseProgram(tr.leiFXFilterProgram);
+			program=tr.programs[tr.leiFXFilterProgram];
+		}
+		if (leifxmode == 888) {
+			if (vertexShaders) R_GLSL_UseProgram(tr.animeProgram);
+			program=tr.programs[tr.animeProgram];
+		}
+		if (leifxmode == 999) {
+			if (vertexShaders) R_GLSL_UseProgram(tr.animeFilmProgram);
+			program=tr.programs[tr.animeFilmProgram];
+		}
+		if (leifxmode == 777) {
+			if (vertexShaders) R_GLSL_UseProgram(tr.motionBlurProgram);
+			program=tr.programs[tr.motionBlurProgram];
+		}
+		if (leifxmode == 778) {
+			if (vertexShaders) R_GLSL_UseProgram(tr.motionBlurProgram);
+			program=tr.programs[tr.motionBlurProgram];
+		}
+		if (leifxmode == 779) {
+			if (vertexShaders) R_GLSL_UseProgram(tr.motionBlurPostProgram);
+			program=tr.programs[tr.motionBlurPostProgram];
+		}
+		if (leifxmode == 632) {
+			if (vertexShaders) R_GLSL_UseProgram(tr.NTSCEncodeProgram);
+			program=tr.programs[tr.NTSCEncodeProgram];
+		}
+		if (leifxmode == 633) {
+			if (vertexShaders) R_GLSL_UseProgram(tr.NTSCDecodeProgram);
+			program=tr.programs[tr.NTSCDecodeProgram];
+		}
+		if (leifxmode == 634) {
+			if (vertexShaders) R_GLSL_UseProgram(tr.NTSCBleedProgram);
+			program=tr.programs[tr.NTSCBleedProgram];
+		}
+		if (leifxmode == 666) {
+			if (vertexShaders) R_GLSL_UseProgram(tr.BrightnessProgram);
+			program=tr.programs[tr.BrightnessProgram];
+		}
+		if (leifxmode == 1236) {
+			if (vertexShaders) R_GLSL_UseProgram(tr.CRTProgram);
+			program=tr.programs[tr.CRTProgram];
+		}
+		if (leifxmode == 1997) {
+			if (vertexShaders) R_GLSL_UseProgram(tr.paletteProgram);
+			program=tr.programs[tr.paletteProgram];
+		}
+
 	}
-	else
-	{
-	if (vertexShaders) R_GLSL_UseProgram(tr.postprocessingProgram);
-	// Feed GLSL postprocess program
-	program=tr.programs[tr.postprocessingProgram];
+	else {
+		if (vertexShaders) R_GLSL_UseProgram(tr.postprocessingProgram);
+		// Feed GLSL postprocess program
+		program=tr.programs[tr.postprocessingProgram];
+	}
+	if (!program) {
+		//If leifsmode has been set to something invalid we have to bail out or we will dereference a null pointer
+		Com_Printf( S_COLOR_YELLOW"WARNING: 'leifxmode' has an invalid value\n" );
+		return;
 	}
 	if (program->u_ScreenSizeX > -1) R_GLSL_SetUniform_u_ScreenSizeX(program, glConfig.vidWidth);
 
@@ -799,79 +857,80 @@ static void R_Bloom_RestoreScreen_Postprocessed( void ) {
 	if (program->u_CC_Saturation > -1) R_GLSL_SetUniform_u_CC_Saturation(program, 1.0);
 	if (program->u_CC_Contrast > -1) R_GLSL_SetUniform_u_CC_Contrast(program, 1.0);
 
-	// 
-	if (leifxmode == 3){ R_GLSL_SetUniform_u_CC_Brightness(program, leifxpass); }
+	//
+	if (leifxmode == 3) {
+		R_GLSL_SetUniform_u_CC_Brightness(program, leifxpass);
+	}
 
-	if (program->u_zFar > -1) R_GLSL_SetUniform_u_zFar(program, tr.viewParms.zFar);	
+	if (program->u_zFar > -1) R_GLSL_SetUniform_u_zFar(program, tr.viewParms.zFar);
 	GL_SelectTexture(0);
 	GL_State( GLS_DEPTHTEST_DISABLE | GLS_SRCBLEND_ONE | GLS_DSTBLEND_ZERO );
 	GL_Bind( postproc.screen.texture );
 	GL_SelectTexture(7);
 	GL_State( GLS_DEPTHTEST_DISABLE | GLS_SRCBLEND_ONE | GLS_DSTBLEND_ZERO );
-	GL_Bind( postproc.depth.texture );	
+	GL_Bind( postproc.depth.texture );
 
 	// motion blur crap
-	if( r_motionblur->integer > 2){
-	if (program->u_mpasses > -1) R_GLSL_SetUniform_u_mpasses(program, mpasses);
-	GL_SelectTexture(2);
-	GL_State( GLS_DEPTHTEST_DISABLE | GLS_SRCBLEND_ONE | GLS_DSTBLEND_ZERO );
-	GL_Bind( postproc.motion1.texture );	
-	GL_SelectTexture(3);
-	GL_State( GLS_DEPTHTEST_DISABLE | GLS_SRCBLEND_ONE | GLS_DSTBLEND_ZERO );
-	GL_Bind( postproc.motion2.texture );	
-	GL_SelectTexture(4);
-	GL_State( GLS_DEPTHTEST_DISABLE | GLS_SRCBLEND_ONE | GLS_DSTBLEND_ZERO );
-	GL_Bind( postproc.motion3.texture );	
-	GL_SelectTexture(5);
-	GL_State( GLS_DEPTHTEST_DISABLE | GLS_SRCBLEND_ONE | GLS_DSTBLEND_ZERO );
-	GL_Bind( postproc.motion4.texture );	
-	GL_SelectTexture(6);
-	GL_State( GLS_DEPTHTEST_DISABLE | GLS_SRCBLEND_ONE | GLS_DSTBLEND_ZERO );
-	GL_Bind( postproc.motion5.texture );	
-	GL_SelectTexture(11);
-	GL_State( GLS_DEPTHTEST_DISABLE | GLS_SRCBLEND_ONE | GLS_DSTBLEND_ZERO );
-	GL_Bind( postproc.mpass1.texture );	
-	GL_SelectTexture(12);
-	GL_State( GLS_DEPTHTEST_DISABLE | GLS_SRCBLEND_ONE | GLS_DSTBLEND_ZERO );
-	GL_Bind( postproc.mpass1.texture );	
-	GL_SelectTexture(13);
-	GL_State( GLS_DEPTHTEST_DISABLE | GLS_SRCBLEND_ONE | GLS_DSTBLEND_ZERO );
-	GL_Bind( postproc.mpass1.texture );	
-	GL_SelectTexture(14);
-	GL_State( GLS_DEPTHTEST_DISABLE | GLS_SRCBLEND_ONE | GLS_DSTBLEND_ZERO );
-	GL_Bind( postproc.mpass1.texture );	
+	if( r_motionblur->integer > 2) {
+		if (program->u_mpasses > -1) R_GLSL_SetUniform_u_mpasses(program, mpasses);
+		GL_SelectTexture(2);
+		GL_State( GLS_DEPTHTEST_DISABLE | GLS_SRCBLEND_ONE | GLS_DSTBLEND_ZERO );
+		GL_Bind( postproc.motion1.texture );
+		GL_SelectTexture(3);
+		GL_State( GLS_DEPTHTEST_DISABLE | GLS_SRCBLEND_ONE | GLS_DSTBLEND_ZERO );
+		GL_Bind( postproc.motion2.texture );
+		GL_SelectTexture(4);
+		GL_State( GLS_DEPTHTEST_DISABLE | GLS_SRCBLEND_ONE | GLS_DSTBLEND_ZERO );
+		GL_Bind( postproc.motion3.texture );
+		GL_SelectTexture(5);
+		GL_State( GLS_DEPTHTEST_DISABLE | GLS_SRCBLEND_ONE | GLS_DSTBLEND_ZERO );
+		GL_Bind( postproc.motion4.texture );
+		GL_SelectTexture(6);
+		GL_State( GLS_DEPTHTEST_DISABLE | GLS_SRCBLEND_ONE | GLS_DSTBLEND_ZERO );
+		GL_Bind( postproc.motion5.texture );
+		GL_SelectTexture(11);
+		GL_State( GLS_DEPTHTEST_DISABLE | GLS_SRCBLEND_ONE | GLS_DSTBLEND_ZERO );
+		GL_Bind( postproc.mpass1.texture );
+		GL_SelectTexture(12);
+		GL_State( GLS_DEPTHTEST_DISABLE | GLS_SRCBLEND_ONE | GLS_DSTBLEND_ZERO );
+		GL_Bind( postproc.mpass1.texture );
+		GL_SelectTexture(13);
+		GL_State( GLS_DEPTHTEST_DISABLE | GLS_SRCBLEND_ONE | GLS_DSTBLEND_ZERO );
+		GL_Bind( postproc.mpass1.texture );
+		GL_SelectTexture(14);
+		GL_State( GLS_DEPTHTEST_DISABLE | GLS_SRCBLEND_ONE | GLS_DSTBLEND_ZERO );
+		GL_Bind( postproc.mpass1.texture );
 	}
 	qglColor4f( 1, 1, 1, 1 );
 
 //	if (leifxmode == 778)
 //		return;
-	if (leifxmode == 1234){
-			{
-			R_Bloom_QuadTV( glConfig.vidWidth, glConfig.vidHeight, 0, 0, postproc.screen.readW,postproc.screen.readH, 0 );
-			}
-		}
-	else if (leifxmode == 1236){
-			{
-			R_Bloom_QuadTV( glConfig.vidWidth, glConfig.vidHeight, 0, 0, postproc.screen.readW,postproc.screen.readH, 0 );
-			}
-		}
-	else if (leifxmode == 1233){
-			
-
-			R_Bloom_QuadTV( glConfig.vidWidth, glConfig.vidHeight, 0, 0, postproc.screen.readW,postproc.screen.readH, 1 );
-			GL_SelectTexture(0);
-			GL_State( GLS_DEPTHTEST_DISABLE | GLS_SRCBLEND_ONE | GLS_DSTBLEND_ONE );
-			GL_Bind( postproc.screen.texture );
-			R_Bloom_QuadTV( glConfig.vidWidth, glConfig.vidHeight, 0, 0, postproc.screen.readW,postproc.screen.readH, 2 );
-			R_Bloom_QuadTV( glConfig.vidWidth, glConfig.vidHeight, 0, 0, postproc.screen.readW,postproc.screen.readH, 3 );
-			R_Bloom_QuadTV( glConfig.vidWidth, glConfig.vidHeight, 0, 0, postproc.screen.readW,postproc.screen.readH, 4 );
-
-		}
-	else
+	if (leifxmode == 1234) {
 		{
-	R_Bloom_Quad( glConfig.vidWidth, glConfig.vidHeight, 0, 0,
-			postproc.screen.readW,postproc.screen.readH );
+			R_Bloom_QuadTV( glConfig.vidWidth, glConfig.vidHeight, 0, 0, postproc.screen.readW,postproc.screen.readH, 0 );
 		}
+	}
+	else if (leifxmode == 1236) {
+		{
+			R_Bloom_QuadTV( glConfig.vidWidth, glConfig.vidHeight, 0, 0, postproc.screen.readW,postproc.screen.readH, 0 );
+		}
+	}
+	else if (leifxmode == 1233) {
+
+
+		R_Bloom_QuadTV( glConfig.vidWidth, glConfig.vidHeight, 0, 0, postproc.screen.readW,postproc.screen.readH, 1 );
+		GL_SelectTexture(0);
+		GL_State( GLS_DEPTHTEST_DISABLE | GLS_SRCBLEND_ONE | GLS_DSTBLEND_ONE );
+		GL_Bind( postproc.screen.texture );
+		R_Bloom_QuadTV( glConfig.vidWidth, glConfig.vidHeight, 0, 0, postproc.screen.readW,postproc.screen.readH, 2 );
+		R_Bloom_QuadTV( glConfig.vidWidth, glConfig.vidHeight, 0, 0, postproc.screen.readW,postproc.screen.readH, 3 );
+		R_Bloom_QuadTV( glConfig.vidWidth, glConfig.vidHeight, 0, 0, postproc.screen.readW,postproc.screen.readH, 4 );
+
+	}
+	else {
+		R_Bloom_Quad( glConfig.vidWidth, glConfig.vidHeight, 0, 0,
+		              postproc.screen.readW,postproc.screen.readH );
+	}
 	if (vertexShaders) R_GLSL_UseProgram(0);
 	GL_SelectTexture(0);
 #endif
@@ -901,8 +960,8 @@ Scale the copied screen back to the sample size used for subsequent passes
 		GL_State( GLS_DEPTHTEST_DISABLE | GLS_SRCBLEND_DST_COLOR | GLS_DSTBLEND_ZERO );
 
 		for( i = 0; i < r_bloom_darken->integer; i++ ) {
-			R_Bloom_Quad( bloom.work.width, bloom.work.height, 
-				0, 0, 
+			R_Bloom_Quad( bloom.work.width, bloom.work.height,
+				0, 0,
 				bloom.effect.readW, bloom.effect.readH );
 		}
 		qglCopyTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, 0, 0, bloom.work.width, bloom.work.height );
@@ -946,8 +1005,8 @@ static void R_Bloom_CreateEffect( void ) {
 			r = 2.0f /(range*2+1)*(1 - x*x/(float)(range*range));
 //			r *= r_bloom_darken->value;
 			qglColor4f(r, r, r, 1);
-			R_Bloom_Quad( bloom.work.width, bloom.work.height, 
-				xoffset, yoffset, 
+			R_Bloom_Quad( bloom.work.width, bloom.work.height,
+				xoffset, yoffset,
 				bloom.effect.readW, bloom.effect.readH );
 //				bloom.screen.readW, bloom.screen.readH );
 			GL_State( GLS_DEPTHTEST_DISABLE | GLS_SRCBLEND_ONE | GLS_DSTBLEND_ONE );
@@ -987,10 +1046,10 @@ void R_BloomScreen( void )
 	qglScissor( 0, 0, glConfig.vidWidth, glConfig.vidHeight );
 	qglViewport( 0, 0, glConfig.vidWidth, glConfig.vidHeight );
 	qglMatrixMode( GL_PROJECTION );
-    qglLoadIdentity ();
+	qglLoadIdentity ();
 	qglOrtho( 0, glConfig.vidWidth, glConfig.vidHeight, 0, 0, 1 );
 	qglMatrixMode( GL_MODELVIEW );
-    qglLoadIdentity ();
+	qglLoadIdentity ();
 
 	GL_Cull( CT_TWO_SIDED );
 #endif
@@ -1016,12 +1075,13 @@ void R_BloomScreen( void )
 //		applied to give a rainbow streak effect.  Most effective with high bloom darkness
 //		values.
 	if(r_bloom_reflection->integer)
-	R_Bloom_LensEffect ();
+		R_Bloom_LensEffect ();
 }
 
 
 
-void R_BloomInit( void ) {
+void R_BloomInit( void )
+{
 	memset( &bloom, 0, sizeof( bloom ));
 
 	r_bloom = ri.Cvar_Get( "r_bloom", "0", CVAR_ARCHIVE );
@@ -1062,20 +1122,19 @@ static void R_Postprocess_InitTextures( void )
 {
 #ifdef GLSL_POSTPROCESSING
 	byte	*data;
-	int vidinted = glConfig.vidHeight * 0.55f;
 	int intdiv = 1;
 
 	force32upload = 1;
-	// find closer power of 2 to screen size 
-	for (postproc.screen.width = 1;postproc.screen.width< glConfig.vidWidth;postproc.screen.width *= 2);
+	// find closer power of 2 to screen size
+	for (postproc.screen.width = 1; postproc.screen.width< glConfig.vidWidth; postproc.screen.width *= 2) {}
 
 //	if (r_tvMode->integer > 1)	// interlaced
 
 //	for (postproc.screen.height = 1;postproc.screen.height < vidinted;postproc.screen.height *= 2);
 //else
-	for (postproc.screen.height = 1;postproc.screen.height < glConfig.vidHeight;postproc.screen.height *= 2);
+	for (postproc.screen.height = 1; postproc.screen.height < glConfig.vidHeight; postproc.screen.height *= 2) {}
 
-//	if (r_tvMode->integer > 1)	
+//	if (r_tvMode->integer > 1)
 //		intdiv = 2;
 
 	postproc.screen.readW = glConfig.vidWidth / (float)postproc.screen.width;
@@ -1084,12 +1143,12 @@ static void R_Postprocess_InitTextures( void )
 
 
 
-	// find closer power of 2 to effect size 
+	// find closer power of 2 to effect size
 	postproc.work.width = r_bloom_sample_size->integer;
 	postproc.work.height = postproc.work.width * ( glConfig.vidWidth / glConfig.vidHeight );
 
-	for (postproc.effect.width = 1;postproc.effect.width < postproc.work.width;postproc.effect.width *= 2);
-	for (postproc.effect.height = 1;postproc.effect.height < postproc.work.height;postproc.effect.height *= 2);
+	for (postproc.effect.width = 1; postproc.effect.width < postproc.work.width; postproc.effect.width *= 2) {}
+	for (postproc.effect.height = 1; postproc.effect.height < postproc.work.height; postproc.effect.height *= 2) {}
 
 	postproc.effect.readW = postproc.work.width / (float)postproc.effect.width;
 	postproc.effect.readH = postproc.work.height / (float)postproc.effect.height;
@@ -1099,8 +1158,8 @@ static void R_Postprocess_InitTextures( void )
 
 	// disable blooms if we can't handle a texture of that size
 	if( 	postproc.screen.width > glConfig.maxTextureSize ||
-			postproc.screen.height > glConfig.maxTextureSize 
-	) {
+	        postproc.screen.height > glConfig.maxTextureSize
+	  ) {
 		ri.Cvar_Set( "r_postprocess", "none" );
 		Com_Printf( S_COLOR_YELLOW"WARNING: 'R_InitPostprocessTextures' too high resolution for postprocessing, effect disabled\n" );
 		postprocess=0;
@@ -1113,37 +1172,39 @@ static void R_Postprocess_InitTextures( void )
 	Com_Memset( data, 0, postproc.screen.width * postproc.screen.height * 4 );
 	postproc.screen.texture = R_CreateImage( "***postproc screen texture***", data, postproc.screen.width, postproc.screen.height, qfalse, qfalse, GL_CLAMP_TO_EDGE  );
 	ri.Hunk_FreeTempMemory( data );
-	
+
 	// leilei - tv output texture
 
-	if (r_tvMode->integer > -1){
-		// find closer power of 2 to screen size 
-		for (postproc.tv.width = 1;postproc.tv.width< tvWidth;postproc.tv.width *= 2);
-		for (postproc.tv.height = 1;postproc.tv.height < tvHeight;postproc.tv.height *= 2);
-	
+	if (r_tvMode->integer > -1) {
+		// find closer power of 2 to screen size
+		for (postproc.tv.width = 1; postproc.tv.width< tvWidth; postproc.tv.width *= 2);
+		for (postproc.tv.height = 1; postproc.tv.height < tvHeight; postproc.tv.height *= 2);
+
 		//postproc.tv.height /= intdiv; // interlacey
-		
+
 
 		postproc.tv.readW = tvWidth / (float)postproc.tv.width;
 		postproc.tv.readH = tvHeight / (float)postproc.tv.height;
-	
-		// find closer power of 2 to effect size 
+
+		// find closer power of 2 to effect size
 		postproc.tvwork.width = r_bloom_sample_size->integer;
 		postproc.tvwork.height = postproc.tvwork.width * ( tvWidth / tvHeight );
 
-	//	postproc.tvwork.height /= intdiv; // interlacey
-	
-		for (postproc.tveffect.width = 1;postproc.tveffect.width < postproc.tvwork.width;postproc.tveffect.width *= 2);
-if (intdiv > 1)
-		for (postproc.tveffect.height = 1;(postproc.tveffect.height/2) < postproc.tvwork.height;postproc.tveffect.height *= 2);
-		else
-		for (postproc.tveffect.height = 1;postproc.tveffect.height < postproc.tvwork.height;postproc.tveffect.height *= 2);
+		//	postproc.tvwork.height /= intdiv; // interlacey
+
+		for (postproc.tveffect.width = 1; postproc.tveffect.width < postproc.tvwork.width; postproc.tveffect.width *= 2) {}
+		if (intdiv > 1) {
+			for (postproc.tveffect.height = 1; (postproc.tveffect.height/2) < postproc.tvwork.height; postproc.tveffect.height *= 2) {}
+		}
+		else {
+			for (postproc.tveffect.height = 1; postproc.tveffect.height < postproc.tvwork.height; postproc.tveffect.height *= 2) {}
+		}
 
 		postproc.tveffect.readW = postproc.tvwork.width / (float)postproc.tveffect.width;
 		postproc.tveffect.readH = postproc.tvwork.height / (float)postproc.tveffect.height;
-	
 
-	
+
+
 		data = ri.Hunk_AllocateTempMemory( tvWidth * tvHeight * 4 );
 		Com_Memset( data, 0, tvWidth * tvHeight * 4 );
 		postproc.tv.texture = R_CreateImage( "***tv output screen texture***", data, tvWidth, tvHeight, qfalse, qfalse, GL_CLAMP_TO_EDGE  );
@@ -1152,19 +1213,19 @@ if (intdiv > 1)
 
 	// leilei - motion blur textures!
 
-	if (r_motionblur->integer > 2){
-	data = ri.Hunk_AllocateTempMemory( postproc.screen.width * postproc.screen.height * 4 );
-	Com_Memset( data, 0, postproc.screen.width * postproc.screen.height * 4 );
-	postproc.motion1.texture = R_CreateImage( "***motionblur1 texture***", data, postproc.screen.width, postproc.screen.height, qfalse, qfalse, GL_CLAMP_TO_EDGE  );
-	postproc.motion2.texture = R_CreateImage( "***motionblur2 texture***", data, postproc.screen.width, postproc.screen.height, qfalse, qfalse, GL_CLAMP_TO_EDGE  );
-	postproc.motion3.texture = R_CreateImage( "***motionblur3 texture***", data, postproc.screen.width, postproc.screen.height, qfalse, qfalse, GL_CLAMP_TO_EDGE  );
-	postproc.motion4.texture = R_CreateImage( "***motionblur4 texture***", data, postproc.screen.width, postproc.screen.height, qfalse, qfalse, GL_CLAMP_TO_EDGE  );
-	postproc.motion5.texture = R_CreateImage( "***motionblur5 texture***", data, postproc.screen.width, postproc.screen.height, qfalse, qfalse, GL_CLAMP_TO_EDGE  );
-	postproc.mpass1.texture = R_CreateImage( "***motionaccum1 texture***", data, postproc.screen.width, postproc.screen.height, qfalse, qfalse, GL_CLAMP_TO_EDGE  );
-	postproc.mpass2.texture = R_CreateImage( "***motionaccum1 texture***", data, postproc.screen.width, postproc.screen.height, qfalse, qfalse, GL_CLAMP_TO_EDGE  );
-	postproc.mpass3.texture = R_CreateImage( "***motionaccum1 texture***", data, postproc.screen.width, postproc.screen.height, qfalse, qfalse, GL_CLAMP_TO_EDGE  );
-	postproc.mpass4.texture = R_CreateImage( "***motionaccum1 texture***", data, postproc.screen.width, postproc.screen.height, qfalse, qfalse, GL_CLAMP_TO_EDGE  );
-	ri.Hunk_FreeTempMemory( data );
+	if (r_motionblur->integer > 2) {
+		data = ri.Hunk_AllocateTempMemory( postproc.screen.width * postproc.screen.height * 4 );
+		Com_Memset( data, 0, postproc.screen.width * postproc.screen.height * 4 );
+		postproc.motion1.texture = R_CreateImage( "***motionblur1 texture***", data, postproc.screen.width, postproc.screen.height, qfalse, qfalse, GL_CLAMP_TO_EDGE  );
+		postproc.motion2.texture = R_CreateImage( "***motionblur2 texture***", data, postproc.screen.width, postproc.screen.height, qfalse, qfalse, GL_CLAMP_TO_EDGE  );
+		postproc.motion3.texture = R_CreateImage( "***motionblur3 texture***", data, postproc.screen.width, postproc.screen.height, qfalse, qfalse, GL_CLAMP_TO_EDGE  );
+		postproc.motion4.texture = R_CreateImage( "***motionblur4 texture***", data, postproc.screen.width, postproc.screen.height, qfalse, qfalse, GL_CLAMP_TO_EDGE  );
+		postproc.motion5.texture = R_CreateImage( "***motionblur5 texture***", data, postproc.screen.width, postproc.screen.height, qfalse, qfalse, GL_CLAMP_TO_EDGE  );
+		postproc.mpass1.texture = R_CreateImage( "***motionaccum1 texture***", data, postproc.screen.width, postproc.screen.height, qfalse, qfalse, GL_CLAMP_TO_EDGE  );
+		postproc.mpass2.texture = R_CreateImage( "***motionaccum1 texture***", data, postproc.screen.width, postproc.screen.height, qfalse, qfalse, GL_CLAMP_TO_EDGE  );
+		postproc.mpass3.texture = R_CreateImage( "***motionaccum1 texture***", data, postproc.screen.width, postproc.screen.height, qfalse, qfalse, GL_CLAMP_TO_EDGE  );
+		postproc.mpass4.texture = R_CreateImage( "***motionaccum1 texture***", data, postproc.screen.width, postproc.screen.height, qfalse, qfalse, GL_CLAMP_TO_EDGE  );
+		ri.Hunk_FreeTempMemory( data );
 	}
 
 	// GLSL Depth Buffer
@@ -1178,7 +1239,7 @@ if (intdiv > 1)
 
 	postproc.started = qtrue;
 	force32upload = 0;
-#endif	
+#endif
 }
 
 /*
@@ -1203,7 +1264,8 @@ R_Postprocess_BackupScreen
 Backup the full original screen to a texture for downscaling and later restoration
 =================
 */
-static void R_Postprocess_BackupScreen( void ) {
+static void R_Postprocess_BackupScreen( void )
+{
 #ifdef GLSL_POSTPROCESSING
 	GL_Bind( postproc.screen.texture );
 	qglCopyTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, 0, 0, glConfig.vidWidth, glConfig.vidHeight );
@@ -1211,7 +1273,7 @@ static void R_Postprocess_BackupScreen( void ) {
 	GL_Bind( postproc.depth.texture );
 	qglCopyTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, 0, 0, glConfig.vidWidth, glConfig.vidHeight );
 
-#endif		
+#endif
 }
 
 
@@ -1252,7 +1314,8 @@ void R_PostprocessScreen( void )
 
 
 
-void R_PostprocessingInit(void) {
+void R_PostprocessingInit(void)
+{
 #ifdef GLSL_POSTPROCESSING
 	memset( &postproc, 0, sizeof( postproc ));
 #endif
@@ -1269,30 +1332,31 @@ void R_PostprocessingInit(void) {
 
 
 
-static void ID_INLINE R_LeiFX_Pointless_Quad( int width, int height, float texX, float texY, float texWidth, float texHeight ) {
+static void ID_INLINE R_LeiFX_Pointless_Quad( int width, int height, float texX, float texY, float texWidth, float texHeight )
+{
 	int x = 0;
 	int y = 0;
 	x = 0;
 	y += glConfig.vidHeight - height;
 	width += x;
 	height += y;
-	
+
 	texWidth += texX;
 	texHeight += texY;
 
-	qglBegin( GL_QUADS );							
+	qglBegin( GL_QUADS );
 
-	qglTexCoord2f(	texX,						texHeight	);	
+	qglTexCoord2f(	texX,						texHeight	);
 	qglVertex2f(	x,							y	);
 
-	qglTexCoord2f(	texX,						texY	);				
-	qglVertex2f(	x,							height	);	
+	qglTexCoord2f(	texX,						texY	);
+	qglVertex2f(	x,							height	);
 
-	qglTexCoord2f(	texWidth,					texY	);				
-	qglVertex2f(	width,						height	);	
+	qglTexCoord2f(	texWidth,					texY	);
+	qglVertex2f(	width,						height	);
 
-	qglTexCoord2f(	texWidth,					texHeight	);	
-	qglVertex2f(	width,						y	);				
+	qglTexCoord2f(	texWidth,					texHeight	);
+	qglVertex2f(	width,						y	);
 	qglEnd ();
 }
 
@@ -1331,19 +1395,19 @@ void R_LeiFXPostprocessDitherScreen( void )
 //	postprocess = 1;
 
 	leifxmode = 1;
-	
+
 	// The stupidest hack in america
 	R_LeiFX_Stupid_Hack();
 
 
-	if (r_leifx->integer > 1){
+	if (r_leifx->integer > 1) {
 		leifxmode = 1;			// reduct and dither - 1 pass
 		R_Postprocess_BackupScreen();
 		R_Bloom_RestoreScreen_Postprocessed();
-		}
+	}
 
-		force32upload = 0;	
-#endif	
+	force32upload = 0;
+#endif
 }
 
 
@@ -1365,24 +1429,25 @@ void R_LeiFXPostprocessFilterScreen( void )
 			return;
 	}
 
-	if ( !backEnd.projection2D )
+	if ( !backEnd.projection2D ) {
 		RB_SetGL2D();
-		force32upload = 1;
+	}
+	force32upload = 1;
 
 //	postprocess = 1;
 
-/*	if (r_leifx->integer == 3){
-		leifxmode = 2;			// gamma - 1 pass
-	// The stupidest hack in america
-	R_LeiFX_Stupid_Hack();
-		R_Postprocess_BackupScreen();
-		R_Bloom_RestoreScreen_Postprocessed();
-		}
-*/						// Gamma disabled because r_alternateBrightness 2 makes it redundant now.
-	if (r_leifx->integer > 3){
+	/*	if (r_leifx->integer == 3){
+			leifxmode = 2;			// gamma - 1 pass
+		// The stupidest hack in america
+		R_LeiFX_Stupid_Hack();
+			R_Postprocess_BackupScreen();
+			R_Bloom_RestoreScreen_Postprocessed();
+			}
+	*/						// Gamma disabled because r_alternateBrightness 2 makes it redundant now.
+	if (r_leifx->integer > 3) {
 		leifxmode = 3;			// filter - 4 pass
-	// The stupidest hack in america
-	R_LeiFX_Stupid_Hack();
+		// The stupidest hack in america
+		R_LeiFX_Stupid_Hack();
 		leifxpass = 0;
 		R_Postprocess_BackupScreen();
 		R_Bloom_RestoreScreen_Postprocessed();
@@ -1395,11 +1460,11 @@ void R_LeiFXPostprocessFilterScreen( void )
 		leifxpass = 3;
 		R_Postprocess_BackupScreen();
 		R_Bloom_RestoreScreen_Postprocessed();
-		}
+	}
 	backEnd.doneleifx = qtrue;
 
-			force32upload = 0;
-	
+	force32upload = 0;
+
 #endif
 }
 
@@ -1432,66 +1497,88 @@ void R_NTSCScreen( void )
 			return;
 	}
 
-	if ( !backEnd.projection2D )
+	if ( !backEnd.projection2D ) {
 		RB_SetGL2D();
-		force32upload = 1;
+	}
+	force32upload = 1;
 
 	int ntsc_bleed	= 0;
 	int ntsc_encode = 0;
 	int ntsc_decode = 0;
 
 	// TODO: Switch it up
-	if (r_ntsc->integer == 1) ntsc_bleed = 1;
-	else if (r_ntsc->integer == 2){ ntsc_bleed = 1; ntsc_encode = 1; ntsc_decode = 1; }
-	else if (r_ntsc->integer == 3){ ntsc_bleed = 0; ntsc_encode = 1; ntsc_decode = 1; }
-	else if (r_ntsc->integer == 4){ ntsc_bleed = 1; ntsc_encode = 1; ntsc_decode = 1; }
-	else if (r_ntsc->integer > 6){ ntsc_bleed = 666; ntsc_encode = 0; ntsc_decode = 0; }
-	else { ntsc_bleed = 0; ntsc_encode = 1; ntsc_decode = 0; }
-	
+	if (r_ntsc->integer == 1) {
+		ntsc_bleed = 1;
+	}
+	else if (r_ntsc->integer == 2) {
+		ntsc_bleed = 1;
+		ntsc_encode = 1;
+		ntsc_decode = 1;
+	}
+	else if (r_ntsc->integer == 3) {
+		ntsc_bleed = 0;
+		ntsc_encode = 1;
+		ntsc_decode = 1;
+	}
+	else if (r_ntsc->integer == 4) {
+		ntsc_bleed = 1;
+		ntsc_encode = 1;
+		ntsc_decode = 1;
+	}
+	else if (r_ntsc->integer > 6) {
+		ntsc_bleed = 666;
+		ntsc_encode = 0;
+		ntsc_decode = 0;
+	}
+	else {
+		ntsc_bleed = 0;
+		ntsc_encode = 1;
+		ntsc_decode = 0;
+	}
+
 
 
 //	qglTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST );
 //	qglTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST );
 
 	R_LeiFX_Stupid_Hack();
-		if (ntsc_encode){
+	if (ntsc_encode) {
 		leifxmode = 632;		// Encode to composite
 		R_Postprocess_BackupScreen();
 		R_Bloom_RestoreScreen_Postprocessed();
-		}
+	}
 
 
-		if (ntsc_decode){
+	if (ntsc_decode) {
 		leifxmode = 633;		// Decode to RGB
 		R_Postprocess_BackupScreen();
 		R_Bloom_RestoreScreen_Postprocessed();
-		}
+	}
 
-		if (ntsc_bleed){
+	if (ntsc_bleed) {
 		leifxmode = 634;		// Encode to YUV and decode to RGB
 		R_Postprocess_BackupScreen();
 		R_Bloom_RestoreScreen_Postprocessed();
-		}
+	}
 
 
 
-		if (ntsc_bleed == 666){
+	if (ntsc_bleed == 666) {
 		leifxmode = 634;		// Encode to YUV and decode to RGB EXCESSIVELY
 		int passasses = r_ntsc->integer;
 		int j;
-		for (j=0;j<passasses;j++)
-			{
-				R_Postprocess_BackupScreen();
-				R_Bloom_RestoreScreen_Postprocessed();
-			}
-		
-
+		for (j=0; j<passasses; j++) {
+			R_Postprocess_BackupScreen();
+			R_Bloom_RestoreScreen_Postprocessed();
 		}
+
+
+	}
 
 	backEnd.donentsc = qtrue;
 
-			force32upload = 0;
-	
+	force32upload = 0;
+
 #endif
 }
 
@@ -1501,29 +1588,30 @@ void R_NTSCScreen( void )
 
 extern cvar_t *r_alternateBrightness;
 // shamelessly ripped off from tr_bloom.c
-static void ID_INLINE R_Brighter_Quad( int width, int height, float texX, float texY, float texWidth, float texHeight ) {
+static void ID_INLINE R_Brighter_Quad( int width, int height, float texX, float texY, float texWidth, float texHeight )
+{
 	int x = 0;
 	int y = 0;
 	x = 0;
 	y += glConfig.vidHeight - height;
 	width += x;
 	height += y;
-	
+
 	texWidth += texX;
 	texHeight += texY;
 
-	qglBegin( GL_QUADS );							
-	qglTexCoord2f(	texX,						texHeight	);	
+	qglBegin( GL_QUADS );
+	qglTexCoord2f(	texX,						texHeight	);
 	qglVertex2f(	x,							y	);
 
-	qglTexCoord2f(	texX,						texY	);				
-	qglVertex2f(	x,							height	);	
+	qglTexCoord2f(	texX,						texY	);
+	qglVertex2f(	x,							height	);
 
-	qglTexCoord2f(	texWidth,					texY	);				
-	qglVertex2f(	width,						height	);	
+	qglTexCoord2f(	texWidth,					texY	);
+	qglVertex2f(	width,						height	);
 
-	qglTexCoord2f(	texWidth,					texHeight	);	
-	qglVertex2f(	width,						y	);				
+	qglTexCoord2f(	texWidth,					texHeight	);
+	qglVertex2f(	width,						y	);
 	qglEnd ();
 }
 
@@ -1534,18 +1622,18 @@ void R_BrightItUp (int dst, int src, float intensity)
 	GL_State( GLS_DEPTHTEST_DISABLE | dst | src);
 	GL_Bind( tr.whiteImage );
 	GL_Cull( CT_TWO_SIDED );
-	
+
 	float alpha=intensity;	// why
 	qglColor4f( alpha,alpha,alpha, 1.0f );
 	if (!fakeit)
-	R_Brighter_Quad( glConfig.vidWidth, glConfig.vidHeight, 0, 0, 1, 1 );
+		R_Brighter_Quad( glConfig.vidWidth, glConfig.vidHeight, 0, 0, 1, 1 );
 
 }
 
 
 void R_BrightScreen( void )
 {
-	int mode;	// 0 = none; 1 = blend; 2 = shader
+	int mode = 0;	// 0 = none; 1 = blend; 2 = shader
 	if( !r_alternateBrightness->integer)
 		return;
 	if ( backEnd.doneAltBrightness)
@@ -1554,18 +1642,18 @@ void R_BrightScreen( void )
 	if (r_alternateBrightness->integer == 1)
 		mode = 1;	// force use blend
 #ifdef GLSL_POSTPROCESSING
-	if (r_alternateBrightness->integer == 2)
-	{
+	if (r_alternateBrightness->integer == 2) {
 		// Automatically determine from capabilities
-		if ( vertexShaders )
-		mode = 2;
-		else
-		mode = 1;
+		if ( vertexShaders ) {
+			mode = 2;
+		}
+		else {
+			mode = 1;
+		}
 	}
 
 	// the modern pixel shader way
-	if (mode == 2)
-	{
+	if (mode == 2) {
 
 		if ( !vertexShaders )
 			return;		// leilei - cards without support for this should not ever activate this
@@ -1575,50 +1663,52 @@ void R_BrightScreen( void )
 			if( !postproc.started )
 				return;
 		}
-	
+
 		if ( !backEnd.projection2D )
-		RB_SetGL2D();
-	
+			RB_SetGL2D();
+
 		force32upload = 1;
-	
+
 		leifxmode = 666;			// anime effect - outlines, desat, bloom and other crap to go with it
 		R_LeiFX_Stupid_Hack();
 		R_Postprocess_BackupScreen();
 		R_Bloom_RestoreScreen_Postprocessed();
 		backEnd.doneAltBrightness = qtrue;
-	
+
 		force32upload = 0;
 
-	}	
+	}
 
 	// the fixed function quad blending way
 	else if (mode == 1)
 #endif
 	{
-
 		int eh, ah;
-		if ((r_overBrightBits->integer))
-			{
-	
-			ah = r_overBrightBits->integer;
-			if (ah < 1) ah = 1; if (ah > 2) ah = 2; // clamp so it never looks stupid
+		if ((r_overBrightBits->integer)) {
 
+			ah = r_overBrightBits->integer;
+			if (ah < 1) {
+				ah = 1;
+			}
+			if (ah > 2) {
+				ah = 2;    // clamp so it never looks stupid
+			}
 
 			// Blend method
 			// do a loop for every overbright bit enabled
 
 			for (eh=0; eh<ah; eh++)
-			R_BrightItUp(GLS_SRCBLEND_DST_COLOR, GLS_DSTBLEND_ONE, 1.0f); 
+				R_BrightItUp(GLS_SRCBLEND_DST_COLOR, GLS_DSTBLEND_ONE, 1.0f);
 
 			backEnd.doneAltBrightness = qtrue;
-			}
-
+		}
 	}
-	
+
 }
 
 
-void R_AltBrightnessInit( void ) {
+void R_AltBrightnessInit( void )
+{
 
 	r_alternateBrightness = ri.Cvar_Get( "r_alternateBrightness", "0", CVAR_ARCHIVE | CVAR_LATCH);
 	r_film = ri.Cvar_Get( "r_film", "0", CVAR_ARCHIVE );
@@ -1638,7 +1728,6 @@ void R_AltBrightnessInit( void ) {
 void R_FilmScreen( void )
 {
 	vec3_t tone, toneinv, tonecont;
-	vec3_t tonework;
 
 	if( !r_film->integer )
 		return;
@@ -1648,83 +1737,90 @@ void R_FilmScreen( void )
 		RB_SetGL2D();
 	backEnd.doneFilm = qtrue;
 
-		// set up our colors, this is our default
-		tone[0] = 0.8f;
-		tone[1] = 0.9f;
-		tone[2] = 1.0f;
+	// set up our colors, this is our default
+	tone[0] = 0.8f;
+	tone[1] = 0.9f;
+	tone[2] = 1.0f;
 	//VectorCopy( backEnd.currentEntity->ambientLight, tone );
-		if (backEnd.currentEntity){
-			if (backEnd.currentEntity->ambientLight[0] > 0.001f && backEnd.currentEntity->ambientLight[1] > 0.001f && backEnd.currentEntity->ambientLight[2] > 0.001f){
-				tone[0] = backEnd.currentEntity->ambientLight[0];
-				tone[1] = backEnd.currentEntity->ambientLight[1];
-				tone[2] = backEnd.currentEntity->ambientLight[2];
-			}
+	if (backEnd.currentEntity) {
+		if (backEnd.currentEntity->ambientLight[0] > 0.001f && backEnd.currentEntity->ambientLight[1] > 0.001f && backEnd.currentEntity->ambientLight[2] > 0.001f) {
+			tone[0] = backEnd.currentEntity->ambientLight[0];
+			tone[1] = backEnd.currentEntity->ambientLight[1];
+			tone[2] = backEnd.currentEntity->ambientLight[2];
 		}
+	}
 
 	//	VectorNormalize(tone);
 
-		tone[0] *= 0.3 + 0.7;
-		tone[1] *= 0.3 + 0.7;
-		tone[2] *= 0.3 + 0.7;
+	tone[0] *= 0.3 + 0.7;
+	tone[1] *= 0.3 + 0.7;
+	tone[2] *= 0.3 + 0.7;
 
 	//	tone[0] = 1.6f;
 	//	tone[1] = 1.2f;
 	//	tone[2] = 0.7f;
 
 
-		// TODO: Get overexposure to flares raising this faking "HDR"
-		tonecont[0] = 0.0f;
-		tonecont[1] = 0.0f;
-		tonecont[2] = 0.0f;
-	
-
-		// inverted
-
-		toneinv[0] = tone[0] * -1 + 1 + tonecont[0];
-		toneinv[1] = tone[1] * -1 + 1 + tonecont[1];
-		toneinv[2] = tone[2] * -1 + 1 + tonecont[2];
-
-		// darken vignette.
-		GL_State( GLS_DEPTHTEST_DISABLE | GLS_SRCBLEND_DST_COLOR | GLS_DSTBLEND_ZERO);GL_Bind( tr.dlightImage );	GL_Cull( CT_TWO_SIDED );
-		qglColor4f( 0.941177, 0.952941, 0.968628, 1.0f );
-		R_Brighter_Quad( glConfig.vidWidth, glConfig.vidHeight, 0.35f, 0.35f, 0.2f, 0.2f );
+	// TODO: Get overexposure to flares raising this faking "HDR"
+	tonecont[0] = 0.0f;
+	tonecont[1] = 0.0f;
+	tonecont[2] = 0.0f;
 
 
+	// inverted
 
-		// brighten.
-		GL_State( GLS_DEPTHTEST_DISABLE | GLS_SRCBLEND_DST_COLOR | GLS_DSTBLEND_ONE);GL_Bind( tr.dlightImage );	GL_Cull( CT_TWO_SIDED );
-		//qglColor4f( 0.941177, 0.952941, 0.968628, 1.0f );
-		qglColor4f( (0.9f + (tone[0] * 0.5)), (0.9f + (tone[1] * 0.5)), (0.9f + (tone[2] * 0.5)), 1.0f );
+	toneinv[0] = tone[0] * -1 + 1 + tonecont[0];
+	toneinv[1] = tone[1] * -1 + 1 + tonecont[1];
+	toneinv[2] = tone[2] * -1 + 1 + tonecont[2];
 
-		R_Brighter_Quad( glConfig.vidWidth, glConfig.vidHeight, 0.25f, 0.25f, 0.48f, 0.48f );
+	// darken vignette.
+	GL_State( GLS_DEPTHTEST_DISABLE | GLS_SRCBLEND_DST_COLOR | GLS_DSTBLEND_ZERO);
+	GL_Bind( tr.dlightImage );
+	GL_Cull( CT_TWO_SIDED );
+	qglColor4f( 0.941177, 0.952941, 0.968628, 1.0f );
+	R_Brighter_Quad( glConfig.vidWidth, glConfig.vidHeight, 0.35f, 0.35f, 0.2f, 0.2f );
 
-		// invert.
-		GL_State( GLS_DEPTHTEST_DISABLE | GLS_SRCBLEND_ONE_MINUS_DST_COLOR | GLS_DSTBLEND_ONE_MINUS_SRC_COLOR);GL_Bind( tr.whiteImage );	GL_Cull( CT_TWO_SIDED );
+
+
+	// brighten.
+	GL_State( GLS_DEPTHTEST_DISABLE | GLS_SRCBLEND_DST_COLOR | GLS_DSTBLEND_ONE);
+	GL_Bind( tr.dlightImage );
+	GL_Cull( CT_TWO_SIDED );
+	//qglColor4f( 0.941177, 0.952941, 0.968628, 1.0f );
+	qglColor4f( (0.9f + (tone[0] * 0.5)), (0.9f + (tone[1] * 0.5)), (0.9f + (tone[2] * 0.5)), 1.0f );
+
+	R_Brighter_Quad( glConfig.vidWidth, glConfig.vidHeight, 0.25f, 0.25f, 0.48f, 0.48f );
+
+	// invert.
+	GL_State( GLS_DEPTHTEST_DISABLE | GLS_SRCBLEND_ONE_MINUS_DST_COLOR | GLS_DSTBLEND_ONE_MINUS_SRC_COLOR);
+	GL_Bind( tr.whiteImage );
+	GL_Cull( CT_TWO_SIDED );
 	//	qglColor4f(0.85098, 0.85098, 0.815686, 1.0f );
-		qglColor4f( (0.8f + (toneinv[0] * 0.5)), (0.8f + (toneinv[1] * 0.5)), (0.8f + (toneinv[2] * 0.5)), 1.0f );
-		R_Brighter_Quad( glConfig.vidWidth, glConfig.vidHeight, 0, 0, 1, 1 );
+	qglColor4f( (0.8f + (toneinv[0] * 0.5)), (0.8f + (toneinv[1] * 0.5)), (0.8f + (toneinv[2] * 0.5)), 1.0f );
+	R_Brighter_Quad( glConfig.vidWidth, glConfig.vidHeight, 0, 0, 1, 1 );
 
-		// brighten.
-		GL_State( GLS_DEPTHTEST_DISABLE | GLS_SRCBLEND_DST_COLOR | GLS_DSTBLEND_SRC_COLOR);GL_Bind( tr.whiteImage );	GL_Cull( CT_TWO_SIDED );
-		qglColor4f( 0.615686, 0.615686, 0.615686, 1.0f );
-		R_Brighter_Quad( glConfig.vidWidth, glConfig.vidHeight, 0, 0, 1, 1 );
+	// brighten.
+	GL_State( GLS_DEPTHTEST_DISABLE | GLS_SRCBLEND_DST_COLOR | GLS_DSTBLEND_SRC_COLOR);
+	GL_Bind( tr.whiteImage );
+	GL_Cull( CT_TWO_SIDED );
+	qglColor4f( 0.615686, 0.615686, 0.615686, 1.0f );
+	R_Brighter_Quad( glConfig.vidWidth, glConfig.vidHeight, 0, 0, 1, 1 );
 
 
-		// invoort.
-		GL_State( GLS_DEPTHTEST_DISABLE | GLS_SRCBLEND_ONE_MINUS_DST_COLOR | GLS_DSTBLEND_ONE_MINUS_SRC_COLOR);GL_Bind( tr.whiteImage );	GL_Cull( CT_TWO_SIDED );
-		qglColor4f(1.0f, 1.0f, 1.0f , 1.0f );
-		R_Brighter_Quad( glConfig.vidWidth, glConfig.vidHeight, 0, 0, 1, 1 );
+	// invoort.
+	GL_State( GLS_DEPTHTEST_DISABLE | GLS_SRCBLEND_ONE_MINUS_DST_COLOR | GLS_DSTBLEND_ONE_MINUS_SRC_COLOR);
+	GL_Bind( tr.whiteImage );
+	GL_Cull( CT_TWO_SIDED );
+	qglColor4f(1.0f, 1.0f, 1.0f , 1.0f );
+	R_Brighter_Quad( glConfig.vidWidth, glConfig.vidHeight, 0, 0, 1, 1 );
 
-		// brighten.
-		GL_State( GLS_DEPTHTEST_DISABLE | GLS_SRCBLEND_DST_COLOR | GLS_DSTBLEND_SRC_COLOR);GL_Bind( tr.whiteImage );	GL_Cull( CT_TWO_SIDED );
+	// brighten.
+	GL_State( GLS_DEPTHTEST_DISABLE | GLS_SRCBLEND_DST_COLOR | GLS_DSTBLEND_SRC_COLOR);
+	GL_Bind( tr.whiteImage );
+	GL_Cull( CT_TWO_SIDED );
 	//	qglColor4f(  0.866667, 0.847059, 0.776471, 1.0f );
-		qglColor4f( (0.73f + (toneinv[0] * 0.4)), (0.73f + (toneinv[1] * 0.4)), (0.73f + (toneinv[2] * 0.4)), 1.0f );
-		R_Brighter_Quad( glConfig.vidWidth, glConfig.vidHeight, 0, 0, 1, 1 );
-
-
-
-
-
+	qglColor4f( (0.73f + (toneinv[0] * 0.4)), (0.73f + (toneinv[1] * 0.4)), (0.73f + (toneinv[2] * 0.4)), 1.0f );
+	R_Brighter_Quad( glConfig.vidWidth, glConfig.vidHeight, 0, 0, 1, 1 );
 }
 
 
@@ -1763,11 +1859,11 @@ void R_RetroAAScreen( void )
 	//R_Postprocess_BackupScreen();
 	R_Postprocess_BackupScreen();
 	R_Bloom_RestoreScreen_Postprocessed();
-	
+
 	backEnd.doneraa = qtrue;
 
 	force32upload = 0;
-	
+
 #endif
 }
 
@@ -1805,7 +1901,7 @@ void R_AnimeScreen( void )
 	}
 
 	if ( !backEnd.projection2D )
-	RB_SetGL2D();
+		RB_SetGL2D();
 
 	force32upload = 1;
 
@@ -1814,13 +1910,13 @@ void R_AnimeScreen( void )
 	R_Postprocess_BackupScreen();
 	R_Bloom_RestoreScreen_Postprocessed();
 	leifxmode = 999;			// film effect - to blur things slightly, and add some grain and chroma stuff
-        R_LeiFX_Stupid_Hack();
+	R_LeiFX_Stupid_Hack();
 	R_Postprocess_BackupScreen();
 	R_Bloom_RestoreScreen_Postprocessed();
 	backEnd.doneanime = qtrue;
 
-			force32upload = 0;
-#endif	
+	force32upload = 0;
+#endif
 
 }
 
@@ -1838,22 +1934,53 @@ void R_AnimeScreen( void )
 
 
 // leilei - motion blur hack
-void R_MotionBlur_BackupScreen(int which) {
+void R_MotionBlur_BackupScreen(int which)
+{
 #ifdef GLSL_POSTPROCESSING
 	if( r_motionblur->integer < 3)
 		return;
-	if (which == 1){ GL_Bind( postproc.motion1.texture ); qglCopyTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, 0, 0, glConfig.vidWidth, glConfig.vidHeight ); }  // gather thee samples
-	if (which == 2){ GL_Bind( postproc.motion2.texture ); qglCopyTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, 0, 0, glConfig.vidWidth, glConfig.vidHeight ); }
-	if (which == 3){ GL_Bind( postproc.motion3.texture ); qglCopyTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, 0, 0, glConfig.vidWidth, glConfig.vidHeight ); }
-	if (which == 4){ GL_Bind( postproc.motion4.texture ); qglCopyTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, 0, 0, glConfig.vidWidth, glConfig.vidHeight ); } 
-	if (which == 5){ GL_Bind( postproc.motion5.texture ); qglCopyTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, 0, 0, glConfig.vidWidth, glConfig.vidHeight ); }
-	if (which == 11){ GL_Bind( postproc.mpass1.texture ); qglCopyTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, 0, 0, glConfig.vidWidth, glConfig.vidHeight ); }	// to accum
-	if (which == 12){ GL_Bind( postproc.mpass1.texture ); qglCopyTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, 0, 0, glConfig.vidWidth, glConfig.vidHeight ); }	// to accum
-	if (which == 13){ GL_Bind( postproc.mpass1.texture ); qglCopyTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, 0, 0, glConfig.vidWidth, glConfig.vidHeight ); }	// to accum
-	if (which == 14){ GL_Bind( postproc.mpass1.texture ); qglCopyTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, 0, 0, glConfig.vidWidth, glConfig.vidHeight ); }	// to accum
-	if (which == 18){ GL_Bind( postproc.screen.texture ); qglCopyTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, 0, 0, glConfig.vidWidth, glConfig.vidHeight ); }	// to accum
-#endif	
-	
+	if (which == 1) {
+		GL_Bind( postproc.motion1.texture );    // gather thee samples
+		qglCopyTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, 0, 0, glConfig.vidWidth, glConfig.vidHeight );
+	}
+	if (which == 2) {
+		GL_Bind( postproc.motion2.texture );
+		qglCopyTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, 0, 0, glConfig.vidWidth, glConfig.vidHeight );
+	}
+	if (which == 3) {
+		GL_Bind( postproc.motion3.texture );
+		qglCopyTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, 0, 0, glConfig.vidWidth, glConfig.vidHeight );
+	}
+	if (which == 4) {
+		GL_Bind( postproc.motion4.texture );
+		qglCopyTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, 0, 0, glConfig.vidWidth, glConfig.vidHeight );
+	}
+	if (which == 5) {
+		GL_Bind( postproc.motion5.texture );
+		qglCopyTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, 0, 0, glConfig.vidWidth, glConfig.vidHeight );
+	}
+	if (which == 11) {
+		GL_Bind( postproc.mpass1.texture );    // to accum
+		qglCopyTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, 0, 0, glConfig.vidWidth, glConfig.vidHeight );
+	}
+	if (which == 12) {
+		GL_Bind( postproc.mpass1.texture );    // to accum
+		qglCopyTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, 0, 0, glConfig.vidWidth, glConfig.vidHeight );
+	}
+	if (which == 13) {
+		GL_Bind( postproc.mpass1.texture );    // to accum
+		qglCopyTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, 0, 0, glConfig.vidWidth, glConfig.vidHeight );
+	}
+	if (which == 14) {
+		GL_Bind( postproc.mpass1.texture );    // to accum
+		qglCopyTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, 0, 0, glConfig.vidWidth, glConfig.vidHeight );
+	}
+	if (which == 18) {
+		GL_Bind( postproc.screen.texture );    // to accum
+		qglCopyTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, 0, 0, glConfig.vidWidth, glConfig.vidHeight );
+	}
+#endif
+
 }
 
 
@@ -1876,10 +2003,10 @@ void R_MblurScreen( void )
 	}
 
 	if ( !backEnd.projection2D )
-	RB_SetGL2D();
+		RB_SetGL2D();
 
 
-		
+
 
 	force32upload = 1;
 
@@ -1912,7 +2039,7 @@ void R_MblurScreenPost( void )
 	backEnd.donemblur = qtrue;
 
 	if ( !backEnd.projection2D )
-	RB_SetGL2D();
+		RB_SetGL2D();
 
 	force32upload = 1;
 
@@ -1932,20 +2059,17 @@ void R_MblurScreenPost( void )
 // TV MODE
 // =================================================================
 
-static void R_Postprocess_BackupScreenTV( void ) {
+static void R_Postprocess_BackupScreenTV( void )
+{
 #ifdef GLSL_POSTPROCESSING
-	int intdiv;
-	 intdiv = 1;
-
-
 	GL_TexEnv( GL_MODULATE );
 	qglScissor( 0, 0, glConfig.vidWidth, glConfig.vidHeight );
 	qglViewport( 0, 0, glConfig.vidWidth, glConfig.vidHeight );
 	qglMatrixMode( GL_PROJECTION );
-    qglLoadIdentity ();
+	qglLoadIdentity ();
 	qglOrtho( 0, glConfig.vidWidth, glConfig.vidHeight, 0, 0, 1 );
 	qglMatrixMode( GL_MODELVIEW );
-    qglLoadIdentity ();
+	qglLoadIdentity ();
 
 
 	GL_Bind( postproc.screen.texture );
@@ -1953,14 +2077,15 @@ static void R_Postprocess_BackupScreenTV( void ) {
 #endif
 }
 
-static void R_Postprocess_ScaleTV( void ) {
+static void R_Postprocess_ScaleTV( void )
+{
 #ifdef GLSL_POSTPROCESSING
 
 	GL_TexEnv( GL_MODULATE );
 	qglScissor( 0, 0, glConfig.vidWidth, glConfig.vidHeight );
 	qglViewport( 0, 0, glConfig.vidWidth, glConfig.vidHeight );
 	qglMatrixMode( GL_PROJECTION );
-    qglLoadIdentity ();
+	qglLoadIdentity ();
 #endif
 }
 
@@ -1992,15 +2117,15 @@ void R_TVScreen( void )
 
 
 
-		force32upload = 1;
+	force32upload = 1;
 
 //	postprocess = 1;
 
-	if (backEnd.refdef.time > tvtime){
+	if (backEnd.refdef.time > tvtime) {
 		tvinterlace *= -1;
-	tvtime = backEnd.refdef.time + (1000.0f / 60); // 60hz
+		tvtime = backEnd.refdef.time + (1000.0f / 60); // 60hz
 	}
-		
+
 	tvinter = tvinterlace;
 	if (tvinter < 0) tvinter = 0;
 	if (r_tvMode->integer < 100) tvinter = 0;
@@ -2012,23 +2137,21 @@ void R_TVScreen( void )
 	//	leifxmode = 1236;		// run it through a shader
 	//R_Postprocess_BackupScreen();
 
-	if (r_tvMode->integer > 100)
-	{
-	R_Postprocess_ScaleTV();
+	if (r_tvMode->integer > 100) {
+		R_Postprocess_ScaleTV();
 	}
-	else
-	{
-	R_Postprocess_BackupScreenTV();
+	else {
+		R_Postprocess_BackupScreenTV();
 
-	R_Bloom_RestoreScreen_Postprocessed();
+		R_Bloom_RestoreScreen_Postprocessed();
 	}
-	
+
 	backEnd.donetv = qtrue;
 
 	force32upload = 0;
 #else
 	// NO!
-#endif	
+#endif
 
 }
 
@@ -2040,7 +2163,7 @@ void R_TVScreen( void )
 // =================================================================
 // PALLETIZING
 //
-// 		Processes the screen into having a 8-bit indexed color 
+// 		Processes the screen into having a 8-bit indexed color
 //	palette	to suit a throwback mode better
 //
 // =================================================================
@@ -2067,7 +2190,7 @@ void R_PaletteScreen( void )
 	}
 
 	if ( !backEnd.projection2D )
-	RB_SetGL2D();
+		RB_SetGL2D();
 
 	force32upload = 1;
 
@@ -2078,7 +2201,7 @@ void R_PaletteScreen( void )
 	backEnd.donepalette = qtrue;
 
 	force32upload = 0;
-	
+
 #else
 	// NO!
 #endif
@@ -2112,7 +2235,7 @@ void R_InitWaterTextures( void )
 
 
 
-static void R_Water_BackupScreen( void ) 
+static void R_Water_BackupScreen( void )
 {
 	// NO!
 }
@@ -2120,15 +2243,17 @@ static void R_Water_BackupScreen( void )
 static void R_WaterWorks( void )
 {
 	// NO!
-}											
-
-
-static void R_Water_RestoreScreen( void ) {
-	// NO!	
 }
- 
 
-void R_WaterInit( void ) {
+
+static void R_Water_RestoreScreen( void )
+{
+	// NO!
+}
+
+
+void R_WaterInit( void )
+{
 	// NO!
 }
 

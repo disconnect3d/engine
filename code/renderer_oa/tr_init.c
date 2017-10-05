@@ -193,9 +193,10 @@ cvar_t	*r_lensReflectionBrightness;
 // leilei
 
 cvar_t	*r_flareMethod;		// method of flare intensity
-cvar_t	*r_flareQuality;	// testing quality of the flares. 
+cvar_t	*r_flareQuality;	// testing quality of the flares.
 cvar_t	*r_flareSun;		// type of flare to use for the sun
-cvar_t	*r_flareDelay;		// time delay for medium quality flare testing 
+cvar_t	*r_flareDelay;		// time delay for medium quality flare testing
+cvar_t	*r_flaresMotionBlur;	// Stretch blur
 
 cvar_t	*r_specMode;
 //cvar_t	*r_waveMode;
@@ -209,7 +210,8 @@ cvar_t	*r_alternateBrightness;		// leilei - linux overbright fix
 cvar_t	*r_mockvr;		// Leilei - for debugging PVR only!
 cvar_t	*r_parseStageSimple;	// Leilei - for debugging PVR only!
 cvar_t	*r_leifx;		// Leilei - leifx nostalgia filter
-cvar_t	*r_modelshader;		// Leilei 
+cvar_t	*r_modelshader;		// Leilei
+cvar_t	*r_particles;		// Leilei - particle effects motif
 
 cvar_t	*r_ntsc;		// Leilei - ntsc / composite signals
 //cvar_t	*r_tvMode;		// Leilei - tv fake mode
@@ -282,11 +284,10 @@ static void InitOpenGL( void )
 	//		- r_ignorehwgamma
 	//		- r_gamma
 	//
-	
-	if ( glConfig.vidWidth == 0 )
-	{
+
+	if ( glConfig.vidWidth == 0 ) {
 		GLint		temp;
-		
+
 		GLimp_Init();
 		GLimp_InitExtraExtensions();
 
@@ -298,8 +299,7 @@ static void InitOpenGL( void )
 		glConfig.maxTextureSize = temp;
 
 		// stubbed or broken drivers may have reported 0...
-		if ( glConfig.maxTextureSize <= 0 ) 
-		{
+		if ( glConfig.maxTextureSize <= 0 ) {
 			glConfig.maxTextureSize = 0;
 		}
 	}
@@ -313,7 +313,8 @@ static void InitOpenGL( void )
 GL_CheckErrors
 ==================
 */
-void GL_CheckErrors( void ) {
+void GL_CheckErrors( void )
+{
 	int		err;
 	char	s[64];
 
@@ -325,27 +326,27 @@ void GL_CheckErrors( void ) {
 		return;
 	}
 	switch( err ) {
-		case GL_INVALID_ENUM:
-			strcpy( s, "GL_INVALID_ENUM" );
-			break;
-		case GL_INVALID_VALUE:
-			strcpy( s, "GL_INVALID_VALUE" );
-			break;
-		case GL_INVALID_OPERATION:
-			strcpy( s, "GL_INVALID_OPERATION" );
-			break;
-		case GL_STACK_OVERFLOW:
-			strcpy( s, "GL_STACK_OVERFLOW" );
-			break;
-		case GL_STACK_UNDERFLOW:
-			strcpy( s, "GL_STACK_UNDERFLOW" );
-			break;
-		case GL_OUT_OF_MEMORY:
-			strcpy( s, "GL_OUT_OF_MEMORY" );
-			break;
-		default:
-			Com_sprintf( s, sizeof(s), "%i", err);
-			break;
+	case GL_INVALID_ENUM:
+		strcpy( s, "GL_INVALID_ENUM" );
+		break;
+	case GL_INVALID_VALUE:
+		strcpy( s, "GL_INVALID_VALUE" );
+		break;
+	case GL_INVALID_OPERATION:
+		strcpy( s, "GL_INVALID_OPERATION" );
+		break;
+	case GL_STACK_OVERFLOW:
+		strcpy( s, "GL_STACK_OVERFLOW" );
+		break;
+	case GL_STACK_UNDERFLOW:
+		strcpy( s, "GL_STACK_UNDERFLOW" );
+		break;
+	case GL_OUT_OF_MEMORY:
+		strcpy( s, "GL_OUT_OF_MEMORY" );
+		break;
+	default:
+		Com_sprintf( s, sizeof(s), "%i", err);
+		break;
 	}
 
 	ri.Error( ERR_FATAL, "GL_CheckErrors: %s", s );
@@ -355,15 +356,13 @@ void GL_CheckErrors( void ) {
 /*
 ** R_GetModeInfo
 */
-typedef struct vidmode_s
-{
+typedef struct vidmode_s {
 	const char *description;
 	int width, height;
 	float pixelAspect;		// pixel width / height
 } vidmode_t;
 
-vidmode_t r_vidModes[] =
-{
+vidmode_t r_vidModes[] = {
 	{ "Mode  0: 320x240",		320,	240,	1 },
 	{ "Mode  1: 400x300",		400,	300,	1 },
 	{ "Mode  2: 512x384",		512,	384,	1 },
@@ -395,7 +394,8 @@ vidmode_t r_vidModes[] =
 };
 static int	s_numVidModes = ARRAY_LEN( r_vidModes );
 
-qboolean R_GetModeInfo( int *width, int *height, float *windowAspect, int mode ) {
+qboolean R_GetModeInfo( int *width, int *height, float *windowAspect, int mode )
+{
 	vidmode_t	*vm;
 	float			pixelAspect;
 
@@ -410,7 +410,8 @@ qboolean R_GetModeInfo( int *width, int *height, float *windowAspect, int mode )
 		*width = r_customwidth->integer;
 		*height = r_customheight->integer;
 		pixelAspect = r_customPixelAspect->value;
-	} else {
+	}
+	else {
 		vm = &r_vidModes[mode];
 
 		*width  = vm->width;
@@ -431,18 +432,17 @@ static void R_ModeList_f( void )
 	int i;
 
 	ri.Printf( PRINT_ALL, "\n" );
-	for ( i = 0; i < s_numVidModes; i++ )
-	{
+	for ( i = 0; i < s_numVidModes; i++ ) {
 		ri.Printf( PRINT_ALL, "%s\n", r_vidModes[i].description );
 	}
 	ri.Printf( PRINT_ALL, "\n" );
 }
 
 
-/* 
-============================================================================== 
- 
-						SCREEN SHOTS 
+/*
+==============================================================================
+
+						SCREEN SHOTS
 
 NOTE TTimo
 some thoughts about the screenshots system:
@@ -455,11 +455,11 @@ we use statics to store a count and start writing the first screenshot/screensho
 (with FS_FileExists / FS_FOpenFileWrite calls)
 FIXME: the statics don't get a reinit between fs_game changes
 
-============================================================================== 
-*/ 
+==============================================================================
+*/
 
-/* 
-================== 
+/*
+==================
 RB_ReadPixels
 
 Reads an image but takes care of alignment issues for reading RGB images.
@@ -472,50 +472,50 @@ alignment of packAlign to ensure efficient copying.
 Stores the length of padding after a line of pixels to address padlen
 
 Return value must be freed with ri.Hunk_FreeTempMemory()
-================== 
-*/  
+==================
+*/
 
 byte *RB_ReadPixels(int x, int y, int width, int height, size_t *offset, int *padlen)
 {
 	byte *buffer, *bufstart;
 	int padwidth, linelen;
 	GLint packAlign;
-	
+
 	qglGetIntegerv(GL_PACK_ALIGNMENT, &packAlign);
-	
+
 	linelen = width * 3;
 	padwidth = PAD(linelen, packAlign);
-	
+
 	// Allocate a few more bytes so that we can choose an alignment we like
 	buffer = ri.Hunk_AllocateTempMemory(padwidth * height + *offset + packAlign - 1);
-	
+
 	bufstart = PADP((intptr_t) buffer + *offset, packAlign);
 	qglReadPixels(x, y, width, height, GL_RGB, GL_UNSIGNED_BYTE, bufstart);
-	
+
 	*offset = bufstart - buffer;
 	*padlen = padwidth - linelen;
-	
+
 	return buffer;
 }
 
-/* 
-================== 
+/*
+==================
 RB_TakeScreenshot
-================== 
-*/  
+==================
+*/
 void RB_TakeScreenshot(int x, int y, int width, int height, char *fileName)
 {
 	byte *allbuf, *buffer;
 	byte *srcptr, *destptr;
 	byte *endline, *endmem;
 	byte temp;
-	
+
 	int linelen, padlen;
 	size_t offset = 18, memcount;
-		
+
 	allbuf = RB_ReadPixels(x, y, width, height, &offset, &padlen);
 	buffer = allbuf + offset - 18;
-	
+
 	Com_Memset (buffer, 0, 18);
 	buffer[2] = 2;		// uncompressed type
 	buffer[12] = width & 255;
@@ -526,24 +526,22 @@ void RB_TakeScreenshot(int x, int y, int width, int height, char *fileName)
 
 	// swap rgb to bgr and remove padding from line endings
 	linelen = width * 3;
-	
+
 	srcptr = destptr = allbuf + offset;
 	endmem = srcptr + (linelen + padlen) * height;
-	
-	while(srcptr < endmem)
-	{
+
+	while(srcptr < endmem) {
 		endline = srcptr + linelen;
 
-		while(srcptr < endline)
-		{
+		while(srcptr < endline) {
 			temp = srcptr[0];
 			*destptr++ = srcptr[2];
 			*destptr++ = srcptr[1];
 			*destptr++ = temp;
-			
+
 			srcptr += 3;
 		}
-		
+
 		// Skip the pad
 		srcptr += padlen;
 	}
@@ -560,10 +558,10 @@ void RB_TakeScreenshot(int x, int y, int width, int height, char *fileName)
 	ri.Hunk_FreeTempMemory(allbuf);
 }
 
-/* 
-================== 
+/*
+==================
 RB_TakeScreenshotJPEG
-================== 
+==================
 */
 
 void RB_TakeScreenshotJPEG(int x, int y, int width, int height, char *fileName)
@@ -592,26 +590,27 @@ RB_TakeScreenshotCmd
 extern int tvWidth;
 extern int tvHeight;
 
-const void *RB_TakeScreenshotCmd( const void *data ) {
+const void *RB_TakeScreenshotCmd( const void *data )
+{
 	const screenshotCommand_t	*cmd;
-	
-	cmd = (const screenshotCommand_t *)data;
-	
-	// leilei - hack for tvmode
-	if (r_tvMode->integer > -1){
 
-			if (cmd->jpeg)
-				RB_TakeScreenshotJPEG( cmd->x, cmd->y, tvWidth, tvHeight, cmd->fileName);
-			else
-				RB_TakeScreenshot( cmd->x, cmd->y, tvWidth, tvHeight, cmd->fileName);
-		}
+	cmd = (const screenshotCommand_t *)data;
+
+	// leilei - hack for tvmode
+	if (r_tvMode->integer > -1) {
+
+		if (cmd->jpeg)
+			RB_TakeScreenshotJPEG( cmd->x, cmd->y, tvWidth, tvHeight, cmd->fileName);
+		else
+			RB_TakeScreenshot( cmd->x, cmd->y, tvWidth, tvHeight, cmd->fileName);
+	}
 
 	if (cmd->jpeg)
 		RB_TakeScreenshotJPEG( cmd->x, cmd->y, cmd->width, cmd->height, cmd->fileName);
 	else
 		RB_TakeScreenshot( cmd->x, cmd->y, cmd->width, cmd->height, cmd->fileName);
-	
-	return (const void *)(cmd + 1);	
+
+	return (const void *)(cmd + 1);
 }
 
 /*
@@ -619,7 +618,8 @@ const void *RB_TakeScreenshotCmd( const void *data ) {
 R_TakeScreenshot
 ==================
 */
-void R_TakeScreenshot( int x, int y, int width, int height, char *name, qboolean jpeg ) {
+void R_TakeScreenshot( int x, int y, int width, int height, char *name, qboolean jpeg )
+{
 	static char	fileName[MAX_OSPATH]; // bad things if two screenshots per frame?
 	screenshotCommand_t	*cmd;
 
@@ -638,12 +638,13 @@ void R_TakeScreenshot( int x, int y, int width, int height, char *name, qboolean
 	cmd->jpeg = jpeg;
 }
 
-/* 
-================== 
+/*
+==================
 R_ScreenshotFilename
-================== 
-*/  
-void R_ScreenshotFilename( int lastNumber, char *fileName ) {
+==================
+*/
+void R_ScreenshotFilename( int lastNumber, char *fileName )
+{
 	int		a,b,c,d;
 
 	if ( lastNumber < 0 || lastNumber > 9999 ) {
@@ -660,15 +661,16 @@ void R_ScreenshotFilename( int lastNumber, char *fileName ) {
 	d = lastNumber;
 
 	Com_sprintf( fileName, MAX_OSPATH, "screenshots/shot%i%i%i%i.tga"
-		, a, b, c, d );
+	             , a, b, c, d );
 }
 
-/* 
-================== 
+/*
+==================
 R_ScreenshotFilename
-================== 
-*/  
-void R_ScreenshotFilenameJPEG( int lastNumber, char *fileName ) {
+==================
+*/
+void R_ScreenshotFilenameJPEG( int lastNumber, char *fileName )
+{
 	int		a,b,c,d;
 
 	if ( lastNumber < 0 || lastNumber > 9999 ) {
@@ -685,7 +687,7 @@ void R_ScreenshotFilenameJPEG( int lastNumber, char *fileName ) {
 	d = lastNumber;
 
 	Com_sprintf( fileName, MAX_OSPATH, "screenshots/shot%i%i%i%i.jpg"
-		, a, b, c, d );
+	             , a, b, c, d );
 }
 
 /*
@@ -696,7 +698,8 @@ levelshots are specialized 128*128 thumbnails for
 the menu system, sampled down from full screen distorted images
 ====================
 */
-void R_LevelShot( void ) {
+void R_LevelShot( void )
+{
 	char		checkname[MAX_OSPATH];
 	byte		*buffer;
 	byte		*source, *allsource;
@@ -729,7 +732,7 @@ void R_LevelShot( void ) {
 			for ( yy = 0 ; yy < 3 ; yy++ ) {
 				for ( xx = 0 ; xx < 4 ; xx++ ) {
 					src = source + (3 * glConfig.vidWidth + padlen) * (int)((y*3 + yy) * yScale) +
-						3 * (int) ((x*4 + xx) * xScale);
+					      3 * (int) ((x*4 + xx) * xScale);
 					r += src[0];
 					g += src[1];
 					b += src[2];
@@ -755,8 +758,8 @@ void R_LevelShot( void ) {
 	ri.Printf( PRINT_ALL, "Wrote %s\n", checkname );
 }
 
-/* 
-================== 
+/*
+==================
 R_ScreenShot_f
 
 screenshot
@@ -765,9 +768,10 @@ screenshot [levelshot]
 screenshot [filename]
 
 Doesn't print the pacifier message if there is a second arg
-================== 
-*/  
-void R_ScreenShot_f (void) {
+==================
+*/
+void R_ScreenShot_f (void)
+{
 	char	checkname[MAX_OSPATH];
 	static	int	lastNumber = -1;
 	qboolean	silent;
@@ -779,14 +783,16 @@ void R_ScreenShot_f (void) {
 
 	if ( !strcmp( ri.Cmd_Argv(1), "silent" ) ) {
 		silent = qtrue;
-	} else {
+	}
+	else {
 		silent = qfalse;
 	}
 
 	if ( ri.Cmd_Argc() == 2 && !silent ) {
 		// explicit filename
 		Com_sprintf( checkname, MAX_OSPATH, "screenshots/%s.tga", ri.Cmd_Argv( 1 ) );
-	} else {
+	}
+	else {
 		// scan for a free filename
 
 		// if we have saved a previous screenshot, don't scan
@@ -799,16 +805,15 @@ void R_ScreenShot_f (void) {
 		for ( ; lastNumber <= 9999 ; lastNumber++ ) {
 			R_ScreenshotFilename( lastNumber, checkname );
 
-      if (!ri.FS_FileExists( checkname ))
-      {
-        break; // file doesn't exist
-      }
+			if (!ri.FS_FileExists( checkname )) {
+				break; // file doesn't exist
+			}
 		}
 
 		if ( lastNumber >= 9999 ) {
-			ri.Printf (PRINT_ALL, "ScreenShot: Couldn't create a file\n"); 
+			ri.Printf (PRINT_ALL, "ScreenShot: Couldn't create a file\n");
 			return;
- 		}
+		}
 
 		lastNumber++;
 	}
@@ -818,9 +823,10 @@ void R_ScreenShot_f (void) {
 	if ( !silent ) {
 		ri.Printf (PRINT_ALL, "Wrote %s\n", checkname);
 	}
-} 
+}
 
-void R_ScreenShotJPEG_f (void) {
+void R_ScreenShotJPEG_f (void)
+{
 	char		checkname[MAX_OSPATH];
 	static	int	lastNumber = -1;
 	qboolean	silent;
@@ -832,14 +838,16 @@ void R_ScreenShotJPEG_f (void) {
 
 	if ( !strcmp( ri.Cmd_Argv(1), "silent" ) ) {
 		silent = qtrue;
-	} else {
+	}
+	else {
 		silent = qfalse;
 	}
 
 	if ( ri.Cmd_Argc() == 2 && !silent ) {
 		// explicit filename
 		Com_sprintf( checkname, MAX_OSPATH, "screenshots/%s.jpg", ri.Cmd_Argv( 1 ) );
-	} else {
+	}
+	else {
 		// scan for a free filename
 
 		// if we have saved a previous screenshot, don't scan
@@ -852,16 +860,15 @@ void R_ScreenShotJPEG_f (void) {
 		for ( ; lastNumber <= 9999 ; lastNumber++ ) {
 			R_ScreenshotFilenameJPEG( lastNumber, checkname );
 
-      if (!ri.FS_FileExists( checkname ))
-      {
-        break; // file doesn't exist
-      }
+			if (!ri.FS_FileExists( checkname )) {
+				break; // file doesn't exist
+			}
 		}
 
 		if ( lastNumber == 10000 ) {
-			ri.Printf (PRINT_ALL, "ScreenShot: Couldn't create a file\n"); 
+			ri.Printf (PRINT_ALL, "ScreenShot: Couldn't create a file\n");
 			return;
- 		}
+		}
 
 		lastNumber++;
 	}
@@ -871,7 +878,7 @@ void R_ScreenShotJPEG_f (void) {
 	if ( !silent ) {
 		ri.Printf (PRINT_ALL, "Wrote %s\n", checkname);
 	}
-} 
+}
 
 //============================================================================
 
@@ -887,9 +894,9 @@ const void *RB_TakeVideoFrameCmd( const void *data )
 	size_t				memcount, linelen;
 	int				padwidth, avipadwidth, padlen, avipadlen;
 	GLint packAlign;
-	
+
 	cmd = (const videoFrameCommand_t *)data;
-	
+
 	qglGetIntegerv(GL_PACK_ALIGNMENT, &packAlign);
 
 	linelen = cmd->width * 3;
@@ -902,9 +909,9 @@ const void *RB_TakeVideoFrameCmd( const void *data )
 	avipadlen = avipadwidth - linelen;
 
 	cBuf = PADP(cmd->captureBuffer, packAlign);
-		
+
 	qglReadPixels(0, 0, cmd->width, cmd->height, GL_RGB,
-		GL_UNSIGNED_BYTE, cBuf);
+	              GL_UNSIGNED_BYTE, cBuf);
 
 	memcount = padwidth * cmd->height;
 
@@ -912,44 +919,40 @@ const void *RB_TakeVideoFrameCmd( const void *data )
 	if(glConfig.deviceSupportsGamma)
 		R_GammaCorrect(cBuf, memcount);
 
-	if(cmd->motionJpeg)
-	{
+	if(cmd->motionJpeg) {
 		memcount = RE_SaveJPGToBuffer(cmd->encodeBuffer, linelen * cmd->height,
-			r_aviMotionJpegQuality->integer,
-			cmd->width, cmd->height, cBuf, padlen);
+		                              r_aviMotionJpegQuality->integer,
+		                              cmd->width, cmd->height, cBuf, padlen);
 		ri.CL_WriteAVIVideoFrame(cmd->encodeBuffer, memcount);
 	}
-	else
-	{
+	else {
 		byte *lineend, *memend;
 		byte *srcptr, *destptr;
-	
+
 		srcptr = cBuf;
 		destptr = cmd->encodeBuffer;
 		memend = srcptr + memcount;
-		
+
 		// swap R and B and remove line paddings
-		while(srcptr < memend)
-		{
+		while(srcptr < memend) {
 			lineend = srcptr + linelen;
-			while(srcptr < lineend)
-			{
+			while(srcptr < lineend) {
 				*destptr++ = srcptr[2];
 				*destptr++ = srcptr[1];
 				*destptr++ = srcptr[0];
 				srcptr += 3;
 			}
-			
+
 			Com_Memset(destptr, '\0', avipadlen);
 			destptr += avipadlen;
-			
+
 			srcptr += padlen;
 		}
-		
+
 		ri.CL_WriteAVIVideoFrame(cmd->encodeBuffer, avipadwidth * cmd->height);
 	}
 
-	return (const void *)(cmd + 1);	
+	return (const void *)(cmd + 1);
 }
 
 //============================================================================
@@ -1006,14 +1009,14 @@ R_PrintLongString
 Workaround for ri.Printf's 1024 characters buffer limit.
 ================
 */
-void R_PrintLongString(const char *string) {
+void R_PrintLongString(const char *string)
+{
 	char buffer[1024];
 	const char *p;
 	int size = strlen(string);
 
 	p = string;
-	while(size > 0)
-	{
+	while(size > 0) {
 		Q_strncpyz(buffer, p, sizeof (buffer) );
 		ri.Printf( PRINT_ALL, "%s", buffer );
 		p += 1023;
@@ -1026,15 +1029,13 @@ void R_PrintLongString(const char *string) {
 GfxInfo_f
 ================
 */
-void GfxInfo_f( void ) 
+void GfxInfo_f( void )
 {
-	const char *enablestrings[] =
-	{
+	const char *enablestrings[] = {
 		"disabled",
 		"enabled"
 	};
-	const char *fsstrings[] =
-	{
+	const char *fsstrings[] = {
 		"windowed",
 		"fullscreen"
 	};
@@ -1049,20 +1050,16 @@ void GfxInfo_f( void )
 	ri.Printf( PRINT_ALL, "GL_MAX_TEXTURE_UNITS_ARB: %d\n", glConfig.numTextureUnits );
 	ri.Printf( PRINT_ALL, "\nPIXELFORMAT: color(%d-bits) Z(%d-bit) stencil(%d-bits)\n", glConfig.colorBits, glConfig.depthBits, glConfig.stencilBits );
 	ri.Printf( PRINT_ALL, "MODE: %d, %d x %d %s hz:", r_mode->integer, glConfig.vidWidth, glConfig.vidHeight, fsstrings[r_fullscreen->integer == 1] );
-	if ( glConfig.displayFrequency )
-	{
+	if ( glConfig.displayFrequency ) {
 		ri.Printf( PRINT_ALL, "%d\n", glConfig.displayFrequency );
 	}
-	else
-	{
+	else {
 		ri.Printf( PRINT_ALL, "N/A\n" );
 	}
-	if ( glConfig.deviceSupportsGamma )
-	{
+	if ( glConfig.deviceSupportsGamma ) {
 		ri.Printf( PRINT_ALL, "GAMMA: hardware w/ %d overbright bits\n", tr.overbrightBits );
 	}
-	else
-	{
+	else {
 		ri.Printf( PRINT_ALL, "GAMMA: software w/ %d overbright bits\n", tr.overbrightBits );
 	}
 
@@ -1076,17 +1073,21 @@ void GfxInfo_f( void )
 		if ( primitives == 0 ) {
 			if ( qglLockArraysEXT ) {
 				primitives = 2;
-			} else {
+			}
+			else {
 				primitives = 1;
 			}
 		}
 		if ( primitives == -1 ) {
 			ri.Printf( PRINT_ALL, "none\n" );
-		} else if ( primitives == 2 ) {
+		}
+		else if ( primitives == 2 ) {
 			ri.Printf( PRINT_ALL, "single glDrawElements\n" );
-		} else if ( primitives == 1 ) {
+		}
+		else if ( primitives == 1 ) {
 			ri.Printf( PRINT_ALL, "multiple glArrayElement\n" );
-		} else if ( primitives == 3 ) {
+		}
+		else if ( primitives == 3 ) {
 			ri.Printf( PRINT_ALL, "multiple glColor4ubv + glTexCoord2fv + glVertex3fv\n" );
 		}
 	}
@@ -1099,33 +1100,33 @@ void GfxInfo_f( void )
 	ri.Printf( PRINT_ALL, "texenv add: %s\n", enablestrings[glConfig.textureEnvAddAvailable != 0] );
 	ri.Printf( PRINT_ALL, "compressed textures: %s\n", enablestrings[glConfig.textureCompression!=TC_NONE] );
 	ri.Printf( PRINT_ALL, "glsl programs: %s\n", enablestrings[vertexShaders] );
-	if ( r_vertexLight->integer || glConfig.hardwareType == GLHW_PERMEDIA2 )
-	{
+	if ( r_vertexLight->integer || glConfig.hardwareType == GLHW_PERMEDIA2 ) {
 		ri.Printf( PRINT_ALL, "HACK: using vertex lightmap approximation\n" );
 	}
-	if ( glConfig.hardwareType == GLHW_RAGEPRO )
-	{
+	if ( glConfig.hardwareType == GLHW_RAGEPRO ) {
 		ri.Printf( PRINT_ALL, "HACK: ragePro approximations\n" );
 	}
-	if ( glConfig.hardwareType == GLHW_RIVA128 )
-	{
+	if ( glConfig.hardwareType == GLHW_RIVA128 ) {
 		ri.Printf( PRINT_ALL, "HACK: riva128 approximations\n" );
 	}
 	if ( r_finish->integer ) {
 		ri.Printf( PRINT_ALL, "Forcing glFinish\n" );
 	}
-	if (voodootype){
+	if (voodootype) {
 
-			if (voodootype == 1)
-				ri.Printf( PRINT_ALL, "3Dfx Voodoo Graphics assumed\n" );
-			else if (voodootype == 2)
-				ri.Printf( PRINT_ALL, "3Dfx Voodoo2 assumed\n" );
-			else if (voodootype == 3)
-				ri.Printf( PRINT_ALL, "3dfx Voodoo3 assumed\n" );
-			else if (voodootype == 4)
-				ri.Printf( PRINT_ALL, "3dfx Voodoo 4 or 5 assumed\n" );
-			
-		}
+		if (voodootype == 1)
+			ri.Printf( PRINT_ALL, "3Dfx Voodoo Graphics assumed\n" );
+		else if (voodootype == 2)
+			ri.Printf( PRINT_ALL, "3Dfx Voodoo2 assumed\n" );
+		else if (voodootype == 3)
+			ri.Printf( PRINT_ALL, "3dfx Voodoo3 assumed\n" );
+		else if (voodootype == 4)
+			ri.Printf( PRINT_ALL, "3dfx Voodoo 4 or 5 assumed\n" );
+
+	}
+
+
+
 }
 
 /*
@@ -1133,11 +1134,19 @@ void GfxInfo_f( void )
 R_Register
 ===============
 */
-void R_Register( void ) 
+void R_Register( void )
 {
-	#ifdef USE_RENDERER_DLOPEN
+#ifdef USE_RENDERER_DLOPEN
 	com_altivec = ri.Cvar_Get("com_altivec", "1", CVAR_ARCHIVE);
-	#endif	
+#endif
+
+#if defined( _WIN32 )
+	// leilei -  Get some version info first, code torn from quake
+	OSVERSIONINFO	vinfo;
+
+	vinfo.dwOSVersionInfoSize = sizeof(vinfo);
+
+#endif
 
 	//
 	// latched and archived variables
@@ -1149,7 +1158,7 @@ void R_Register( void )
 	r_ext_texture_env_add = ri.Cvar_Get( "r_ext_texture_env_add", "1", CVAR_ARCHIVE | CVAR_LATCH);
 
 	r_ext_texture_filter_anisotropic = ri.Cvar_Get( "r_ext_texture_filter_anisotropic",
-			"0", CVAR_ARCHIVE | CVAR_LATCH );
+	                                   "0", CVAR_ARCHIVE | CVAR_LATCH );
 	r_ext_max_anisotropy = ri.Cvar_Get( "r_ext_max_anisotropy", "2", CVAR_ARCHIVE | CVAR_LATCH );
 	r_ext_paletted_texture = ri.Cvar_Get( "r_ext_paletted_texture", "0", CVAR_ARCHIVE | CVAR_LATCH );	// leilei - paletted texture support
 	r_ext_gamma_control = ri.Cvar_Get( "r_ext_gamma_control", "1", CVAR_ARCHIVE | CVAR_LATCH );	// leilei - 3dfx gamma support
@@ -1162,14 +1171,26 @@ void R_Register( void )
 	ri.Cvar_CheckRange( r_picmip, 0, 16, qtrue );
 	r_detailTextures = ri.Cvar_Get( "r_detailtextures", "1", CVAR_ARCHIVE | CVAR_LATCH );
 	r_texturebits = ri.Cvar_Get( "r_texturebits", "0", CVAR_ARCHIVE | CVAR_LATCH );
-	r_colorbits = ri.Cvar_Get( "r_colorbits", "0", CVAR_ARCHIVE | CVAR_LATCH );
+	r_colorbits = ri.Cvar_Get( "r_colorbits", "0", CVAR_ARCHIVE | CVAR_LATCH );	// use desktop
 	r_stencilbits = ri.Cvar_Get( "r_stencilbits", "8", CVAR_ARCHIVE | CVAR_LATCH );
 	r_depthbits = ri.Cvar_Get( "r_depthbits", "0", CVAR_ARCHIVE | CVAR_LATCH );
 	r_ext_multisample = ri.Cvar_Get( "r_ext_multisample", "0", CVAR_ARCHIVE | CVAR_LATCH );
 	ri.Cvar_CheckRange( r_ext_multisample, 0, 4, qtrue );
 	r_overBrightBits = ri.Cvar_Get ("r_overBrightBits", "1", CVAR_ARCHIVE | CVAR_LATCH );
 	r_ignorehwgamma = ri.Cvar_Get( "r_ignorehwgamma", "0", CVAR_ARCHIVE | CVAR_LATCH);
-	r_mode = ri.Cvar_Get( "r_mode", "-2", CVAR_ARCHIVE | CVAR_LATCH ); // leilei - changed default from 3, for modern convenience. It will still fallback to 3 if this fails (voodoo etc)
+
+#if defined( _WIN32 )
+
+	if (vinfo.dwPlatformId == VER_PLATFORM_WIN32_NT) // Win2000 and up
+		r_mode = ri.Cvar_Get( "r_mode", "-2", CVAR_ARCHIVE | CVAR_LATCH ); // leilei - -2 is so convenient for modern day PCs
+	else			       // WinNT4/WinME and below
+		r_mode = ri.Cvar_Get( "r_mode", "3", CVAR_ARCHIVE | CVAR_LATCH ); // leilei - initialize 640x480 for <2000 users as there's a problem at figuring out desktop res on them
+
+#else
+
+	r_mode = ri.Cvar_Get( "r_mode", "-2", CVAR_ARCHIVE | CVAR_LATCH ); // leilei - -2 is so convenient for modern day PCs
+#endif
+
 	r_fullscreen = ri.Cvar_Get( "r_fullscreen", "1", CVAR_ARCHIVE );
 	r_noborder = ri.Cvar_Get("r_noborder", "0", CVAR_ARCHIVE | CVAR_LATCH);
 	r_customwidth = ri.Cvar_Get( "r_customwidth", "1600", CVAR_ARCHIVE | CVAR_LATCH );
@@ -1213,7 +1234,7 @@ void R_Register( void )
 	r_finish = ri.Cvar_Get ("r_finish", "0", CVAR_ARCHIVE);
 	r_textureMode = ri.Cvar_Get( "r_textureMode", "GL_LINEAR_MIPMAP_NEAREST", CVAR_ARCHIVE );
 	r_swapInterval = ri.Cvar_Get( "r_swapInterval", "0",
-					CVAR_ARCHIVE | CVAR_LATCH );
+	                              CVAR_ARCHIVE | CVAR_LATCH );
 	r_gamma = ri.Cvar_Get( "r_gamma", "1", CVAR_ARCHIVE );
 	r_facePlaneCull = ri.Cvar_Get ("r_facePlaneCull", "1", CVAR_ARCHIVE );
 
@@ -1284,16 +1305,16 @@ void R_Register( void )
 
 
 
-	r_specMode = ri.Cvar_Get( "r_specMode", "1" , CVAR_ARCHIVE ); 	
+	r_specMode = ri.Cvar_Get( "r_specMode", "1" , CVAR_ARCHIVE );
 	//r_waveMode = ri.Cvar_Get( "r_waveMode", "0" , CVAR_ARCHIVE );
-	
+
 	r_lensReflection1 = ri.Cvar_Get( "r_lensReflection1", "1" , CVAR_ARCHIVE);	// sharp reflection
 	r_lensReflection2 = ri.Cvar_Get( "r_lensReflection2", "0" , CVAR_ARCHIVE); // fuzzy reflection
 	r_lensReflectionBrightness = ri.Cvar_Get( "r_lensReflectionBrightness", "0.5" , CVAR_ARCHIVE);
 
-	r_flareQuality = ri.Cvar_Get( "r_flareQuality", "1" , CVAR_ARCHIVE);	// use medium flares for default
-	r_flareMethod = ri.Cvar_Get( "r_flareMethod", "0" , CVAR_ARCHIVE);	
-	r_flaresDlight = ri.Cvar_Get( "r_flaresDlight", "0" , CVAR_ARCHIVE );	// dynamic light flares 
+	r_flareQuality = ri.Cvar_Get( "r_flareQuality", "4" , CVAR_ARCHIVE);	// use high flares for default (lower settings stutter vsync or clip too badly)
+	r_flareMethod = ri.Cvar_Get( "r_flareMethod", "0" , CVAR_ARCHIVE);
+	r_flaresDlight = ri.Cvar_Get( "r_flaresDlight", "0" , CVAR_ARCHIVE );	// dynamic light flares
 	r_flaresDlightShrink = ri.Cvar_Get( "r_flaresDlightShrink", "1" , CVAR_ARCHIVE );	// dynamic light flares shrinking when close (reducing muzzleflash blindness)
 	r_flaresDlightFade = ri.Cvar_Get( "r_flaresDlightFade", "0" , CVAR_ARCHIVE | CVAR_CHEAT );	// dynamic light flares fading (workaround clipping bug)
 	r_flaresDlightOpacity = ri.Cvar_Get( "r_flaresDlightOpacity", "0.5" , CVAR_ARCHIVE );	// dynamic light flares (workaround poor visibility)
@@ -1301,28 +1322,32 @@ void R_Register( void )
 	r_flareSun = ri.Cvar_Get( "r_flareSun", "0" , CVAR_ARCHIVE);	// it's 0 because mappers expect 0.
 	r_flareDelay = ri.Cvar_Get( "r_flareDelay", "100" , CVAR_CHEAT);	// update delay for flare pixel read checking.
 
+	r_flaresMotionBlur = ri.Cvar_Get( "r_flaresMotionBlur", "0" , CVAR_ARCHIVE );	// fake motion blur on flares
 
-	r_mockvr = ri.Cvar_Get( "r_mockvr", "0" , CVAR_CHEAT);	
-	r_parseStageSimple = ri.Cvar_Get( "r_parseStageSimple", "0" , CVAR_CHEAT);	
-	r_leifx = ri.Cvar_Get( "r_leifx", "0" , CVAR_ARCHIVE | CVAR_LATCH);	
+
+
+	r_mockvr = ri.Cvar_Get( "r_mockvr", "0" , CVAR_CHEAT);
+	r_parseStageSimple = ri.Cvar_Get( "r_parseStageSimple", "0" , CVAR_CHEAT);
+	r_leifx = ri.Cvar_Get( "r_leifx", "0" , CVAR_ARCHIVE | CVAR_LATCH);
 	r_modelshader = ri.Cvar_Get( "r_modelshader", "0" , CVAR_ARCHIVE | CVAR_LATCH);		// leilei - load and use special shaders for lightDiffuse models
 	r_detailTextureScale = ri.Cvar_Get( "r_detailtextureScale", "0", CVAR_ARCHIVE | CVAR_LATCH ); // leilei - adjust scale of detail textures
 	r_detailTextureLayers = ri.Cvar_Get( "r_detailtextureLayers", "0", CVAR_ARCHIVE | CVAR_LATCH ); // leilei - add more detail layers
 
 	r_ntsc = ri.Cvar_Get( "r_ntsc", "0" , CVAR_ARCHIVE | CVAR_LATCH);			// leilei - ntsc filter
 
-	//r_tvMode = ri.Cvar_Get( "r_tvMode", "0" , CVAR_ARCHIVE | CVAR_LATCH);	
-	r_retroAA = ri.Cvar_Get( "r_retroAA", "0" , CVAR_ARCHIVE | CVAR_LATCH);	
+	//r_tvMode = ri.Cvar_Get( "r_tvMode", "0" , CVAR_ARCHIVE | CVAR_LATCH);
+	r_retroAA = ri.Cvar_Get( "r_retroAA", "0" , CVAR_ARCHIVE | CVAR_LATCH);
 
-	r_suggestiveThemes = ri.Cvar_Get( "r_suggestiveThemes", "1" , CVAR_ARCHIVE | CVAR_LATCH);	
+	r_suggestiveThemes = ri.Cvar_Get( "r_suggestiveThemes", "1" , CVAR_ARCHIVE | CVAR_LATCH);
 
-//	r_motionblur = ri.Cvar_Get( "r_motionblur", "0" , CVAR_ARCHIVE | CVAR_LATCH);	
-	r_motionblur_fps = ri.Cvar_Get( "r_motionblur_fps", "60", 0);	
+//	r_motionblur = ri.Cvar_Get( "r_motionblur", "0" , CVAR_ARCHIVE | CVAR_LATCH);
+	r_motionblur_fps = ri.Cvar_Get( "r_motionblur_fps", "60", 0);
 
-	r_anime = ri.Cvar_Get( "r_anime", "0" , CVAR_ARCHIVE | CVAR_LATCH);	
-	r_palletize = ri.Cvar_Get( "r_palletize", "0" , CVAR_ARCHIVE | CVAR_LATCH);	
-	r_leidebug = ri.Cvar_Get( "r_leidebug", "0" , CVAR_CHEAT);	
-	r_leidebugeye = ri.Cvar_Get( "r_leidebugeye", "0" , CVAR_CHEAT);	
+	r_anime = ri.Cvar_Get( "r_anime", "0" , CVAR_ARCHIVE | CVAR_LATCH);
+	r_palletize = ri.Cvar_Get( "r_palletize", "0" , CVAR_ARCHIVE | CVAR_LATCH);
+	r_leidebug = ri.Cvar_Get( "r_leidebug", "0" , CVAR_CHEAT);
+	r_particles = ri.Cvar_Get( "r_particles", "0" , CVAR_ARCHIVE | CVAR_LATCH);
+	r_leidebugeye = ri.Cvar_Get( "r_leidebugeye", "0" , CVAR_CHEAT);
 	r_slowness = ri.Cvar_Get( "r_slowness", "0" , CVAR_ARCHIVE);	// it's 0 because you want it to be the fastest possible by default.
 	r_slowness_cpu = ri.Cvar_Get( "r_slowness_cpu", "300" , CVAR_ARCHIVE);	// it's 0 because you want it to be the fastest possible by default.
 	r_slowness_gpu = ri.Cvar_Get( "r_slowness_gpu", "96" , CVAR_ARCHIVE);	// it's 0 because you want it to be the fastest possible by default.
@@ -1356,7 +1381,8 @@ void R_Register( void )
  * R_GLSL_AllocProgram
  * Reserve memory for program
  */
-static glslProgram_t *R_GLSL_AllocProgram(void) {
+static glslProgram_t *R_GLSL_AllocProgram(void)
+{
 	glslProgram_t	*program;
 
 	if (tr.numPrograms == MAX_PROGRAMS)
@@ -1396,10 +1422,10 @@ static glslProgram_t *R_GLSL_AllocProgram(void) {
 	program->u_ViewOrigin					= -1;
 	program->u_Normal					= -1;
 
-	program->u_mpass1						= -1;	
-	program->u_mpass2						= -1;	
-	program->u_mpass3						= -1;	
-	program->u_mpass4						= -1;	
+	program->u_mpass1						= -1;
+	program->u_mpass2						= -1;
+	program->u_mpass3						= -1;
+	program->u_mpass4						= -1;
 
 
 	program->rubyTextureSize				= -1;
@@ -1417,7 +1443,8 @@ static glslProgram_t *R_GLSL_AllocProgram(void) {
  * Load all default GLSL programs which are not loaded via the q3 shader system
  */
 
-void R_GLSL_Init(void) {
+void R_GLSL_Init(void)
+{
 #ifdef GLSL_BACKEND
 	glslProgram_t	*program;
 	char			programVertexObjects[MAX_PROGRAM_OBJECTS][MAX_QPATH];
@@ -1520,8 +1547,7 @@ void R_GLSL_Init(void) {
 	Q_strncpyz(programFragmentObjects[0], "glsl/ntsc_bleed_fp.glsl", sizeof(programFragmentObjects[0]));
 	tr.NTSCBleedProgram = RE_GLSL_RegisterProgram("ntsc_bleed", (const char *)programVertexObjects, 1, (const char *)programFragmentObjects, 1);
 
-	if (strcmp( (const char *)r_postprocess->string, "none" )) 
-		{
+	if (strcmp( (const char *)r_postprocess->string, "none" )) {
 		sprintf(p,"glsl/%s_vp.glsl",r_postprocess->string);
 		Q_strncpyz(programVertexObjects[0], (const char *)&p, sizeof(programVertexObjects[0]));
 		sprintf(p,"glsl/%s_fp.glsl",r_postprocess->string);
@@ -1531,17 +1557,18 @@ void R_GLSL_Init(void) {
 		else
 			ri.Printf( PRINT_ALL, "WARNING: Cannot locate postprocessing glsl program %s\n" ,r_postprocess->string);
 		if (tr.postprocessingProgram) postprocess=qtrue;
-		}
+	}
 #endif
 }
-
+extern qboolean		initparticles;
 
 /*
 ===============
 R_Init
 ===============
 */
-void R_Init( void ) {	
+void R_Init( void )
+{
 	int	err;
 	int i;
 	byte *ptr;
@@ -1566,26 +1593,21 @@ void R_Init( void ) {
 	//
 	// init function tables
 	//
-	for ( i = 0; i < FUNCTABLE_SIZE; i++ )
-	{
+	for ( i = 0; i < FUNCTABLE_SIZE; i++ ) {
 		tr.sinTable[i]		= sin( DEG2RAD( i * 360.0f / ( ( float ) ( FUNCTABLE_SIZE - 1 ) ) ) );
 		tr.squareTable[i]	= ( i < FUNCTABLE_SIZE/2 ) ? 1.0f : -1.0f;
 		tr.sawToothTable[i] = (float)i / FUNCTABLE_SIZE;
 		tr.inverseSawToothTable[i] = 1.0f - tr.sawToothTable[i];
 
-		if ( i < FUNCTABLE_SIZE / 2 )
-		{
-			if ( i < FUNCTABLE_SIZE / 4 )
-			{
+		if ( i < FUNCTABLE_SIZE / 2 ) {
+			if ( i < FUNCTABLE_SIZE / 4 ) {
 				tr.triangleTable[i] = ( float ) i / ( FUNCTABLE_SIZE / 4 );
 			}
-			else
-			{
+			else {
 				tr.triangleTable[i] = 1.0f - tr.triangleTable[i-FUNCTABLE_SIZE / 4];
 			}
 		}
-		else
-		{
+		else {
 			tr.triangleTable[i] = -tr.triangleTable[i-FUNCTABLE_SIZE/2];
 		}
 	}
@@ -1627,7 +1649,8 @@ void R_Init( void ) {
 	R_ModelInit();
 
 	R_InitFreeType();
-	
+
+
 	err = qglGetError();
 	if ( err != GL_NO_ERROR )
 		ri.Printf (PRINT_ALL, "glGetError() = 0x%x\n", err);
@@ -1642,7 +1665,8 @@ void R_Init( void ) {
 RE_Shutdown
 ===============
 */
-void RE_Shutdown( qboolean destroyWindow ) {	
+void RE_Shutdown( qboolean destroyWindow )
+{
 
 	ri.Printf( PRINT_ALL, "RE_Shutdown( %i )\n", destroyWindow );
 
@@ -1685,7 +1709,8 @@ RE_EndRegistration
 Touch all images to make sure they are resident
 =============
 */
-void RE_EndRegistration( void ) {
+void RE_EndRegistration( void )
+{
 	R_IssuePendingRenderCommands();
 	if (!ri.Sys_LowPhysicalMemory()) {
 		RB_ShowImages();
@@ -1700,9 +1725,11 @@ GetRefAPI
 @@@@@@@@@@@@@@@@@@@@@
 */
 #ifdef USE_RENDERER_DLOPEN
-Q_EXPORT refexport_t* QDECL GetRefAPI ( int apiVersion, refimport_t *rimp ) {
+Q_EXPORT refexport_t* QDECL GetRefAPI ( int apiVersion, refimport_t *rimp )
+{
 #else
-refexport_t *GetRefAPI ( int apiVersion, refimport_t *rimp ) {
+refexport_t *GetRefAPI ( int apiVersion, refimport_t *rimp )
+{
 #endif
 
 	static refexport_t	re;
@@ -1712,8 +1739,8 @@ refexport_t *GetRefAPI ( int apiVersion, refimport_t *rimp ) {
 	Com_Memset( &re, 0, sizeof( re ) );
 
 	if ( apiVersion != REF_API_VERSION ) {
-		ri.Printf(PRINT_ALL, "Mismatched REF_API_VERSION: expected %i, got %i\n", 
-			REF_API_VERSION, apiVersion );
+		ri.Printf(PRINT_ALL, "Mismatched REF_API_VERSION: expected %i, got %i\n",
+		          REF_API_VERSION, apiVersion );
 		return NULL;
 	}
 
@@ -1740,6 +1767,7 @@ refexport_t *GetRefAPI ( int apiVersion, refimport_t *rimp ) {
 	re.ClearScene = RE_ClearScene;
 	re.AddRefEntityToScene = RE_AddRefEntityToScene;
 	re.AddPolyToScene = RE_AddPolyToScene;
+	re.LFX_ParticleEffect = LFX_ParticleEffect;
 	re.LightForPoint = R_LightForPoint;
 	re.AddLightToScene = RE_AddLightToScene;
 	re.AddAdditiveLightToScene = RE_AddAdditiveLightToScene;

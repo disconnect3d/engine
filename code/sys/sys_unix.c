@@ -44,15 +44,143 @@ qboolean stdinIsATTY;
 // Used to determine where to store user-specific files
 static char homePath[ MAX_OSPATH ] = { 0 };
 
-// Used to store the Steam Quake 3 installation path
-static char steamPath[ MAX_OSPATH ] = { 0 };
+/* Contains the XDG home path. Typically $HOME/.local/share/openarena */
+static char homeXdg[ MAX_OSPATH ] = { 0 };
+/* Contains the classic home path. Typically $HOME/.openarena */
+static char homeClassic[ MAX_OSPATH ] = { 0 };
+
+static const char* getHome(void) {
+	return getenv("HOME");
+}
+
+/**
+ * Concatenates the XDG pathname. Normally "openarena".
+ * @param dest Buffer to concatenate "openarea" to.
+ * @param n Size of buffer
+ */
+static void Sys_ConcatXdgHomepathName(char* dest, size_t n) {
+	if(com_homepath->string[0])
+		Q_strcat(dest, n, com_homepath->string);
+	else
+		Q_strcat(dest, n, HOMEPATH_NAME_XDG);
+}
+
+/**
+ * Assignes a buffer with the value of the Xdg home.
+ * Normally: "$HOME/.local/share/openarena"
+ * XDG_DATA_HOME will also be recursivly created if it is missing
+ * If it failes the destination buffer will be the empty string.
+ * @param dest Buffer to place the value into
+ * @param n Size of buffer
+ */
+static void Sys_SetXdgDataHomePath(char* dest, size_t n) {
+	const char* xdgDataPath = getenv("XDG_DATA_HOME");
+	dest[0] = '\0';
+	if (xdgDataPath) {
+		Com_sprintf(dest, n, "%s/", xdgDataPath);
+		FS_CreatePath(dest);
+		Sys_ConcatXdgHomepathName(dest, n);
+		return;
+	}
+	const char* homeFolder = getHome();
+	if (homeFolder) {
+		Com_sprintf(dest, n, "%s/.local/share/", homeFolder);
+		FS_CreatePath(dest);
+		Sys_ConcatXdgHomepathName(dest, n);
+	}
+}
+
+/**
+ * Sets the global variables homeClassic and home Xdg.
+ */
+static void Sys_SetHomePaths( void ) {
+	Sys_SetXdgDataHomePath(homeXdg, sizeof(homeXdg));
+	const char* p = getHome();
+	Com_sprintf(homeClassic, sizeof(homeClassic), "%s%c", p, PATH_SEP);
+	Q_strcat(homeClassic, sizeof(homeClassic), HOMEPATH_NAME_UNIX);
+}
+
+/**
+ * Retruns true if the file exists and is a symbolic link
+ * @param path The path to the file.
+ * @return True if it is a confirmed symbolic link, false otherwise.
+ */
+static qboolean Sys_IsSymbolic(const char* path) {
+	struct stat buf;
+	int errCode = lstat(path, &buf);
+	return (errCode == 0);
+}
+
+/**
+ * Checks if a given file exists and is a directory.
+ * @param path Path to the file
+ * @return True if it is a directory and false otherwise.
+ */
+static qboolean Sys_IsDir(const char* path) {
+	struct stat buf;
+	int errCode = stat(path, &buf);
+	if (errCode != 0) {
+		return qfalse;
+	}
+	return S_ISDIR(buf.st_mode);
+}
+
+/**
+ * Deletes a symbolic link if it does not point to a directory.
+ * Otherwise: Do nothing.
+ * @param path Path to the symlink.
+ */
+static void Sys_RemoveInvalidSymlinkToDir(const char* path) {
+	if (Sys_IsSymbolic(path) && !Sys_IsDir(path)) {
+		//If the file is symbolic but does not a dir then it must either be invalid or point to something not a dir.
+		unlink(path);
+	}
+}
+
+static void CreateXDGPathAndMisc( void ) {
+	Sys_SetHomePaths();
+	Sys_RemoveInvalidSymlinkToDir(homeXdg);
+	Sys_RemoveInvalidSymlinkToDir(homeClassic);
+	if (Sys_IsDir(homeXdg) && Sys_IsDir(homeClassic)) {
+		//Both classic and xdg homedirs both exists.
+		//In the future only test on homeXdg.
+		return;
+	}
+	if (Sys_IsDir(homeClassic) && !Sys_IsDir(homeXdg) ) {
+		//Try to move the old home dir to the new location.
+		int errCode = rename(homeClassic, homeXdg);
+		if (errCode) {
+			Com_Printf("Failed to move \"%s\" to \"%s\". Error code: %d. Non fatal.", homeClassic, homeXdg, errCode);
+		}
+	}
+	if (!Sys_IsDir(homeXdg) && Sys_IsDir(homeClassic)) {
+		//Home classic does still exist and home Xdg does not. This means that the rename above must have failed.
+		//Link it istead
+		int errCode = symlink(homeClassic, homeXdg);
+		if (errCode) {
+			Com_Printf("Failed to create symbolic link \"%s\". Error code: %d. This is quite bad.", homeXdg, errCode);
+		}
+	}
+	if (!Sys_IsDir(homeXdg)) {
+		int errCode = Sys_Mkdir(homeXdg);
+		if (errCode) {
+			Com_Printf("Failed to create \"%s\". Error code: %d. This is quite bad.", homeXdg, errCode);
+		}
+	}
+	if (Sys_IsDir(homeXdg) && !Sys_IsDir(homeClassic)) {
+		int errCode = symlink(homeXdg, homeClassic);
+		if (errCode) {
+			Com_Printf("Failed to create symbolic link \"%s\". Error code: %d. This is quite bad.", homeClassic, errCode);
+		}
+	}
+}
 
 /*
 ==================
 Sys_DefaultHomePath
 ==================
 */
-char *Sys_DefaultHomePath(void)
+const char *Sys_DefaultHomePath(void)
 {
 	char *p;
 
@@ -70,10 +198,8 @@ char *Sys_DefaultHomePath(void)
 			else
 				Q_strcat(homePath, sizeof(homePath), HOMEPATH_NAME_MACOSX);
 #else
-			if(com_homepath->string[0])
-				Q_strcat(homePath, sizeof(homePath), com_homepath->string);
-			else
-				Q_strcat(homePath, sizeof(homePath), HOMEPATH_NAME_UNIX);
+			CreateXDGPathAndMisc();
+			Com_sprintf(homePath, sizeof(homePath), "%s", homeXdg);
 #endif
 		}
 	}
@@ -81,30 +207,6 @@ char *Sys_DefaultHomePath(void)
 	return homePath;
 }
 
-/*
-================
-Sys_SteamPath
-================
-*/
-char *Sys_SteamPath( void )
-{
-	// Disabled since Steam doesn't let you install Quake 3 on Mac/Linux
-#if 0 //#ifdef STEAMPATH_NAME
-	char *p;
-
-	if( ( p = getenv( "HOME" ) ) != NULL )
-	{
-#ifdef MACOS_X
-		char *steamPathEnd = "/Library/Application Support/Steam/SteamApps/common/" STEAMPATH_NAME;
-#else
-		char *steamPathEnd = "/.steam/steam/SteamApps/common/" STEAMPATH_NAME;
-#endif
-		Com_sprintf(steamPath, sizeof(steamPath), "%s%s", p, steamPathEnd);
-	}
-#endif
-
-	return steamPath;
-}
 
 /*
 ================

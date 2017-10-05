@@ -95,7 +95,7 @@ void Sys_SetFloatEnv(void)
 Sys_DefaultHomePath
 ================
 */
-char *Sys_DefaultHomePath( void )
+const char *Sys_DefaultHomePath( void )
 {
 	TCHAR szPath[MAX_PATH];
 	FARPROC qSHGetFolderPath;

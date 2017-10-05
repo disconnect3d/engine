@@ -31,6 +31,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include <winsock.h>
 #endif
 
+
 int demo_protocols[] =
 { 66, 67, 68, 69, 70, 71, 0 };
 
@@ -3039,6 +3040,9 @@ int Com_TimeVal(int minMsec)
 	return timeVal;
 }
 
+extern void IN_Frame( qboolean in_com_frame );	// youurayy input lag fix
+
+
 /*
 =================
 Com_Frame
@@ -3127,6 +3131,8 @@ void Com_Frame( void ) {
 			NET_Sleep(timeVal - 1);
 	} while(Com_TimeVal(minMsec));
 	
+	IN_Frame(qtrue); // youurayy input lag fix
+
 	lastTime = com_frameTime;
 	com_frameTime = Com_EventLoop();
 	

@@ -39,6 +39,8 @@ static char **shaderTextHashTable[MAX_SHADERTEXT_HASH];
 
 extern cvar_t 	*r_mockvr;
 
+extern int detailhack;
+
 /*
 ================
 return a hash value for the filename
@@ -5379,6 +5381,7 @@ shader_t *R_FindShaderReal( const char *name, int lightmapIndex, qboolean mipRaw
 								wi = 0.25  * (f + 1)  * wi / detailScale;
 								hi = 0.25  * (f + 1)  * hi / detailScale;
 
+								detailhack = 1;
 								if (material == 1)	// metalsteps
 							 	stages[thisstage].bundle[0].image[0] = R_FindImageFile( "gfx/fx/detail/d_genericmetal.tga", IMGFLAG_MIPMAP , IMGFLAG_MIPMAP);
 								else if (hasaDetailImage && imageDetail)
@@ -5393,6 +5396,7 @@ shader_t *R_FindShaderReal( const char *name, int lightmapIndex, qboolean mipRaw
 								stages[thisstage].bundle[0].texMods[0].type = TMOD_SCALE;
 								stages[thisstage].isDetail = qtrue;
 								stages[thisstage].bundle[0].numTexMods = 1;
+								detailhack = 0;
 				
 							}			
 		
@@ -6212,6 +6216,9 @@ static void CreateExternalShaders( void ) {
 	if(!tr.placeholderFogShader->defaultShader) 		tr.placeholderFogAvail = 1;
 
 
+// leilei - lfx shaders
+
+	LFX_ShaderInit();
 }
 
 /*

@@ -806,52 +806,7 @@ lighting range
 */
 void R_LightScaleTexture (unsigned *in, int inwidth, int inheight, qboolean only_gamma )
 {
-	if ( only_gamma )
-	{
-		if ( !glConfig.deviceSupportsGamma )
-		{
-			int		i, c;
-			byte	*p;
-
-			p = (byte *)in;
-
-			c = inwidth*inheight;
-			for (i=0 ; i<c ; i++, p+=4)
-			{
-				p[0] = s_gammatable[p[0]];
-				p[1] = s_gammatable[p[1]];
-				p[2] = s_gammatable[p[2]];
-			}
-		}
-	}
-	else
-	{
-		int		i, c;
-		byte	*p;
-
-		p = (byte *)in;
-
-		c = inwidth*inheight;
-
-		if ( glConfig.deviceSupportsGamma )
-		{
-			for (i=0 ; i<c ; i++, p+=4)
-			{
-				p[0] = s_intensitytable[p[0]];
-				p[1] = s_intensitytable[p[1]];
-				p[2] = s_intensitytable[p[2]];
-			}
-		}
-		else
-		{
-			for (i=0 ; i<c ; i++, p+=4)
-			{
-				p[0] = s_gammatable[s_intensitytable[p[0]]];
-				p[1] = s_gammatable[s_intensitytable[p[1]]];
-				p[2] = s_gammatable[s_intensitytable[p[2]]];
-			}
-		}
-	}
+	return; // leilei - quake2 "gamma" code is obsolete here. breaks shaders
 }
 
 
@@ -1259,7 +1214,7 @@ static void Upload32( unsigned *data,
 	//
 	// perform optional picmip operation
 	//
-	if ( picmip ) {
+	if ( picmip && !detailhack ) {
 		scaled_width >>= r_picmip->integer;
 		scaled_height >>= r_picmip->integer;
 	}
@@ -1818,7 +1773,7 @@ static void Upload32( unsigned *data,
 		Com_Memcpy( scaledBuffer, data, width * height * 4 );
 	}
 
-	R_LightScaleTexture (scaledBuffer, scaled_width, scaled_height, !mipmap );
+	//R_LightScaleTexture (scaledBuffer, scaled_width, scaled_height, !mipmap );
 
 	*pUploadWidth = scaled_width;
 	*pUploadHeight = scaled_height;
@@ -2930,7 +2885,7 @@ void R_SetColorMappings( void ) {
 	}
 
 	for (i=0 ; i<256 ; i++) {
-		j = i * r_intensity->value;
+		j = i * 1;	// leilei - disable this because it breaks everything.
 		if (j > 255) {
 			j = 255;
 		}

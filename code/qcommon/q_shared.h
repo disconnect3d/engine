@@ -27,15 +27,16 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 // A user mod should never modify this file
 
 #ifdef STANDALONE
-  #define PRODUCT_NAME			"ioq3+oa"
-  #define BASEGAME			"baseoa"
-  #define CLIENT_WINDOW_TITLE     	"OpenArena"
-  #define CLIENT_WINDOW_MIN_TITLE 	"OA"
-  #define HOMEPATH_NAME_UNIX		".openarena"
-  #define HOMEPATH_NAME_WIN		"OpenArena"
-  #define HOMEPATH_NAME_MACOSX		HOMEPATH_NAME_WIN
-  #define GAMENAME_FOR_MASTER		"Quake3Arena"	// must NOT contain whitespace.  No servers show up if you use "openarena"
-  #define LEGACY_PROTOCOL		1 // OA still uses the legacy protocol
+  #define PRODUCT_NAME              "ioq3+oa"
+  #define BASEGAME                  "baseoa"
+  #define CLIENT_WINDOW_TITLE       "OpenArena"
+  #define CLIENT_WINDOW_MIN_TITLE   "OA"
+  #define HOMEPATH_NAME_UNIX        ".openarena"
+  #define HOMEPATH_NAME_WIN         "OpenArena"
+  #define HOMEPATH_NAME_MACOSX      HOMEPATH_NAME_WIN
+  #define HOMEPATH_NAME_XDG         HOMEPATH_NAME_WIN
+  #define GAMENAME_FOR_MASTER       "Quake3Arena"	// must NOT contain whitespace.  No servers show up if you use "openarena"
+  #define LEGACY_PROTOCOL           1 // OA still uses the legacy protocol
   #define CINEMATICS_LOGO		"foologo.roq"
   #define CINEMATICS_INTRO		"intro.roq"
 #else

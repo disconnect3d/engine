@@ -890,7 +890,7 @@ static void IN_ProcessEvents( void )
 IN_Frame
 ===============
 */
-void IN_Frame( void )
+void IN_Frame( qboolean in_com_frame )
 {
 	qboolean loading;
 

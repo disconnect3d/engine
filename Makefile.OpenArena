@@ -20,14 +20,18 @@ VERSION=3.0.0a
 USE_CODEC_VORBIS=1
 USE_CODEC_OPUS=0
 
+ifndef USE_CODEC_XMP
 USE_CODEC_XMP=1
+endif
 
 # FLTO Test
 
 OPTIMIZE += -flto
 
 # Can't use CURL on my system atm
+ifndef USE_CURL
 USE_CURL=0
+endif
 
 # This doesn't work with OpenArena yet
 BUILD_RENDERER_OPENGL2=0
@@ -45,6 +49,8 @@ GLSL_TEXTURES		=1		# for shaders on models, leifxdither, etc
 GLSL_BACKEND		=1		# for the entire backend.
 
 
+#Possible values "gnu90", "gnu99" and "gnu11". Note that the engine uses gnu-extensions. gnu90 is broken in the commit where this message is added. Travis does not support gnu11 at the moment.
+CFLAGS+="-std=gnu99"
 
 
 # You can change these although you probably don't need to
