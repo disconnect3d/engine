@@ -396,6 +396,7 @@ static void GL_StateSW( unsigned long stateBits )
 	//
 	// fill/line mode
 	//
+#ifndef GL_VERSION_ES_CM_1_0		// GLES1
 	if ( diff & GLS_POLYMODE_LINE )
 	{
 		if ( stateBits & GLS_POLYMODE_LINE )
@@ -408,7 +409,7 @@ static void GL_StateSW( unsigned long stateBits )
 			qglPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
 		}
 	}
-
+#endif					// GLES1
 	//
 	// depthtest
 	//
@@ -1347,9 +1348,9 @@ const void	*RB_DrawBuffer( const void *data ) {
 	const drawBufferCommand_t	*cmd;
 
 	cmd = (const drawBufferCommand_t *)data;
-
+#ifndef GL_VERSION_ES_CM_1_0
 	qglDrawBuffer( cmd->buffer );
-
+#endif
 	// clear screen for debugging
 	if ( r_clear->integer ) {
 		qglClearColor( 1, 0, 0.5, 1 );
@@ -1662,6 +1663,7 @@ const void	*RB_SwapBuffers( const void *data ) {
 
 	// we measure overdraw by reading back the stencil buffer and
 	// counting up the number of increments that have happened
+#ifndef GL_VERSION_ES_CM_1_0
 	if ( r_measureOverdraw->integer ) {
 		int i;
 		long sum = 0;
@@ -1677,7 +1679,7 @@ const void	*RB_SwapBuffers( const void *data ) {
 		backEnd.pc.c_overDraw += sum;
 		ri.Hunk_FreeTempMemory( stencilReadback );
 	}
-
+#endif
 
 	if ( !glState.finishCalled ) {
 		qglFinish();

@@ -38,9 +38,11 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 typedef unsigned int glIndex_t;
 
 // Lousy hack
+#ifndef GL_VERSION_ES_CM_1_0		// GLES1
 #define GLSL_POSTPROCESSING 1
 #define GLSL_TEXTURES 1
 #define GLSL_BACKEND 1
+#endif
 
 // 14 bits
 // can't be increased without changing bit packing for drawsurfs
@@ -829,6 +831,7 @@ typedef struct {
 	char		*entityParsePoint;
 } world_t;
 
+#ifdef GLSL_BACKEND
 #define MAX_PROGRAMS 256
 #define MAX_PROGRAM_OBJECTS 8
 
@@ -966,6 +969,7 @@ typedef struct {
 
 	
 } glslProgram_t;
+#endif
 
 //======================================================================
 
@@ -1186,9 +1190,10 @@ typedef struct {
 	qhandle_t				NTSCBleedProgram;	// leilei
 	qhandle_t				paletteProgram;	// leilei
 
+#ifdef GLSL_BACKEND
 	int						numPrograms;
 	glslProgram_t			*programs[MAX_PROGRAMS];
-
+#endif
 	int						numLightmaps;
 	image_t					**lightmaps;
 
@@ -1548,8 +1553,9 @@ void	R_SkinList_f( void );
 // https://zerowing.idsoftware.com/bugzilla/show_bug.cgi?id=516
 const void *RB_TakeScreenshotCmd( const void *data );
 void	R_ScreenShot_f( void );
+#ifdef GLSL_BACKEND
 void	R_GLSLPalette_f( void );
-
+#endif
 void	R_InitFogTable( void );
 float	R_FogFactor( float s, float t );
 void	R_InitImages( void );
@@ -1675,7 +1681,7 @@ GLSL
 
 ============================================================
 */
-
+#ifdef GLSL_BACKEND
 /*
  * R_GLSL_SetUniform
  * Only upload uniform data when value changes
@@ -2013,6 +2019,7 @@ void RB_GLSL_StageIteratorGeneric(void);
 void RB_GLSL_StageIteratorVertexLitTexture(void);
 void RB_GLSL_StageIteratorLightmappedMultitexture(void);
 void RB_GLSL_StageIteratorSky(void);
+#endif
 
 /*
 ============================================================

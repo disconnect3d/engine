@@ -330,12 +330,23 @@ static void RB_SurfaceBeam( void )
 
 	qglColor3f( 1, 0, 0 );
 
+#ifndef GL_VERSION_ES_CM_1_0		// GLES1
 	qglBegin( GL_TRIANGLE_STRIP );
 	for ( i = 0; i <= NUM_BEAM_SEGS; i++ ) {
 		qglVertex3fv( start_points[ i % NUM_BEAM_SEGS] );
 		qglVertex3fv( end_points[ i % NUM_BEAM_SEGS] );
 	}
 	qglEnd();
+#else
+	vec3_t points[NUM_BEAM_SEGS * 2 + 2];
+	for ( i = 0; i <= NUM_BEAM_SEGS; i++ ) {
+		VectorCopy( start_points[i % NUM_BEAM_SEGS], points[i * 2] );
+		VectorCopy( end_points[i % NUM_BEAM_SEGS], points[i * 2 + 1] );
+	}
+	qglEnableClientState ( GL_VERTEX_ARRAY );
+	qglVertexPointer ( 3, GL_FLOAT, 0, points );
+	qglDrawArrays( GL_TRIANGLE_STRIP, 0, 4 );
+#endif
 }
 
 //================================================================================
@@ -1162,6 +1173,7 @@ Draws x/y/z lines from the origin for orientation debugging
 */
 static void RB_SurfaceAxis( void ) {
 	GL_Bind( tr.whiteImage );
+#ifndef GL_VERSION_ES_CM_1_0
 	GL_State( GLS_DEFAULT );
 	qglLineWidth( 3 );
 	qglBegin( GL_LINES );
@@ -1176,6 +1188,10 @@ static void RB_SurfaceAxis( void ) {
 	qglVertex3f( 0,0,16 );
 	qglEnd();
 	qglLineWidth( 1 );
+#else
+	// TODO: I'm too lazy to implement debug stuff
+	//Com_Printf("Error: RB_SurfaceAxis() not implemented on GLES\n");
+#endif
 }
 
 //===========================================================================
@@ -1285,7 +1301,9 @@ static void RB_SurfaceFlare(srfFlare_t *surf)
 static void RB_SurfaceDisplayList( srfDisplayList_t *surf ) {
 	// all apropriate state must be set in RB_BeginSurface
 	// this isn't implemented yet...
+#ifndef GL_VERSION_ES_CM_1_0
 	qglCallList( surf->listNum );
+#endif
 }
 
 static void RB_SurfaceSkip( void *surf ) {

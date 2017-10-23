@@ -24,9 +24,12 @@ ifndef USE_CODEC_XMP
 USE_CODEC_XMP=1
 endif
 
+# use GLES 1
+USE_GLES=0
+
 # FLTO Test
 
-OPTIMIZE += -flto
+OPTIMIZE += -flto -wall
 
 # Can't use CURL on my system atm
 ifndef USE_CURL

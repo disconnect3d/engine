@@ -363,6 +363,7 @@ faster simple one.
 */
 static void RB_TestFlareFast( flare_t *f, int dotrace )
 {
+#ifndef GL_VERSION_ES_CM_1_0		// GLES1 shouldn't try reading pixels
 	float			depth;
 	qboolean		visible;
 	float			fade;
@@ -443,7 +444,7 @@ static void RB_TestFlareFast( flare_t *f, int dotrace )
 			f->drawIntensity  = 0;
 		}
 	}
-
+#endif
 }
 
 /*
@@ -453,6 +454,7 @@ RB_TestFlare
 */
 static void RB_TestFlare( flare_t *f, int dotrace )
 {
+#ifndef GL_VERSION_ES_CM_1_0		// GLES1 shouldn't try reading pixels
 	float			depth;
 	qboolean		visible;
 	float			fade;
@@ -518,7 +520,7 @@ static void RB_TestFlare( flare_t *f, int dotrace )
 	}
 
 	f->drawIntensity = fade;
-
+#endif
 }
 
 static void RB_TestFlareTraceOnly( flare_t *f )
@@ -1253,6 +1255,11 @@ void RB_RenderFlares (void)
 		f->drawIntensity = 0;
 		if ( f->frameSceneNum == backEnd.viewParms.frameSceneNum
 		        && f->inPortal == backEnd.viewParms.isPortal ) {
+
+#ifdef GL_VERSION_ES_CM_1_0		// GLES1 - leilei - the simple flares allowed only. no pixel reads, no problem
+			if (r_flareQuality->integer)			// lower flare quality - no readpixels, trace
+				RB_TestFlareTraceOnly( f );
+#else
 			if (r_flareQuality->integer > 4)		// highest flare quality - only frequent readpixels, no trace
 				RB_TestFlare( f, 0 );
 			else if (r_flareQuality->integer == 4)		// high flare quality - frequent readpixels, trace
@@ -1265,6 +1272,7 @@ void RB_RenderFlares (void)
 				RB_TestFlareTraceOnly( f );
 			else
 				RB_TestFlareFast( f, 1 );		// lowest is actually a different surface flare defined elsewhere
+#endif
 
 			if ( f->drawIntensity ) {
 				draw = qtrue;

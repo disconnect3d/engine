@@ -88,6 +88,7 @@ R_ArrayElementDiscrete
 This is just for OpenGL conformance testing, it should never be the fastest
 ================
 */
+#ifndef GL_VERSION_ES_CM_1_0
 static void APIENTRY R_ArrayElementDiscrete( GLint index ) {
 	qglColor4ubv( tess.svars.colors[ index ] );
 	if ( glState.currenttmu ) {
@@ -199,7 +200,7 @@ static void R_DrawStripElements( int numIndexes, const glIndex_t *indexes, void 
 
 	qglEnd();
 }
-
+#endif
 
 
 /*
@@ -212,6 +213,20 @@ without compiled vertex arrays.
 ==================
 */
 static void R_DrawElements( int numIndexes, const glIndex_t *indexes ) {
+#ifdef GL_VERSION_ES_CM_1_0
+	int i;
+	//Com_Printf("R_DrawElements(): r_primitives %d numIndexes %d\n", r_primitives->integer, numIndexes);
+// leilei - no console spam
+//	if ( r_primitives->integer != 2 && r_primitives->integer != 0 ) {
+//		Com_Printf("Error: R_DrawElements() not implemented on GLES for r_primitives != 2 (r_primitives %d)\n", r_primitives->integer);
+//		return;
+//	}
+	
+	// GLES does not support GL_UNSIGNED_INT for glDrawElements, so we'll convert values on the fly - this is SLOW, as you may imagine.
+	for (i = 0; i < numIndexes; i++)
+		indexes_short[i] = indexes[i];
+	qglDrawElements(GL_TRIANGLES, numIndexes, GL_UNSIGNED_SHORT, indexes_short);
+#else
 	int		primitives;
 
 	primitives = r_primitives->integer;
@@ -244,6 +259,7 @@ static void R_DrawElements( int numIndexes, const glIndex_t *indexes ) {
 		return;
 	}
 
+#endif
 	// anything else will cause no drawing
 }
 
@@ -336,7 +352,7 @@ Draws vertex normals for debugging
 static void DrawNormals (shaderCommands_t *input) {
 	int		i;
 	vec3_t	temp;
-
+#ifndef GL_VERSION_ES_CM_1_0
 	GL_Bind( tr.whiteImage );
 	qglColor3f (1,1,1);
 	qglDepthRange( 0, 0 );	// never occluded
@@ -351,6 +367,7 @@ static void DrawNormals (shaderCommands_t *input) {
 	qglEnd ();
 
 	qglDepthRange( 0, 1 );
+#endif
 }
 
 /*
@@ -402,9 +419,11 @@ static void DrawMultitextured( shaderCommands_t *input, int stage ) {
 
 	// this is an ugly hack to work around a GeForce driver
 	// bug with multitexture and clip planes
+#ifndef GL_VERSION_ES_CM_1_0
 	if ( backEnd.viewParms.isPortal ) {
 		qglPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
 	}
+#endif
 
 	//
 	// base

@@ -240,6 +240,10 @@ ifndef DEBUG_CFLAGS
 DEBUG_CFLAGS=-g -O0
 endif
 
+ifndef USE_GLES
+USE_GLES=0
+endif
+
 #############################################################################
 
 BD=$(BUILD_DIR)/debug-$(PLATFORM)-$(ARCH)
@@ -387,7 +391,12 @@ ifneq (,$(findstring "$(PLATFORM)", "linux" "gnu_kfreebsd" "kfreebsd-gnu"))
   LIBS=-ldl -lm
 
   CLIENT_LIBS=$(SDL_LIBS)
-  RENDERER_LIBS = $(SDL_LIBS) -lGL
+  RENDERER_LIBS = $(SDL_LIBS) 
+ifeq ($(USE_GLES),1)
+  RENDERER_LIBS +=  -lGLESv1_CM
+else
+  RENDERER_LIBS +=  -lGL
+endif
 
   ifeq ($(USE_OPENAL),1)
     ifneq ($(USE_OPENAL_DLOPEN),1)
@@ -1091,6 +1100,10 @@ endif
 
 ifeq ($(USE_FREETYPE),1)
   RENDERER_LIBS += -lfreetype
+endif
+
+ifeq ($(USE_GLES),1)
+  BASE_CFLAGS += -DUSE_GLES
 endif
 
 ifeq ("$(CC)", $(findstring "$(CC)", "clang" "clang++"))

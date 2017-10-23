@@ -30,8 +30,9 @@ int		gl_filter_max = GL_LINEAR;
 
 int		force32upload;		// leilei - hack to get bloom/post to always do 32bit texture
 int		detailhack;		// leilei - hack to fade detail textures, kill repeat patterns
+#ifndef GL_VERSION_ES_CM_1_0
 int		palettedformat = GL_COLOR_INDEX8_EXT;	// leilei - paletted texture support
-
+#endif
 
 #define FILE_HASH_SIZE		1024
 static	image_t*		hashTable[FILE_HASH_SIZE];
@@ -42,6 +43,7 @@ extern int ismaptexture;
 //
 // leilei - paletted texture support START
 //
+#ifndef GL_VERSION_ES_CM_1_0
 byte		*palettemain;		
 byte		palmap[32][32][32];		// 15bpp lookup table
 unsigned 	d_8to24table[256];  		// for non-palette supporting hardware
@@ -49,7 +51,7 @@ unsigned 	d_8to24table[256];  		// for non-palette supporting hardware
 qboolean	paletteability;			// If our hardware has paletted texture support...
 qboolean	paletteavailable;		// If we got a palette...
 qboolean	paletteenabled;			// If we wish to enable the 32-to-8 conversions (and 8-to-32 also)
-
+#endif
 //
 // leilei - blending hack support
 //
@@ -70,6 +72,7 @@ int		hackoperation;			// 0 - do nothing
 
 byte BestColor (int r, int g, int b, int start, int stop)
 {
+#ifndef GL_VERSION_ES_CM_1_0
 	int	i;
 	int	dr, dg, db;
 	int	bestdistortion, distortion;
@@ -102,6 +105,7 @@ byte BestColor (int r, int g, int b, int start, int stop)
 	if (berstcolor)
 	//ri.Printf( PRINT_ALL, "returned %i\n", berstcolor );
 	return berstcolor;
+#endif
 }
 
 // From QUAKE2, but modified to support a transparent color
@@ -111,6 +115,7 @@ unsigned char paltablergb[768];
 
 void R_SetTexturePalette( unsigned palette[256])
 {
+#ifndef GL_VERSION_ES_CM_1_0
 	int i;
 
 	
@@ -129,6 +134,7 @@ void R_SetTexturePalette( unsigned palette[256])
 
 	
 	}
+#endif
 }
 
 // leilei - paletted texture
@@ -136,6 +142,7 @@ extern GLvoid (APIENTRYP qglColorTableEXT)( GLint, GLint, GLint, GLint, GLint, c
 
 void R_PickTexturePalette(int alpha)
 {
+#ifndef GL_VERSION_ES_CM_1_0
 		qglEnable(GL_SHARED_TEXTURE_PALETTE_EXT);
 
 		if (alpha)
@@ -144,11 +151,13 @@ void R_PickTexturePalette(int alpha)
 		qglColorTableEXT( GL_SHARED_TEXTURE_PALETTE_EXT, GL_RGB, 256,  GL_RGB, GL_UNSIGNED_BYTE,  paltablergb );
 		
 		qglEnable(GL_SHARED_TEXTURE_PALETTE_EXT);
+#endif
 }
 
 unsigned r_rawpalette[256];
 void R_SetPalette ( const unsigned char *palette)
 {
+#ifndef GL_VERSION_ES_CM_1_0
 	int		i;
 
 	byte *rp = ( byte * ) r_rawpalette;
@@ -177,12 +186,13 @@ void R_SetPalette ( const unsigned char *palette)
 	}
 	R_SetTexturePalette( r_rawpalette );
 
-
+#endif
 }
 
 // leilei - for palettizing GLSL shaders, dump palette values to console
 void R_GLSLPalette ( const unsigned char *palette)
 {
+#ifndef GL_VERSION_ES_CM_1_0
 	int		i;
 
 	float redf, greenf, bluef;
@@ -199,7 +209,7 @@ void R_GLSLPalette ( const unsigned char *palette)
 		}
 	}
 
-
+#endif
 }
 
 void R_GLSLPalette_f ( )
@@ -209,7 +219,7 @@ void R_GLSLPalette_f ( )
 }
 
 void R_InitPalette( void ) {
-
+#ifndef GL_VERSION_ES_CM_1_0
 	byte           *buff;
 	int             len;
 	int i, v;
@@ -280,7 +290,7 @@ void R_InitPalette( void ) {
 		d_8to24table[i] = v;
 	}
 	}
-
+#endif
 }
 
 
@@ -423,6 +433,7 @@ void R_ImageList_f( void ) {
 
 		switch(image->internalFormat)
 		{
+#ifndef GL_VERSION_ES_CM_1_0			// GLES1
 			case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT:
 				format = "sDXT1";
 				// 64 bits per 16 pixels, so 4 bits per pixel
@@ -508,6 +519,20 @@ void R_ImageList_f( void ) {
 				// 2 byte per pixel?
 				estSize *= 2;
 				break;
+#else
+		case 1:
+			ri.Printf( PRINT_ALL, "I    " );
+			break;
+		case 2:
+			ri.Printf( PRINT_ALL, "IA   " );
+			break;
+		case 3:
+			ri.Printf( PRINT_ALL, "RGB  " );
+			break;
+		case 4:
+			ri.Printf( PRINT_ALL, "RGBA " );
+			break;
+#endif
 		}
 
 		// mipmap adds about 50%
@@ -922,6 +947,7 @@ static void R_MipMap (byte *in, int width, int height) {
 
 static void R_MipMap8 (byte *in, int width, int height)
 {
+#ifndef GL_VERSION_ES_CM_1_0
 	int		i, j;
 	byte	*out, *at1;//, *at2, *at3, *at4;
 
@@ -939,7 +965,7 @@ static void R_MipMap8 (byte *in, int width, int height)
 			out[0] = at1;
 		}
 	}
-
+#endif
 }
 //
 // leilei - paletted texture support END
@@ -988,6 +1014,38 @@ byte	mipBlendColors[16][4] = {
 	{0,0,255,128},
 };
 
+#ifdef GL_VERSION_ES_CM_1_0		// GLES1
+
+static unsigned * ConvertPixels_RGBA_RGB( unsigned *src, unsigned size )
+{
+	unsigned i;
+	unsigned char * dst = (unsigned char *) malloc( size * 3 );
+	for( i = 0; i < size; i++ )
+	{
+		unsigned c = src[i];
+		dst[ i * 3 + 0 ] = (c & 0xff);
+		dst[ i * 3 + 1 ] = (c & 0xff00) / 0x100;
+		dst[ i * 3 + 2 ] = (c & 0xff0000) / 0x10000;
+	}
+	return (unsigned *)dst;
+}
+
+static void R_qglTexImage2D( GLint miplevel, GLint internalFormat,
+								GLsizei width, GLsizei height,
+								unsigned *pixels )
+{
+	qglPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+	if( internalFormat == GL_RGBA )
+		qglTexImage2D (GL_TEXTURE_2D, miplevel, internalFormat, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+	else if( internalFormat == GL_RGB ) {
+		unsigned *converted = ConvertPixels_RGBA_RGB( pixels, width * height );
+		qglTexImage2D (GL_TEXTURE_2D, miplevel, internalFormat, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, converted);
+		free(converted);
+	} else
+		Com_Printf("R_qglTexImage2D: texture format %d (0x%x) not supported in GLES\n", internalFormat, internalFormat);
+
+}
+#endif
 
 /*
 ==================
@@ -1562,15 +1620,18 @@ static void Upload32( unsigned *data,
 		{
 			if(r_greyscale->integer)
 			{
+#ifndef GL_VERSION_ES_CM_1_0
 				if(r_texturebits->integer == 16 || forceBits == 16)
 					internalFormat = GL_LUMINANCE8;
 				else if(r_texturebits->integer == 32 || forceBits == 32)
 					internalFormat = GL_LUMINANCE16;
 				else
+#endif
 					internalFormat = GL_LUMINANCE;
 			}
 			else
 			{
+#ifndef GL_VERSION_ES_CM_1_0
 				if ( glConfig.textureCompression == TC_S3TC_ARB )
 				{
 					internalFormat = GL_COMPRESSED_RGBA_S3TC_DXT1_EXT;
@@ -1600,27 +1661,33 @@ static void Upload32( unsigned *data,
 					internalFormat = GL_RGB8;
 				}
 				else
+#endif
 				{
 					internalFormat = GL_RGB;
 				}
+#ifndef GL_VERSION_ES_CM_1_0
 					if (detailhack) internalFormat = GL_LUMINANCE; // leilei - use paletted mono format for detail textures
 					if (force32upload) internalFormat = GL_RGB8;   // leilei - gets bloom and postproc working on s3tc & 8bit & palettes
 					if ((r_leifx->integer) && (!force32upload)) internalFormat = GL_RGB5;
+#endif
 			}
 		}
 		else if ( samples == 4 )
 		{
 			if(r_greyscale->integer)
 			{
+#ifndef GL_VERSION_ES_CM_1_0
 				if(r_texturebits->integer == 16 || forceBits == 16)
 					internalFormat = GL_LUMINANCE8_ALPHA8;
 				else if(r_texturebits->integer == 32 || forceBits == 32)
 					internalFormat = GL_LUMINANCE16_ALPHA16;
 				else
+#endif
 					internalFormat = GL_LUMINANCE_ALPHA;
 			}
 			else
 			{
+#ifndef GL_VERSION_ES_CM_1_0
 				if ( glConfig.textureCompression == TC_S3TC_ARB )
 				{
 					internalFormat = GL_COMPRESSED_RGBA_S3TC_DXT5_EXT; // leilei - this was missing
@@ -1647,20 +1714,24 @@ static void Upload32( unsigned *data,
 					internalFormat = GL_RGBA8;
 				}
 				else
+#endif
 				{
 					internalFormat = GL_RGBA;
 				}
+#ifndef GL_VERSION_ES_CM_1_0
 					if (force32upload) internalFormat = GL_RGBA8;   // leilei - gets bloom and postproc working on s3tc & 8bit & palettes
 					if ((r_leifx->integer) && (!force32upload)) internalFormat = GL_RGBA4;
+#endif
 			}
 		}
 	}
 
+#ifndef GL_VERSION_ES_CM_1_0
 	if (depthimage) 
 		{ mipmap=0; internalFormat = GL_DEPTH_COMPONENT; temp_GLformat=GL_DEPTH_COMPONENT; temp_GLtype=GL_FLOAT; } 
 			else 
 		{ temp_GLformat=GL_RGBA; temp_GLtype=GL_UNSIGNED_BYTE; }
-
+#endif
 
 
 	// copy or resample data as appropriate for first MIP level
@@ -1668,7 +1739,11 @@ static void Upload32( unsigned *data,
 		( scaled_height == height ) ) {
 		if (!mipmap)
 		{
+#ifdef GL_VERSION_ES_CM_1_0
+			R_qglTexImage2D (0, internalFormat, scaled_width, scaled_height, data);
+#else
 			qglTexImage2D (GL_TEXTURE_2D, 0, internalFormat, scaled_width, scaled_height, 0, temp_GLformat, temp_GLtype, data);
+#endif
 			*pUploadWidth = scaled_width;
 			*pUploadHeight = scaled_height;
 			*format = internalFormat;
@@ -1704,8 +1779,11 @@ static void Upload32( unsigned *data,
 	*pUploadHeight = scaled_height;
 	*format = internalFormat;
 
+#ifndef GL_VERSION_ES_CM_1_0
 	qglTexImage2D (GL_TEXTURE_2D, 0, internalFormat, scaled_width, scaled_height, 0, temp_GLformat, temp_GLtype, scaledBuffer );
-
+#else
+	R_qglTexImage2D (0, internalFormat, scaled_width, scaled_height, scaledBuffer);
+#endif
 
 
 	if (mipmap)
@@ -1733,8 +1811,11 @@ static void Upload32( unsigned *data,
 				R_BlendToGray( (byte *)scaledBuffer, scaled_width * scaled_height, miplevel );
 			}
 
-		
+#ifndef GL_VERSION_ES_CM_1_0		
 			qglTexImage2D (GL_TEXTURE_2D, miplevel, internalFormat, scaled_width, scaled_height, 0, temp_GLformat, temp_GLtype, scaledBuffer );
+#else
+			R_qglTexImage2D (miplevel, internalFormat, scaled_width, scaled_height, scaledBuffer);
+#endif
 		}
 	}
 done:
@@ -1759,6 +1840,7 @@ done:
 		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
 	}
 
+#ifndef GL_VERSION_ES_CM_1_0
 	if (depthimage) {
 		glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
 		glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
@@ -1771,6 +1853,7 @@ done:
 		qglTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST );
 		qglTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST );
 		}
+#endif
 	GL_CheckErrors();
 
 	if ( scaledBuffer != 0 )
@@ -1790,6 +1873,7 @@ static void Upload8( unsigned *data,
 						  int *format, 
 						  int *pUploadWidth, int *pUploadHeight  )
 {
+#ifndef GL_VERSION_ES_CM_1_0			// GLES1 doesn't know what a palette is.
 	int			samples;
 	unsigned	*scaledBuffer = NULL;
 	unsigned	*resampledBuffer = NULL;
@@ -2096,6 +2180,7 @@ done:
 		ri.Hunk_FreeTempMemory( resampledBuffer );
 	if ( palettedBuffer != 0 )
 		ri.Hunk_FreeTempMemory( palettedBuffer );
+#endif
 }
 
 //
@@ -2164,6 +2249,7 @@ image_t *R_CreateImage( const char *name, byte *pic, int width, int height,
 
 	GL_Bind(image);
 
+#ifndef GL_VERSION_ES_CM_1_0			// GLES1 doesn't know palettes
 	if (paletteavailable && r_texturebits->integer == 8 && !isLightmap && !depthimage && !force32upload)
 	Upload8( (unsigned *)pic, image->width, image->height, 
 								image->flags & IMGFLAG_MIPMAP,
@@ -2174,6 +2260,7 @@ image_t *R_CreateImage( const char *name, byte *pic, int width, int height,
 								&image->uploadHeight );
 
 	else
+#endif
 	Upload32( (unsigned *)pic, image->width, image->height, 
 								image->flags & IMGFLAG_MIPMAP,
 								image->flags & IMGFLAG_PICMIP,
@@ -2650,7 +2737,9 @@ static void R_CreateFogImage( void ) {
 	borderColor[2] = 1.0;
 	borderColor[3] = 1;
 
+#ifndef GL_VERSION_ES_CM_1_0
 	qglTexParameterfv( GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, borderColor );
+#endif
 	force32upload = 0;		// leilei - paletted fog fix
 }
 
@@ -2834,9 +2923,10 @@ void	R_InitImages( void ) {
 	R_SetColorMappings();
 
 	// leilei - paletted texture support
+#ifndef GL_VERSION_ES_CM_1_0		// GLES1 thinks it's too good for palettes
 	if (r_texturebits->integer == 8)
 	R_InitPalette();
-
+#endif
 	// create default texture and white texture
 	R_CreateBuiltinImages();
 }

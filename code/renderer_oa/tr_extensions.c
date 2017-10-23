@@ -2,10 +2,19 @@
     based on OpenArena 0.8.8's sdl_glimp.c changes. */
 
 // tr_extensions.c - extensions needed by the renderer not in sdl_glimp.c
+
+#ifdef USE_GLES
+#	include <GLES/gl.h>
+#	include <GLES/glext.h>
+typedef GLchar GLcharARB;
+typedef double GLdouble;
+typedef unsigned int GLhandleARB;
+#else
 #ifdef USE_LOCAL_HEADERS
 #  include "SDL.h"
 #else
 #  include <SDL.h>
+#endif
 #endif
 
 #include "tr_local.h"
