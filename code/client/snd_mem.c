@@ -98,6 +98,8 @@ void SND_setup(void) {
 	freelist = p + scs - 1;
 
 	Com_Printf("Sound memory manager started\n");
+
+	totalInUse = 0; 		//leilei - reset this number so it doesn't inflate for every restart
 }
 
 void SND_shutdown(void)
@@ -130,6 +132,62 @@ static int ResampleSfx( sfx_t *sfx, int channels, int inrate, int inwidth, int s
 	fracstep = stepscale * 256 * channels;
 	chunk = sfx->soundData;
 
+		for (i=0 ; i<outcount ; i++)
+		{
+			srcsample = samplefrac >> 8;
+			samplefrac += fracstep;
+			for (j=0 ; j<channels ; j++)
+			{
+				if( inwidth == 2 ) {
+					sample = ( ((short *)data)[srcsample+j] );
+				} else {
+					sample = (int)( (unsigned char)(data[srcsample+j]) - 128) << 8;
+				}
+				part = (i*channels+j)&(SND_CHUNK_SIZE-1);
+				if (part == 0) {
+					sndBuffer	*newchunk;
+					newchunk = SND_malloc();
+					if (chunk == NULL) {
+						sfx->soundData = newchunk;
+					} else {
+						chunk->next = newchunk;
+					}
+					chunk = newchunk;
+				}
+					chunk->sndChunk[part] = sample;
+			}
+		}
+	
+	
+
+	return outcount;
+}
+
+/*
+================
+ResampleSfx8
+
+resample / decimate to the current source rate, while also decimating to 8-bit PCM (fast sound path)
+================
+*/
+#if sucks
+static int ResampleSfx8( sfx_t *sfx, int channels, int inrate, int inwidth, int samples, byte *data, qboolean compressed ) {
+	int		outcount;
+	int		srcsample;
+	float	stepscale;
+	int		i, j;
+	int		sample, samplefrac, fracstep;
+	int			part;
+	sndBuffer	*chunk;
+	
+	stepscale = (float)inrate / dma.speed;	// this is usually 0.5, 1, or 2
+
+	outcount = samples / stepscale;
+
+	samplefrac = 0;
+	fracstep = stepscale * 256 * channels;
+	chunk = sfx->soundData;
+	
 	for (i=0 ; i<outcount ; i++)
 	{
 		srcsample = samplefrac >> 8;
@@ -152,13 +210,22 @@ static int ResampleSfx( sfx_t *sfx, int channels, int inrate, int inwidth, int s
 				}
 				chunk = newchunk;
 			}
+			if (inwidth == 2)		// 16-to-8?
+				chunk->sndChunk[part] = sample;
+			else				// hope 8-bit goes through as 8-bit
+				chunk->sndChunk[part] = sample;
 
-			chunk->sndChunk[part] = sample;
+			//	((signed char *)sc->data)[i] = sample >> 8;
+			//chunk->sndChunk[part] = sample;
 		}
 	}
+		Com_DPrintf(S_COLOR_YELLOW "Hopefully %s is 8-bit now\n", sfx->soundName);
+	
+	
 
 	return outcount;
 }
+#endif
 
 /*
 ================
@@ -213,6 +280,7 @@ qboolean S_LoadSound( sfx_t *sfx )
 	byte	*data;
 	short	*samples;
 	snd_info_t	info;
+	int 	eightbit = 0;
 //	int		size;
 
 	// load it in
@@ -220,6 +288,18 @@ qboolean S_LoadSound( sfx_t *sfx )
 	if(!data)
 		return qfalse;
 
+	// leilei - sound compression stuff
+
+	if (s_compression->integer == 2 && (dma.speed <= 22050))	// load as 4-bit ADPCM 
+	{					// FIXME: LEAK+crash when s_Sdlspeed is >22050 with this set, so only allow for 22khz and lower
+		sfx->soundCompressed = qtrue;
+	}
+#if sucks
+	else	if (s_compression->integer == 1 && sfx->soundCompressed == qfalse)	// load as 8-bit PCM 
+	{
+		eightbit = 1;
+	}
+#endif
 	// leilei - don't be so paranoid about these
 #if 	0
 	if ( info.width == 1 ) {
@@ -256,6 +336,12 @@ qboolean S_LoadSound( sfx_t *sfx )
 		sfx->soundData = NULL;
 		sfx->soundLength = ResampleSfxRaw( samples, info.channels, info.rate, info.width, info.samples, (data + info.dataofs) );
 		encodeWavelet( sfx, samples);
+#endif
+#if sucks
+	} else if (eightbit) {
+		sfx->soundCompressionMethod = 4;
+		sfx->soundData = NULL;
+		sfx->soundLength = ResampleSfx8( sfx, info.channels, info.rate, info.width, info.samples, data + info.dataofs, qfalse );
 #endif
 	} else {
 		sfx->soundCompressionMethod = 0;

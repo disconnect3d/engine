@@ -198,8 +198,11 @@ extern cvar_t *s_volume;
 extern cvar_t *s_musicVolume;
 extern cvar_t *s_muted;
 extern cvar_t *s_doppler;
+extern cvar_t *s_defaultSound;
 
 extern cvar_t *s_testsound;
+
+extern cvar_t *s_compression;	// leilei - sound compression
 
 qboolean S_LoadSound( sfx_t *sfx );
 
@@ -254,3 +257,4 @@ typedef enum
 typedef int srcHandle_t;
 
 qboolean S_AL_Init( soundInterface_t *si );
+

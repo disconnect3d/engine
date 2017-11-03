@@ -27,12 +27,15 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include <altivec.h>
 #endif
 
+int		snd_scaletable[32][256];
+
 static portable_samplepair_t paintbuffer[PAINTBUFFER_SIZE];
 static int snd_vol;
 
 int*     snd_p;  
 int      snd_linear_count;
 short*   snd_out;
+
 
 #if	!id386                                        // if configured not to use asm
 
@@ -225,6 +228,114 @@ CHANNEL MIXING
 
 ===============================================================================
 */
+
+// TODO: Restore assembly version
+
+void S_InitScaletable (void)
+{
+	int		i, j;
+	int		scale;
+
+	//s_volume->modified = false;
+	for (i=0 ; i<32 ; i++)
+	{
+		scale = i * 8 * 256 * s_volume->value;
+		for (j=0 ; j<256 ; j++)
+			snd_scaletable[i][j] = ((signed char)j) * scale;
+	}
+}
+
+//	leilei - 8-bit painting version with less floaty
+#if sucks
+static void S_PaintChannelFrom8 ( channel_t *ch, const sfx_t *sc, int count, int sampleOffset, int bufferOffset ) {
+	int						data, aoff, boff;
+	int						leftvol, rightvol;
+	int						i, j;
+	portable_samplepair_t	*samp;
+	sndBuffer				*chunk;
+	short					*samples;
+	float					ooff;
+	int		idata[2];
+	int		*lscale, *rscale;
+
+	samp = &paintbuffer[ bufferOffset ];
+
+	if (ch->doppler) {
+		sampleOffset = sampleOffset*ch->oldDopplerScale;
+	}
+
+	if ( sc->soundChannels == 2 ) {
+		sampleOffset *= sc->soundChannels;
+
+		if ( sampleOffset & 1 ) {
+			sampleOffset &= ~1;
+		}
+	}
+
+	chunk = sc->soundData;
+	while (sampleOffset>=SND_CHUNK_SIZE) {
+		chunk = chunk->next;
+		sampleOffset -= SND_CHUNK_SIZE;
+		if (!chunk) {
+			chunk = sc->soundData;
+		}
+	}
+
+	if (ch->leftvol > 255)
+		ch->leftvol = 255;
+	if (ch->rightvol > 255)
+		ch->rightvol = 255;
+
+//	Com_Printf("PaintChannelFrom8: \n", sc->soundName);
+
+	// don't doppler for now
+
+	{
+		lscale = snd_scaletable[ ch->leftvol >> 3];
+		rscale = snd_scaletable[ ch->rightvol >> 3];
+
+		ooff = sampleOffset;
+		samples = chunk->sndChunk;
+		
+			data = (int)samples;
+
+
+		for ( i=0 ; i<count ; i++ ) {
+
+			aoff = ooff;
+			ooff = ooff + ch->dopplerScale * sc->soundChannels;
+			boff = ooff;
+			idata[0] = idata[1] = 0;
+			for (j=aoff; j<boff; j += sc->soundChannels) {
+				if (j == SND_CHUNK_SIZE) {
+					chunk = chunk->next;
+					if (!chunk) {
+						chunk = sc->soundData;
+					}
+					samples = chunk->sndChunk;
+					ooff -= SND_CHUNK_SIZE;
+				}
+				if ( sc->soundChannels == 2 ) {
+					idata[0] += lscale[data];
+					idata[1] += rscale[data];
+				} else {
+					idata[0] += lscale[data];
+					idata[1] += rscale[data];
+					//fdata[0] += samples[j&(SND_CHUNK_SIZE-1)];
+					//fdata[1] += samples[j&(SND_CHUNK_SIZE-1)];
+				}
+			}
+			//	fdiv = 256 * (boff-aoff) / sc->soundChannels;
+			samp[i].left += lscale[idata[0]] << 8;
+			samp[i].right += rscale[idata[1]] << 8;
+
+		}
+	}
+
+
+
+}
+#endif
 
 #if idppc_altivec
 static void S_PaintChannelFrom16_altivec( channel_t *ch, const sfx_t *sc, int count, int sampleOffset, int bufferOffset ) {
@@ -724,6 +835,10 @@ void S_PaintChannels( int endtime ) {
 					S_PaintChannelFromWavelet	(ch, sc, count, sampleOffset, ltime - s_paintedtime);
 				} else if( sc->soundCompressionMethod == 3) {
 					S_PaintChannelFromMuLaw	(ch, sc, count, sampleOffset, ltime - s_paintedtime);
+#if sucks
+				} else if( sc->soundCompressionMethod == 4) {
+					S_PaintChannelFrom8		(ch, sc, count, sampleOffset, ltime - s_paintedtime);
+#endif
 				} else {
 					S_PaintChannelFrom16		(ch, sc, count, sampleOffset, ltime - s_paintedtime);
 				}
@@ -761,6 +876,10 @@ void S_PaintChannels( int endtime ) {
 						S_PaintChannelFromWavelet	(ch, sc, count, sampleOffset, ltime - s_paintedtime);
 					} else if( sc->soundCompressionMethod == 3) {
 						S_PaintChannelFromMuLaw		(ch, sc, count, sampleOffset, ltime - s_paintedtime);
+#if sucks
+					} else if( sc->soundCompressionMethod == 4) {
+						S_PaintChannelFrom8		(ch, sc, count, sampleOffset, ltime - s_paintedtime);
+#endif
 					} else {
 						S_PaintChannelFrom16		(ch, sc, count, sampleOffset, ltime - s_paintedtime);
 					}

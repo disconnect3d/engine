@@ -39,6 +39,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 void S_Update_( void );
 void S_Base_StopAllSounds(void);
 void S_Base_StopBackgroundTrack( void );
+extern void S_InitScaletable (void);
 
 snd_stream_t	*s_backgroundStream = NULL;
 static char		s_backgroundLoop[MAX_QPATH];
@@ -164,13 +165,14 @@ void S_Base_SoundList( void ) {
 	int		i;
 	sfx_t	*sfx;
 	int		size, total;
-	char	type[4][16];
+	char	type[5][16];
 	char	mem[2][16];
 
 	strcpy(type[0], "16bit");
 	strcpy(type[1], "adpcm");
 	strcpy(type[2], "daub4");
 	strcpy(type[3], "mulaw");
+	strcpy(type[4], "8bit ");
 	strcpy(mem[0], "paged out");
 	strcpy(mem[1], "resident ");
 	total = 0;
@@ -323,16 +325,28 @@ S_DefaultSound
 */
 void S_DefaultSound( sfx_t *sfx ) {
 	
-	int		i;
+	int		i, w;
 
 	sfx->soundLength = 512;
+	//sfx->soundLength = 2048;	// leilei - need it this long but it crashes :(
 	sfx->soundData = SND_malloc();
 	sfx->soundData->next = NULL;
 
 
-	for ( i = 0 ; i < sfx->soundLength ; i++ ) {
-		sfx->soundData->sndChunk[i] = i;
+//	for ( i = 0 ; i < sfx->soundLength ; i++ ) {
+//		//sfx->soundData->sndChunk[i] = i;
+//		sfx->soundData->sndChunk[i] = i;
+//
+//	}
+
+	// leilei - make a sawtooth 
+	for ( i = 0 ; i < sfx->soundLength ; i+=512 ) {
+		for ( w = 0 ; w < 512 ; w++ )
+			{	
+				sfx->soundData->sndChunk[i+w] = (w - abs(w % (512) - 512))<<4;
+			}
 	}
+
 }
 
 /*
@@ -405,7 +419,20 @@ void S_Base_BeginRegistration( void ) {
 		Com_Memset(s_knownSfx, '\0', sizeof(s_knownSfx));
 		Com_Memset(sfxHash, '\0', sizeof(sfx_t *) * LOOP_HASH);
 
-		S_Base_RegisterSound("sound/misc/silence.wav", qfalse);		// changed to a sound in baseoa
+
+		if (s_defaultSound->integer == 3)	// OA behavior (silence)
+		S_Base_RegisterSound("sound/misc/silence.wav", qfalse);	
+		else if (s_defaultSound->integer == 2)	// Q3 1.25+ behavior
+		S_Base_RegisterSound("sound/feedback/hit.wav", qfalse);		
+		else if (s_defaultSound->integer == 1)	// Q3 1.09 behavior
+		S_Base_RegisterSound("sound/misc/menu1.wav", qfalse);		// OA3 doesn't have menu1
+		else			// Q3Test + Q3 1.11 behavior.
+		{
+		S_FindName( "***DEFAULT***" );
+		S_Base_RegisterSound("sound/feedback/hit.wav", qfalse);	
+
+		S_DefaultSound( &s_knownSfx[0] );
+		}
 	}
 }
 
@@ -1239,6 +1266,10 @@ void S_Base_Update( void ) {
 		Com_Printf ("----(%i)---- painted: %i\n", total, s_paintedtime);
 	}
 
+	// rebuild scale tables if volume is modified
+	if (s_volume->modified)
+		S_InitScaletable ();
+
 	// add raw data from streamed samples
 	S_UpdateBackgroundTrack();
 
@@ -1597,10 +1628,13 @@ qboolean S_Base_Init( soundInterface_t *si ) {
 		s_soundtime = 0;
 		s_paintedtime = 0;
 
+		S_InitScaletable ();
+
 		S_Base_StopAllSounds( );
 	} else {
 		return qfalse;
 	}
+
 
 	si->Shutdown = S_Base_Shutdown;
 	si->StartSound = S_Base_StartSound;
