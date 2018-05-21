@@ -190,7 +190,9 @@ typedef enum {
 	CGEN_FOG,				// standard fog
 	CGEN_CONST,				// fixed color
 	CGEN_VERTEX_LIT,			// leilei - tess.vertexColors * tr.identityLight * ambientlight*directlight
-	CGEN_LIGHTING_DIFFUSE_SPECULAR		// leilei - LIGHTING_DIFFUSE, capped by specular exponent
+	CGEN_LIGHTING_DIFFUSE_SPECULAR,		// leilei - LIGHTING_DIFFUSE, capped by specular exponent
+	CGEN_LIGHTING_SPECULAR,			// leilei - specular only
+	CGEN_LIGHTING_SPECULAR_COLOR		// leilei - specular only, but with direct color
 } colorGen_t;
 
 typedef enum {
@@ -2202,6 +2204,8 @@ void	RB_CalcDiffuseColor_Specular( unsigned char *colors );	// leilei - specular
 void	RB_CalcFlatAmbient( unsigned char *colors ); // leilei - cel hack
 void	RB_CalcFlatDirect( unsigned char *colors ); // leilei - cel hack
 void	RB_CalcNormal( unsigned char *colors ); // leilei - normal hack
+void	RB_CalcSpecular( unsigned char *colors ); // leilei - specular hack
+void	RB_CalcSpecularColor( unsigned char *colors, int usecolor ); // leilei - specular hack
 
 /*
 =============================================================

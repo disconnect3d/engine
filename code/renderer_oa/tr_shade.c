@@ -1279,6 +1279,21 @@ static void ComputeColors( shaderStage_t *pStage )
 				}
 			}
 			break;
+		case CGEN_LIGHTING_SPECULAR:		// leilei - specular hack
+			if (pStage->isLeiShade){
+				break;	// we should feed the specular elsewhere
+			}
+			RB_CalcSpecular( ( unsigned char * ) tess.svars.colors );
+			// mono lightmaps don't matter for this one
+			break;
+		case CGEN_LIGHTING_SPECULAR_COLOR:	// leilei - specular hack
+			if (pStage->isLeiShade){
+				break;	// we should feed the specular elsewhere
+			}
+			RB_CalcSpecularColor( ( unsigned char * ) tess.svars.colors, 1 );
+			// mono lightmaps don't matter for this one
+			break;
+
 	}
 
 	// leilei PowerVR Hack

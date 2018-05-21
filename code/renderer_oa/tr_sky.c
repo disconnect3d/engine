@@ -705,6 +705,7 @@ void RB_DrawSun( void ) {
 	if ( !backEnd.skyRenderedThisView ) {
 		return;
 	}
+	// TODO: Add a sun check for sky shaders explicitly requesting for the sun, to keep compatibility with sun-less skies.
 	if ( !r_drawSun->integer ) {
 		return;
 	}

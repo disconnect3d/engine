@@ -1643,16 +1643,7 @@ const void	*RB_SwapBuffers( const void *data ) {
 
 	}
 
-
-	if (r_motionblur->integer == 1){
-		RB_DrawAccumBlur ();
-
-	}
-
-	
-
 	R_BrightScreen();		// leilei - alternate brightness - do it here so we hit evereything that represents our video buffer
-
 	R_RetroAAScreen();		// leilei - then apply 'anti aliasing' (hint: IT'S NOT really antialiasing)
 	R_PaletteScreen();		// leilei - then we palette our overbrighted antialiased screen.
 	R_NTSCScreen();			// leilei - then we get it through a DAC, degrading our precious VGA signals 

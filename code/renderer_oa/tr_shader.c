@@ -2654,6 +2654,14 @@ static qboolean ParseStage( shaderStage_t *stage, char **text )
 			{
 				stage->rgbGen = CGEN_LIGHTING_DIFFUSE;
 			}
+			else if ( !Q_stricmp( token, "lightingSpecular" ) )
+			{
+				stage->rgbGen = CGEN_LIGHTING_SPECULAR_COLOR;
+			}
+			else if ( !Q_stricmp( token, "specular" ) )
+			{
+				stage->rgbGen = CGEN_LIGHTING_SPECULAR;
+			}
 			else if ( !Q_stricmp( token, "lightingUniform" ) )
 			{
 				stage->rgbGen = CGEN_LIGHTING_UNIFORM;
@@ -4972,6 +4980,7 @@ static shader_t *FinishShader( void ) {
 
 		// leilei - force new phong on lightdiffuse and lightdiffusespecular models
 		// FIXME: Intel HD doesn't like this.
+		// ALSO FIXME: Make this only happen when we definitely have vertex shaders working and enabled so we don't see models turning into glowing normals
 		if ((r_modelshader->integer) && (pStage->isGLSL==0) && (r_ext_vertex_shader->integer) && ((pStage->rgbGen == CGEN_LIGHTING_DIFFUSE) || (pStage->rgbGen == CGEN_LIGHTING_DIFFUSE_SPECULAR)))
 		{
 			pStage->program = RE_GLSL_RegisterProgram("leishade", "glsl/leishade_vp.glsl", 1, "glsl/leishade_fp.glsl", 1);

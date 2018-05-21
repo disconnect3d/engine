@@ -387,12 +387,13 @@ static int GLimp_SetMode(int mode, qboolean fullscreen, qboolean noborder)
 		SDL_GL_SetAttribute( SDL_GL_DEPTH_SIZE, tdepthbits );
 		SDL_GL_SetAttribute( SDL_GL_STENCIL_SIZE, tstencilbits );
 
-		// leilei - accumulation buffer motion blur
+		// leilei - accumulation buffer motion blur	
+		/*
 		SDL_GL_SetAttribute( SDL_GL_ACCUM_RED_SIZE,   accumbits );
 		SDL_GL_SetAttribute( SDL_GL_ACCUM_GREEN_SIZE, accumbits );
 		SDL_GL_SetAttribute( SDL_GL_ACCUM_BLUE_SIZE,  accumbits );
 		SDL_GL_SetAttribute( SDL_GL_ACCUM_ALPHA_SIZE, accumbits );
-
+		*/
 		SDL_GL_SetAttribute( SDL_GL_MULTISAMPLEBUFFERS, samples ? 1 : 0 );
 		SDL_GL_SetAttribute( SDL_GL_MULTISAMPLESAMPLES, samples );
 

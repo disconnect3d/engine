@@ -1760,139 +1760,6 @@ void RB_CalcNormal( unsigned char *colors )
 
 
 
-void RB_CalcDiffuseColor_Specular( unsigned char *colors )
-{
-	int				i, j;
-	int 		speccap = 0;
-	float		spec;
-	float			*v, *normal;
-	float			incoming;
-	trRefEntity_t	*ent;
-	int				ambientLightInt;
-	vec3_t			ambientLight;
-	vec3_t			lightDir;
-	vec3_t			directedLight;
-	vec3_t			specularLight;
-	int				numVertexes;
-	int 	shadecap = 200; // was 127
-	ent = backEnd.currentEntity;
-	ambientLightInt = ent->ambientLightInt;
-	VectorCopy( ent->ambientLight, ambientLight );
-	VectorCopy( ent->directedLight, directedLight );
-
-	VectorCopy( ent->directedLight, specularLight );
-	VectorAdd( ent->ambientLight, directedLight, directedLight );
-	VectorCopy( ent->lightDir, lightDir );
-
-	// averaging colors test
-/*
-	{
-		int rf;
-		for (rf=0;rf<3;rf++){
-			//directedLight[rf] = ambientLight[rf] + directedLight[rf] / 2;
-			//ambientLight[rf] = pow((ambientLight[rf] / 255), (directedLight[rf] / 255)) * 255;
-			specularLight[rf] -= ambientLight[rf];
-			ambientLight[rf] = ambientLight[rf] + ambientLight[rf] + (directedLight[rf] / 512);
-
-
-			//shadecap += directedLight[rf];
-			if (specularLight[rf] < 0) specularLight[rf] = 0;
-			if (ambientLight[rf] > 255) ambientLight[rf] = 255;
-
-			}
-		//shadecap /= 3;
-
-			ambientLightInt *= 1.5;			
-
-	}
-*/
-	v = tess.xyz[0];
-	normal = tess.normal[0];
-
-	numVertexes = tess.numVertexes;
-	for (i = 0 ; i < numVertexes ; i++, v += 4, normal += 4) {
-		incoming = DotProduct (normal, lightDir);
-	
-		if ( incoming <= 0 ) {
-			*(int *)&colors[i*4] = ambientLightInt;
-			continue;
-		} 
-			
-
-		// Specular
-		
-		{
-			float ilength;
-			int b;
-			vec3_t		viewer,  reflected;
-			float		l, d;
-		//	int			b;
-	
-			VectorCopy( backEnd.currentEntity->lightDir, lightDir );
-			VectorNormalizeFast( lightDir );
-	
-			// calculate the specular color
-			d = DotProduct (normal, lightDir);
-	
-			// we don't optimize for the d < 0 case since this tends to
-			// cause visual artifacts such as faceted "snapping"
-			reflected[0] = normal[0]*2*d - lightDir[0];
-			reflected[1] = normal[1]*2*d - lightDir[1];
-			reflected[2] = normal[2]*2*d - lightDir[2];
-	
-			VectorSubtract (backEnd.or.viewOrigin, v, viewer);
-			ilength = Q_rsqrt( DotProduct( viewer, viewer ) );
-			l = DotProduct (reflected, viewer);
-			l *= ilength;
-	
-			if (l < 0) {
-				spec = 0;
-			} else {
-				l = l*l;
-				l = l*l;
-				spec = l * 2.2f;
-				if (spec > 1) 	spec = 1;
-			}
-		//	specularLight[0] += spec;
-		//	specularLight[1] += spec;
-		//	specularLight[2] += spec;
-
-		//	if (specularLight[0] < shadecap) specularLight[0] = 0;
-		//	if (specularLight[1] < shadecap) specularLight[1] = 0;
-		//	if (specularLight[2] < shadecap) specularLight[2] = 0;
-
-		//	if (specularLight[0]) specularLight[0] = 255;
-		//	if (specularLight[1]) 			specularLight[1] = 255;
-		//	if (specularLight[2]) specularLight[2] = 255;
-		}
-
-		j = ri.ftol(ambientLight[0] + incoming * directedLight[0]);
-		if ( j > shadecap ) {j = shadecap ; j += ri.ftol(spec * specularLight[0]); }
-		
-	//	j += specularLight[0];
-		if ( j > 255) j = 255;
-		colors[i*4+0] = j;
-
-		j = ri.ftol(ambientLight[1] + incoming * directedLight[1]);
-		if ( j > shadecap ) { j = shadecap ; 		j += ri.ftol(spec * specularLight[1]); }
-
-	//	j += specularLight[1];
-		if ( j > 255) j = 255;
-
-
-		colors[i*4+1] = j;
-
-		j = ri.ftol(ambientLight[2] + incoming * directedLight[2]);
-		if ( j > shadecap ) {j = shadecap ; 		j += ri.ftol(spec * specularLight[2]); }
-
-	//	j += specularLight[2];
-		if ( j > 255) j = 255;
-		colors[i*4+2] = j;
-
-		colors[i*4+3] = 255;
-	}
-}
-
 
 
 void RB_CalcDiffuseColor( unsigned char *colors )
@@ -1911,6 +1778,14 @@ void RB_CalcDiffuseColor( unsigned char *colors )
 
 
 }
+
+
+void RB_CalcDiffuseColor_Specular( unsigned char *colors )
+{
+	// this sucked, so use this regular lightdiffuse
+	RB_CalcDiffuseColor_scalar( colors );
+}
+
 
 /*
 ** RB_CalcUniformColor
@@ -2088,8 +1963,115 @@ void RB_CalcFlatDirect( unsigned char *colors )
 	}
 }
 
+//
+//	Specular RGB for additive-only stages
+//
 
+void RB_CalcSpecularColor( unsigned char *colors, int usecolor )
+{
+int			i;
+	float		*v, *normal;
+	vec3_t		viewer,  reflected;
+	float		l, d;
+	int			b;
+	trRefEntity_t	*ent;
+	vec3_t		lightDir;
+	int			numVertexes;
+	vec3_t			directedLight;
 
+	v = tess.xyz[0];
+	normal = tess.normal[0];
+	if (usecolor)
+	{
+		int				ambientLightInt;
+		vec3_t			ambientLight;
+		vec3_t			lightDir;
+		int				numVertexes;
+		ent = backEnd.currentEntity;
+		ambientLightInt = ent->ambientLightInt;
+		VectorCopy( ent->ambientLight, ambientLight );
+		VectorCopy( ent->directedLight, directedLight );
+		
+	
+	
+		directedLight[0] -= ambientLight[0];
+		directedLight[1] -= ambientLight[1];
+		directedLight[2] -= ambientLight[2];
+	
+		if (directedLight[0] < 0) directedLight[0] = 0;	
+		if (directedLight[1] < 0) directedLight[1] = 0;
+		if (directedLight[2] < 0) directedLight[2] = 0;
+
+	}
+
+	numVertexes = tess.numVertexes;
+	for (i = 0 ; i < numVertexes ; i++, v += 4, normal += 4) {
+		float ilength;
+
+		VectorCopy( backEnd.currentEntity->lightDir, lightDir );
+
+		VectorNormalizeFast( lightDir );
+
+		// calculate the specular color
+		d = DotProduct (normal, lightDir);
+
+		// we don't optimize for the d < 0 case since this tends to
+		// cause visual artifacts such as faceted "snapping"
+		reflected[0] = normal[0]*2*d - lightDir[0];
+		reflected[1] = normal[1]*2*d - lightDir[1];
+		reflected[2] = normal[2]*2*d - lightDir[2];
+
+		VectorSubtract (backEnd.or.viewOrigin, v, viewer);
+		ilength = Q_rsqrt( DotProduct( viewer, viewer ) );
+		l = DotProduct (reflected, viewer);
+		l *= ilength;
+
+		if (l < 0) {
+			b = 0;
+		} else {
+			l = l*l;
+			l = l*l;
+			b = l * 255;
+			if (b > 255) {
+				b = 255;
+			}
+		}
+		// instead of the alpha, let's drop it on the colors
+		if (usecolor)	
+		{
+			float bah = (b / 255.0f);
+		int j;
+			j = ri.ftol(directedLight[0]);
+			if ( j > 255 ) {
+				j = 255;
+			}
+			colors[i*4+0] = j*bah;
+	
+			j = ri.ftol(directedLight[1]);
+			if ( j > 255 ) {
+				j = 255;
+			}
+			colors[i*4+1] = j*bah;
+	
+			j = ri.ftol(directedLight[2]);
+			if ( j > 255 ) {
+				j = 255;
+			}
+			colors[i*4+2] = j*bah;
+		}
+		else
+		{
+			colors[i*4+0] = b;
+			colors[i*4+1] = b;
+			colors[i*4+2] = b;
+		}
+	}
+}
+
+void RB_CalcSpecular( unsigned char *colors )
+{
+	RB_CalcSpecularColor( colors, 0 );
+}
 
 
 
