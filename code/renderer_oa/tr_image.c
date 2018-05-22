@@ -1055,7 +1055,7 @@ leilei - Tries to fade mips to gray for detail texture pattern artifact stomping
 ==================
 */
 
-static void R_BlendToGray( byte *data, int pixelCount, int fadeto) {
+static void R_BlendToGray( byte *data, int pixelCount, int fadeto, int toblack) {
 	int		i, j;
 	float 		gary = 127 * 0.5;
 	float		blended;
@@ -1079,16 +1079,24 @@ static void R_BlendToGray( byte *data, int pixelCount, int fadeto) {
 
 	for ( i = 0 ; i < pixelCount ; i++, data+=4 ) {
 		for(j=0;j<3;j++){
-		
+			if (toblack)
+			blended = (data[j] * alphed) + (0 * alpher);
+			else
 			blended = (data[j] * alphed) + (127 * alpher);
 			data[j] = (int)blended;
-			
+			if (alpher > 0.75) data[j+4]=0; // hack to give alpha channel to the lowest
 			}
 
 
 	}
 }
 
+
+static int dither2x2[2][2] =
+{
+	{ 4,  6,},
+	{ 7,  5 }
+};
 
 
 
@@ -1410,109 +1418,44 @@ static void Upload32( unsigned *data,
 
 	}
 
+	if (detailhack && r_detailTextureSub->integer)	// invert for subtractive
+	{
+			
+		for ( i = 0; i < c; i++ )
+			{
+				int eh;
+				for (eh=0;eh<3;eh++){
+					scan[i*4 + eh] = ((scan[i*4 + eh] * -1) + 255) * 1.0;
+					}
+			}
+	}
+
 
 	if(r_textureDither->integer)		// possibly the stupidest texture dithering ever
 	{
-#ifdef DONTEVENTHINKABOUTTHIS
-		int passes = r_textureDither->integer;
-		int that;
-		/* LEIFX FILTER C PORT PROTOTYPE SCRATCH AREA 
-			No vectors, only ints ints ints  			Obviously can be refactored with SSE */
-#define FILTCAP (0.075 * 255)
-#define FILTCAPG (FILTCAP / 2)
-		for (that=0;that<passes;that++){
-
-			for ( i = 0; i < c-1; i++ )
-			{
-				int ren;
-				int r1,g1,b1;	
-				int r2,g2,b2;	
-				int rd,gd,bd;	
-	
-			/*  Grab Pixels to Sample From */
-				r1 = scan[i*4]; 
-				g1 = scan[i*4+1]; 
-				b1 = scan[i*4+2]; 
-				
-				r2 = scan[(i+1)*4];
-				g2 = scan[(i+1)*4 + 1];
-				b2 = scan[(i+1)*4 + 2];
-	
-			/*  Find differences */
-	
-				rd = r2 - r1;
-				gd = g2 - g1;
-				bd = b2 - b1;
-	
-				if (rd > FILTCAP ) 	rd = FILTCAP;
-				if (gd > FILTCAPG) 	gd = FILTCAPG;
-				if (bd > FILTCAP ) 	bd = FILTCAP;
-	
-				if (rd < -FILTCAP ) 	rd = -FILTCAP;
-				if (gd < -FILTCAPG) 	gd = -FILTCAPG;
-				if (bd < -FILTCAP ) 	bd = -FILTCAP;
-	
-			/*  Add our Differences  */
-	
-				r1 += (rd/3);
-				g1 += (gd/3);
-				b1 += (bd/3);
-	
-			/*  Obligatory clamping part  */
-				if (r1 < 0) r1 = 0;
-				if (g1 < 0) g1 = 0;
-				if (b1 < 0) b1 = 0;
-		
-				if (r1 > 255) r1 = 255;
-				if (g1 > 255) g1 = 255;
-				if (b1 > 255) b1 = 255;
-	
-				if (r2 < 0) r2 = 0;
-				if (g2 < 0) g2 = 0;
-				if (b2 < 0) b2 = 0;
-		
-				if (r2 > 255) r2 = 255;
-				if (g2 > 255) g2 = 255;
-				if (b2 > 255) b2 = 255;
-	
-	
-	
-			/*  Put processed image back into the buffer  */
-				scan[i*4] = r1;
-				scan[i*4 + 1] = g1;
-				scan[i*4 + 2] =  b1;
-	
-			}
-	
-		}
-#endif
-		
 		for ( i = 0; i < c; i++ )
 		{
 			int ren = (crandom() * 4);
 			int rg,gg,bb;
-			rg = scan[i*4]; 
-			gg = scan[i*4+1]; 
-			bb = scan[i*4+2]; 
-			
-			//if ((rg / 64) != ceil(rg / 64))
-				rg = scan[i*4] + ren;
-			//if ((gg / 32) != ceil(gg / 32))
-				gg = scan[i*4 + 1] + (ren / 2);
-			//if ((bb / 64) != ceil(bb / 64))
-				bb = scan[i*4 + 2] + ren;
+			int ex, yy;
 
-		if (rg < 0) rg = 0;
-		if (gg < 0) gg = 0;
-		if (bb < 0) bb = 0;
+			ex = i&1;
+			yy = (i+1) &1;
+			rg = scan[i*4] - dither2x2[ex][yy]; 
+			gg = scan[i*4+1] - dither2x2[ex][yy]; 
+			bb = scan[i*4+2] - dither2x2[ex][yy]; 
 
-		if (rg > 255) rg = 255;
-		if (gg > 255) gg = 255;
-		if (bb > 255) bb = 255;
-
-		scan[i*4] = rg;
-		scan[i*4 + 1] = gg;
-		scan[i*4 + 2] =  bb;
+			if (rg < 0) rg = 0;
+			if (gg < 0) gg = 0;
+			if (bb < 0) bb = 0;
+	
+			if (rg > 255) rg = 255;
+			if (gg > 255) gg = 255;
+			if (bb > 255) bb = 255;
+	
+			scan[i*4] = rg;
+			scan[i*4 + 1] = gg;
+			scan[i*4 + 2] =  bb;
 		}
 		
 	}
@@ -1808,7 +1751,10 @@ static void Upload32( unsigned *data,
 
 			if (detailhack)		// leilei	- blend detail textures to gray to defeat pattern effects in distances
 			{
-				R_BlendToGray( (byte *)scaledBuffer, scaled_width * scaled_height, miplevel );
+				if (r_detailTextureSub->integer)
+				R_BlendToGray( (byte *)scaledBuffer, scaled_width * scaled_height, miplevel, 1 );
+				else
+				R_BlendToGray( (byte *)scaledBuffer, scaled_width * scaled_height, miplevel, 0 );
 			}
 
 #ifndef GL_VERSION_ES_CM_1_0		
@@ -2217,6 +2163,9 @@ image_t *R_CreateImage( const char *name, byte *pic, int width, int height,
 
 	image->type = type;
 	image->flags = flags;
+	if (detailhack && r_detailTextureSub->value)
+		image->flags = 0; // don't mip them
+
 
 	strcpy (image->imgName, name);
 

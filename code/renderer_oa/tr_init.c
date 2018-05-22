@@ -61,6 +61,7 @@ cvar_t	*r_detailTextures;
 cvar_t	*r_detailTextureScale;
 cvar_t	*r_detailTextureLayers;
 cvar_t	*r_detailTextureTMU;	// leilei - debug
+cvar_t	*r_detailTextureSub;	
 
 
 cvar_t	*r_znear;
@@ -1170,6 +1171,7 @@ void R_Register( void )
 	ri.Cvar_CheckRange( r_picmip, 0, 16, qtrue );
 	r_detailTextures = ri.Cvar_Get( "r_detailtextures", "1", CVAR_ARCHIVE | CVAR_LATCH );
 	r_detailTextureTMU = ri.Cvar_Get( "r_detailtextureTMU", "1", CVAR_ARCHIVE | CVAR_LATCH );
+	r_detailTextureSub = ri.Cvar_Get( "r_detailtextureSub", "0", CVAR_ARCHIVE | CVAR_LATCH );
 	r_texturebits = ri.Cvar_Get( "r_texturebits", "0", CVAR_ARCHIVE | CVAR_LATCH );
 	r_colorbits = ri.Cvar_Get( "r_colorbits", "0", CVAR_ARCHIVE | CVAR_LATCH );	// use desktop
 	r_stencilbits = ri.Cvar_Get( "r_stencilbits", "8", CVAR_ARCHIVE | CVAR_LATCH );

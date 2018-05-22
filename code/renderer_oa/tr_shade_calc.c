@@ -1978,6 +1978,7 @@ int			i;
 	vec3_t		lightDir;
 	int			numVertexes;
 	vec3_t			directedLight;
+	float	highest;
 
 	v = tess.xyz[0];
 	normal = tess.normal[0];
@@ -2003,6 +2004,9 @@ int			i;
 		if (directedLight[2] < 0) directedLight[2] = 0;
 
 	}
+	highest = (LUMA(backEnd.currentEntity->directedLight[0], 
+		backEnd.currentEntity->directedLight[1],
+		backEnd.currentEntity->directedLight[2])) / 3;
 
 	numVertexes = tess.numVertexes;
 	for (i = 0 ; i < numVertexes ; i++, v += 4, normal += 4) {
@@ -2031,7 +2035,7 @@ int			i;
 		} else {
 			l = l*l;
 			l = l*l;
-			b = l * 255;
+			b = (l * 255) *(highest);
 			if (b > 255) {
 				b = 255;
 			}
@@ -2075,6 +2079,59 @@ void RB_CalcSpecular( unsigned char *colors )
 
 
 
+
+//
+//	Detail fade
+//
+
+void RB_CalcDetailFade( unsigned char *colors)
+{
+	int			i;
+	float		*v, *normal;
+	vec3_t		viewer,  reflected;
+	float		l, d;
+	int			b;
+	trRefEntity_t	*ent;
+	vec3_t		lightDir;
+	int			numVertexes;
+	vec3_t			directedLight;
+
+	v = tess.xyz[0];
+	normal = tess.normal[0];
+
+	numVertexes = tess.numVertexes;
+	for (i = 0 ; i < numVertexes ; i++, v += 4, normal += 4) {
+				float len;
+				vec3_t v;
+
+				VectorSubtract( tess.xyz[i], backEnd.viewParms.or.origin, v );
+				len = VectorLength( v );
+
+				len /= 512;
+
+				if ( len < 0 )
+				{
+					b = 0;
+				}
+				else if ( len > 1 )
+				{
+					b = 0xff;
+				}
+				else
+				{
+					b= len * 0xff;
+				}
+		{
+			colors[i*4+0] = 255-b;
+			colors[i*4+1] = 255-b;
+			colors[i*4+2] = 255-b;
+			if (len < -0)
+			colors[i*4+3] = 0; // no alpha left, engage alphatest
+			else
+			colors[i*4+3] = 255; // all the alphas please
+		}
+	}
+}
 
 
 

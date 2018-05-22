@@ -2579,6 +2579,17 @@ static qboolean ParseStage( shaderStage_t *stage, char **text )
 				depthMaskBits = 0;
 			}
 
+			// leilei - if it's a detail tex and we're in subtraction mode, hijack the blend
+			if ( !Q_strncmp( stage->bundle[0].image[0], "textures/detail/", 16 )  || !Q_strncmp( stage->bundle[0].image[0], "gfx/fx/detail/", 14 ))  {
+				if (r_detailTextureSub->integer  )
+				{
+					blendSrcBits = GLS_SRCBLEND_ZERO;
+					blendDstBits = GLS_DSTBLEND_ONE_MINUS_SRC_COLOR;
+					atestBits = GLS_ATEST_GT_0;
+					stage->rgbGen = CGEN_DETAIL_FADE;
+				}
+			}
+
 
 		}
 		//
@@ -2853,6 +2864,16 @@ static qboolean ParseStage( shaderStage_t *stage, char **text )
 		}
 
 
+			// leilei - if it's a detail tex and we're in subtraction mode, hijack the blend
+			if ( !Q_strncmp( stage->bundle[0].image[0], "textures/detail/", 16 )  || !Q_strncmp( stage->bundle[0].image[0], "gfx/fx/detail/", 14 ))  {
+				if (r_detailTextureSub->integer  )
+				{
+					blendSrcBits = GLS_SRCBLEND_ZERO;
+					blendDstBits = GLS_DSTBLEND_ONE_MINUS_SRC_COLOR;
+					atestBits = GLS_ATEST_GT_0;
+					stage->rgbGen = CGEN_DETAIL_FADE;
+				}
+			}
 
 
 	// END DITHER TEST
@@ -3322,6 +3343,8 @@ qboolean ParseStageSimple( shaderStage_t *stage, char **text )
 		//
 		else if ( !Q_stricmp( token, "blendfunc" ) )
 		{
+
+
 			hackoperation = 0;
 			token = COM_ParseExt( text, qfalse );
 			if ( token[0] == 0 )
@@ -3364,7 +3387,6 @@ qboolean ParseStageSimple( shaderStage_t *stage, char **text )
 			{
 				depthMaskBits = 0;
 			}
-
 
 		}
 		//
@@ -5395,7 +5417,13 @@ shader_t *R_FindShaderReal( const char *name, int lightmapIndex, qboolean mipRaw
 							 	stages[thisstage].bundle[0].image[0] = R_FindImageFile( "gfx/fx/detail/d_generic.tga", IMGFLAG_MIPMAP , IMGFLAG_MIPMAP);
 								stages[thisstage].active = qtrue;
 								stages[thisstage].rgbGen = CGEN_IDENTITY;
+								if (r_detailTextureSub->integer){
+								stages[thisstage].stateBits |= GLS_SRCBLEND_ZERO | GLS_DSTBLEND_ONE_MINUS_SRC_COLOR | GLS_DEPTHFUNC_EQUAL | GLS_ATEST_GT_0;
+								stages[thisstage].rgbGen = CGEN_DETAIL_FADE;
+								}
+								else
 								stages[thisstage].stateBits |= GLS_SRCBLEND_DST_COLOR | GLS_DSTBLEND_SRC_COLOR | GLS_DEPTHFUNC_EQUAL;
+								//stages[thisstage].atestBits = GLS_ATEST_GT_0;
 								stages[thisstage].bundle[0].texMods[0].scale[0] = wi;
 								stages[thisstage].bundle[0].texMods[0].scale[1] = hi;
 								stages[thisstage].bundle[0].texMods[0].type = TMOD_SCALE;
@@ -5564,7 +5592,6 @@ shader_t *R_FindShaderReal( const char *name, int lightmapIndex, qboolean mipRaw
 		stages[1].active = qtrue;
 		stages[1].rgbGen = CGEN_IDENTITY;
 		stages[1].stateBits |= GLS_SRCBLEND_DST_COLOR | GLS_DSTBLEND_ZERO;
-
 			// detail
 			{
 			int f;
@@ -5582,6 +5609,13 @@ shader_t *R_FindShaderReal( const char *name, int lightmapIndex, qboolean mipRaw
 				stages[2+f].active = qtrue;
 				stages[2+f].rgbGen = CGEN_IDENTITY;
 				stages[2+f].stateBits |= GLS_SRCBLEND_DST_COLOR | GLS_DSTBLEND_SRC_COLOR;
+				if (r_detailTextureSub->integer){
+				stages[2+f].stateBits |= GLS_SRCBLEND_ZERO | GLS_DSTBLEND_ONE_MINUS_SRC_COLOR | GLS_ATEST_GT_0;
+				stages[2+f].rgbGen = CGEN_DETAIL_FADE;
+				}
+				else
+				stages[2+f].stateBits |= GLS_SRCBLEND_DST_COLOR | GLS_DSTBLEND_SRC_COLOR;
+
 
 				stages[2+f].bundle[0].texMods[0].scale[0] = wi;
 				stages[2+f].bundle[0].texMods[0].scale[1] = hi;

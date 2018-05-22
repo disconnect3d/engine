@@ -1293,6 +1293,9 @@ static void ComputeColors( shaderStage_t *pStage )
 			RB_CalcSpecularColor( ( unsigned char * ) tess.svars.colors, 1 );
 			// mono lightmaps don't matter for this one
 			break;
+		case CGEN_DETAIL_FADE:		// leilei - detail fade
+			RB_CalcDetailFade( ( unsigned char * ) tess.svars.colors);
+			break;
 
 	}
 

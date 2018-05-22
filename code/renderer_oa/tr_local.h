@@ -81,6 +81,18 @@ typedef struct {
 
 	// leilei - eyes
 	vec3_t		eyepos[2];			// looking from
+
+	// leilei - optimization attempt
+	int		lightTime;			// time since last lit
+	vec3_t		oldAmbientLight;	
+	vec3_t		oldLightDir;		
+	vec3_t		oldDirectedLight;
+	vec3_t		oldDynamicLight;
+
+	vec3_t		newAmbientLight;	
+	vec3_t		newLightDir;		
+	vec3_t		newDirectedLight;
+	vec3_t		newDynamicLight;
 } trRefEntity_t;
 
 
@@ -192,7 +204,8 @@ typedef enum {
 	CGEN_VERTEX_LIT,			// leilei - tess.vertexColors * tr.identityLight * ambientlight*directlight
 	CGEN_LIGHTING_DIFFUSE_SPECULAR,		// leilei - LIGHTING_DIFFUSE, capped by specular exponent
 	CGEN_LIGHTING_SPECULAR,			// leilei - specular only
-	CGEN_LIGHTING_SPECULAR_COLOR		// leilei - specular only, but with direct color
+	CGEN_LIGHTING_SPECULAR_COLOR,		// leilei - specular only, but with direct color
+	CGEN_DETAIL_FADE				// leilei - fade away detail from origin radius
 } colorGen_t;
 
 typedef enum {
@@ -1447,6 +1460,7 @@ extern	cvar_t	*r_lightmapBits;	// leilei - lightmap color depth
 extern  cvar_t	*r_detailTextureScale;		// leilei - scale tweak the detail textures, 0 doesn't tweak at all.
 extern  cvar_t	*r_detailTextureLayers;		// leilei - add in more smaller detail texture layers, expensive!
 extern  cvar_t	*r_detailTextureTMU;		// leilei - debug - hack to try to force detail textures on to the tmu with the lightmap
+extern  cvar_t	*r_detailTextureSub;		// leilei - experiment - force subtractive detail
 
 extern  cvar_t	*r_textureDither;		// leilei - apply dithering for lower texture bits
 
@@ -2206,6 +2220,7 @@ void	RB_CalcFlatDirect( unsigned char *colors ); // leilei - cel hack
 void	RB_CalcNormal( unsigned char *colors ); // leilei - normal hack
 void	RB_CalcSpecular( unsigned char *colors ); // leilei - specular hack
 void	RB_CalcSpecularColor( unsigned char *colors, int usecolor ); // leilei - specular hack
+void	RB_CalcDetailFade( unsigned char *colors ); // leilei - detail hack
 
 /*
 =============================================================
