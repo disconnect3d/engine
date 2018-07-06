@@ -2163,9 +2163,6 @@ image_t *R_CreateImage( const char *name, byte *pic, int width, int height,
 
 	image->type = type;
 	image->flags = flags;
-	if (detailhack && r_detailTextureSub->value)
-		image->flags = 0; // don't mip them
-
 
 	strcpy (image->imgName, name);
 

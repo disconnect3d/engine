@@ -2585,8 +2585,6 @@ static qboolean ParseStage( shaderStage_t *stage, char **text )
 				{
 					blendSrcBits = GLS_SRCBLEND_ZERO;
 					blendDstBits = GLS_DSTBLEND_ONE_MINUS_SRC_COLOR;
-					atestBits = GLS_ATEST_GT_0;
-					stage->rgbGen = CGEN_DETAIL_FADE;
 				}
 			}
 
@@ -2870,8 +2868,6 @@ static qboolean ParseStage( shaderStage_t *stage, char **text )
 				{
 					blendSrcBits = GLS_SRCBLEND_ZERO;
 					blendDstBits = GLS_DSTBLEND_ONE_MINUS_SRC_COLOR;
-					atestBits = GLS_ATEST_GT_0;
-					stage->rgbGen = CGEN_DETAIL_FADE;
 				}
 			}
 
@@ -5418,8 +5414,7 @@ shader_t *R_FindShaderReal( const char *name, int lightmapIndex, qboolean mipRaw
 								stages[thisstage].active = qtrue;
 								stages[thisstage].rgbGen = CGEN_IDENTITY;
 								if (r_detailTextureSub->integer){
-								stages[thisstage].stateBits |= GLS_SRCBLEND_ZERO | GLS_DSTBLEND_ONE_MINUS_SRC_COLOR | GLS_DEPTHFUNC_EQUAL | GLS_ATEST_GT_0;
-								stages[thisstage].rgbGen = CGEN_DETAIL_FADE;
+								stages[thisstage].stateBits |= GLS_SRCBLEND_ZERO | GLS_DSTBLEND_ONE_MINUS_SRC_COLOR | GLS_DEPTHFUNC_EQUAL;
 								}
 								else
 								stages[thisstage].stateBits |= GLS_SRCBLEND_DST_COLOR | GLS_DSTBLEND_SRC_COLOR | GLS_DEPTHFUNC_EQUAL;
@@ -5610,8 +5605,7 @@ shader_t *R_FindShaderReal( const char *name, int lightmapIndex, qboolean mipRaw
 				stages[2+f].rgbGen = CGEN_IDENTITY;
 				stages[2+f].stateBits |= GLS_SRCBLEND_DST_COLOR | GLS_DSTBLEND_SRC_COLOR;
 				if (r_detailTextureSub->integer){
-				stages[2+f].stateBits |= GLS_SRCBLEND_ZERO | GLS_DSTBLEND_ONE_MINUS_SRC_COLOR | GLS_ATEST_GT_0;
-				stages[2+f].rgbGen = CGEN_DETAIL_FADE;
+				stages[2+f].stateBits |= GLS_SRCBLEND_ZERO | GLS_DSTBLEND_ONE_MINUS_SRC_COLOR;
 				}
 				else
 				stages[2+f].stateBits |= GLS_SRCBLEND_DST_COLOR | GLS_DSTBLEND_SRC_COLOR;
