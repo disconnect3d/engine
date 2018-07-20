@@ -344,6 +344,15 @@ void RE_BeginFrame( stereoFrame_t stereoFrame ) {
 	}
 
 	//
+	// piclod stuff
+	//
+	if ( r_picLod->modified ) {
+		R_IssuePendingRenderCommands();
+		GL_TextureMode( r_textureMode->string );
+		r_picLod->modified = qfalse;
+	}
+
+	//
 	// gamma stuff
 	//
 	if ( r_gamma->modified ) {

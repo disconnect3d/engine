@@ -30,7 +30,7 @@ static cvar_t *r_bloom_alpha;
 static cvar_t *r_bloom_darken;
 static cvar_t *r_bloom_intensity;
 static cvar_t *r_bloom_diamond_size;
-static cvar_t *r_bloom_cascade;
+//static cvar_t *r_bloom_cascade;
 static cvar_t *r_bloom_cascade_blur;
 static cvar_t *r_bloom_cascade_intensity;
 static cvar_t *r_bloom_cascade_alpha;
@@ -367,7 +367,7 @@ static void R_Bloom_DrawEffect( void )
 	float alpha=r_bloom_alpha->value;
 	GL_Bind( bloom.effect.texture );
 	GL_State( GLS_DEPTHTEST_DISABLE | GLS_SRCBLEND_ONE | GLS_DSTBLEND_ONE );
-	if(r_bloom_cascade->integer) {
+	if(r_bloom->integer == 2) {
 		alpha=r_bloom_cascade_alpha->value;
 	}
 	qglColor4f( alpha,alpha,alpha, 1.0f );
@@ -647,7 +647,7 @@ Restore the temporary framebuffer section we used with the backup texture
 static void R_Bloom_RestoreScreen( void )
 {
 	float dry=r_bloom_dry->value;
-	if(r_bloom_cascade->integer)
+	if(r_bloom->integer == 2) 
 		dry=r_bloom_cascade_dry->value;
 	GL_State( GLS_DEPTHTEST_DISABLE | GLS_SRCBLEND_ONE | GLS_DSTBLEND_ZERO );
 	GL_Bind( bloom.screen.texture );
@@ -1059,7 +1059,7 @@ void R_BloomScreen( void )
 	//Backup the old screen in a texture
 	R_Bloom_BackupScreen();
 	// create the bloom texture using one of a few methods
-	if(r_bloom_cascade->integer)
+	if(r_bloom->integer == 2)
 		R_Bloom_Cascaded();
 	else
 		R_Bloom_WarsowEffect ();
@@ -1074,7 +1074,7 @@ void R_BloomScreen( void )
 //		then scale outward using the offset value applied, as well as the modulated color
 //		applied to give a rainbow streak effect.  Most effective with high bloom darkness
 //		values.
-	if(r_bloom_reflection->integer)
+	if(r_bloom->integer == 3)
 		R_Bloom_LensEffect ();
 }
 
@@ -1091,13 +1091,12 @@ void R_BloomInit( void )
 	r_bloom_darken = ri.Cvar_Get( "r_bloom_darken", "4", CVAR_ARCHIVE );
 	r_bloom_sample_size = ri.Cvar_Get( "r_bloom_sample_size", "256", CVAR_ARCHIVE|CVAR_LATCH ); // Tcpp: I prefer 256 to 128
 	r_bloom_fast_sample = ri.Cvar_Get( "r_bloom_fast_sample", "0", CVAR_ARCHIVE|CVAR_LATCH );
-	r_bloom_cascade = ri.Cvar_Get( "r_bloom_cascade", "0", CVAR_ARCHIVE );
+	//r_bloom_cascade = ri.Cvar_Get( "r_bloom_cascade", "0", CVAR_ARCHIVE );
 	r_bloom_cascade_blur = ri.Cvar_Get( "r_bloom_cascade_blur", ".4", CVAR_ARCHIVE );
 	r_bloom_cascade_intensity= ri.Cvar_Get( "r_bloom_cascade_intensity", "20", CVAR_ARCHIVE );
 	r_bloom_cascade_alpha = ri.Cvar_Get( "r_bloom_cascade_alpha", "0.15", CVAR_ARCHIVE );
 	r_bloom_cascade_dry = ri.Cvar_Get( "r_bloom_cascade_dry", "0.8", CVAR_ARCHIVE );
 	r_bloom_dry = ri.Cvar_Get( "r_bloom_dry", "1", CVAR_ARCHIVE );
-	r_bloom_reflection = ri.Cvar_Get( "r_bloom_reflection", "0", CVAR_ARCHIVE );
 	r_bloom_sky_only = ri.Cvar_Get( "r_bloom_sky_only", "0", CVAR_ARCHIVE );
 }
 

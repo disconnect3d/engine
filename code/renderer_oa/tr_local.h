@@ -378,6 +378,7 @@ typedef struct {
 
 	int			imgWidth;
 	int			imgHeight;		//leilei for glsl shaders
+	qboolean		isSpecular;		// leilei - for specular layers
 
 } shaderStage_t;
 
@@ -1059,6 +1060,8 @@ the bits are allocated as follows:
 
 extern	int			gl_filter_min, gl_filter_max;
 
+extern	float			gl_tex_min, gl_tex_max;
+
 /*
 ** performanceCounters_t
 */
@@ -1344,6 +1347,7 @@ extern	cvar_t	*r_drawentities;		// disable/enable entity rendering
 extern	cvar_t	*r_drawworld;			// disable/enable world rendering
 extern	cvar_t	*r_speeds;				// various levels of information display
 extern  cvar_t	*r_detailTextures;		// enables/disables detail texturing stages
+extern	cvar_t	*r_specular;			// enable/disables specular stages
 extern	cvar_t	*r_novis;				// disable/enable usage of PVS
 extern	cvar_t	*r_nocull;
 extern	cvar_t	*r_facePlaneCull;		// enables culling of planar surfaces with back side test
@@ -1361,6 +1365,7 @@ extern	cvar_t	*r_colorMipLevels;				// development aid to see texture mip usage
 extern	cvar_t	*r_picmip;						// controls picmip values
 extern	cvar_t	*r_finish;
 extern	cvar_t	*r_textureMode;
+extern	cvar_t	*r_picLod;
 extern	cvar_t	*r_offsetFactor;
 extern	cvar_t	*r_offsetUnits;
 

@@ -28,6 +28,8 @@ static unsigned char s_gammatable[256];
 int		gl_filter_min = GL_LINEAR_MIPMAP_NEAREST;
 int		gl_filter_max = GL_LINEAR;
 
+float		gl_tex_max = 0;
+
 int		force32upload;		// leilei - hack to get bloom/post to always do 32bit texture
 int		detailhack;		// leilei - hack to fade detail textures, kill repeat patterns
 #ifndef GL_VERSION_ES_CM_1_0
@@ -378,6 +380,9 @@ void GL_TextureMode( const char *string ) {
 	gl_filter_min = modes[i].minimize;
 	gl_filter_max = modes[i].maximize;
 
+	gl_tex_max = r_picLod->value * -1; 	// leilei - adjustable tex lod
+	if (gl_tex_max > 2) gl_tex_max = 2; 	// clamp it to here
+
 	// change all the existing mipmap texture objects
 	for ( i = 0 ; i < tr.numImages ; i++ ) {
 		glt = tr.images[ i ];
@@ -385,6 +390,8 @@ void GL_TextureMode( const char *string ) {
 			GL_Bind (glt);
 			qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl_filter_min);
 			qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max);
+
+			qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_LOD_BIAS, gl_tex_max);
 		}
 	}
 }
@@ -959,9 +966,6 @@ static void R_MipMap8 (byte *in, int width, int height)
 		for (j=0 ; j<width ; j+=2, out+=1, in+=2)
 		{
 			at1 = in[0];
-		//	at2 = in[1];
-		//	at3 = in[width+0];
-		//	at4 = in[width+1];
 			out[0] = at1;
 		}
 	}
@@ -1064,14 +1068,10 @@ static void R_BlendToGray( byte *data, int pixelCount, int fadeto, int toblack) 
 	if (fadeto < 1)
 		return;	//  we don't need to for the highest mip.
 
-
 	if (fadeto == 1){	alphed = 0.75; alpher = 0.25; }
 	else if (fadeto == 2){	alphed = 0.50; alpher = 0.50; }
 	else if (fadeto == 3){	alphed = 0.25; alpher = 0.75; }
 	else {	alphed = 0.0; alpher = 1.00; }
-
-	//alphed = 1 / fadeto;
-	//alpher = 1 - alphed;
 
 	fadeto += 1;
 
@@ -1097,6 +1097,7 @@ static int dither2x2[2][2] =
 	{ 4,  6,},
 	{ 7,  5 }
 };
+
 
 
 
@@ -1418,6 +1419,7 @@ static void Upload32( unsigned *data,
 
 	}
 
+	
 	if (detailhack && r_detailTextureSub->integer)	// invert for subtractive
 	{
 			
@@ -1776,6 +1778,7 @@ done:
 
 		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl_filter_min);
 		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max);
+		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_LOD_BIAS, gl_tex_max);
 	}
 	else
 	{
@@ -2103,6 +2106,7 @@ done:
 
 		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl_filter_min);
 		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max);
+		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_LOD_BIAS, gl_tex_max);
 	}
 	else
 	{
@@ -2132,6 +2136,9 @@ done:
 //
 // leilei - paletted texture support END
 //
+
+
+
 /*
 ================
 R_CreateImage

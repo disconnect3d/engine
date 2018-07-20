@@ -1131,7 +1131,6 @@ static qboolean ParseStage( shaderStage_t *stage, char **text )
 	while ( 1 )
 	{
 	
-	
 
 		//stage->isBlend = 0;
 		token = COM_ParseExt( text, qtrue );
@@ -1603,6 +1602,10 @@ static qboolean ParseStage( shaderStage_t *stage, char **text )
 				}
 			}
 		}
+//
+		
+
+
 		//
 		// clampmap <name>
 		//
@@ -2666,10 +2669,13 @@ static qboolean ParseStage( shaderStage_t *stage, char **text )
 			else if ( !Q_stricmp( token, "lightingSpecular" ) )
 			{
 				stage->rgbGen = CGEN_LIGHTING_SPECULAR_COLOR;
+				stage->isSpecular = qtrue;
 			}
 			else if ( !Q_stricmp( token, "specular" ) )
 			{
 				stage->rgbGen = CGEN_LIGHTING_SPECULAR;
+				stage->isSpecular = qtrue;
+
 			}
 			else if ( !Q_stricmp( token, "lightingUniform" ) )
 			{
@@ -2694,6 +2700,8 @@ static qboolean ParseStage( shaderStage_t *stage, char **text )
 			else if ( !Q_stricmp( token, "lightingSpecularDiffuse" ) )	// leilei - deprecated
 			{
 				stage->rgbGen = CGEN_LIGHTING_DIFFUSE;
+				stage->isSpecular = qtrue;
+
 			}
 			else
 			{
@@ -2743,6 +2751,7 @@ static qboolean ParseStage( shaderStage_t *stage, char **text )
 			else if ( !Q_stricmp( token, "lightingSpecular" ) )
 			{
 				stage->alphaGen = AGEN_LIGHTING_SPECULAR;
+
 			}
 			else if ( !Q_stricmp( token, "oneMinusVertex" ) )
 			{
@@ -2935,6 +2944,9 @@ leilei - the purpose of this is to load textures after processing their blending
 */
 
 extern	int		hackoperation;
+
+
+
 extern int ismaptexture;
 int	surfaceflagsy;
 qboolean ParseStageSimple( shaderStage_t *stage, char **text )
@@ -3481,6 +3493,8 @@ qboolean ParseStageSimple( shaderStage_t *stage, char **text )
 			else if ( !Q_stricmp( token, "lightingSpecularDiffuse" ) )	// leilei - deprecated
 			{
 				stage->rgbGen = CGEN_LIGHTING_DIFFUSE;
+				stage->isSpecular = qtrue;
+
 			}
 			else
 			{
@@ -3530,6 +3544,7 @@ qboolean ParseStageSimple( shaderStage_t *stage, char **text )
 			else if ( !Q_stricmp( token, "lightingSpecular" ) )
 			{
 				stage->alphaGen = AGEN_LIGHTING_SPECULAR;
+
 			}
 			else if ( !Q_stricmp( token, "oneMinusVertex" ) )
 			{
@@ -4949,6 +4964,32 @@ static shader_t *FinishShader( void ) {
 		// ditch this stage if it's detail and detail textures are disabled
 		//
 		if ( pStage->isDetail && !r_detailTextures->integer )
+		{
+			int index;
+			
+			for(index = stage + 1; index < MAX_SHADER_STAGES; index++)
+			{
+				if(!stages[index].active)
+					break;
+			}
+			
+			if(index < MAX_SHADER_STAGES)
+				memmove(pStage, pStage + 1, sizeof(*pStage) * (index - stage));
+			else
+			{
+				if(stage + 1 < MAX_SHADER_STAGES)
+					memmove(pStage, pStage + 1, sizeof(*pStage) * (index - stage - 1));
+				
+				Com_Memset(&stages[index - 1], 0, sizeof(*stages));
+			}
+			
+			continue;
+		}
+
+		//
+		// ditch this stage if it's specular and specular textures are disabled
+		//
+		if ( pStage->isSpecular && !r_specular->integer )
 		{
 			int index;
 			

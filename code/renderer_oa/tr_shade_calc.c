@@ -1731,33 +1731,20 @@ void RB_CalcNormal( unsigned char *colors )
 		float mid;
 		for (y=0;y<3;y++){
 				n[y] = normal[y];
-				
-//				colors[i*4+y] = n[y];
 			}
-		//VectorNormalize(n);
-
 			mid = n[1] + n[2];
 			if (mid < 0) mid *= -1;
 			
-
-	//		m[0] = 127 - (n[1]*128);
-	//		m[1] = 127 - (n[2]*128);
-	//		m[2] = 255 - (mid*128);
-
 			m[0] = 127 + (n[0]*128);
 			m[1] = 127 + (n[1]*128);
 			m[2] = 127 + (n[2]*128);
 
-
-
-		
 		colors[i*4+0] = m[0];
 		colors[i*4+1] = m[1];
 		colors[i*4+2] = m[2];
 		colors[i*4+3] = 255;
 	}
 }
-
 
 
 
@@ -1775,7 +1762,6 @@ void RB_CalcDiffuseColor( unsigned char *colors )
 
 	// leilei - reduced it to just this, r_shadeMode deprecated. :(
 	RB_CalcDiffuseColor_scalar( colors );
-
 
 }
 
@@ -1992,8 +1978,6 @@ int			i;
 		ambientLightInt = ent->ambientLightInt;
 		VectorCopy( ent->ambientLight, ambientLight );
 		VectorCopy( ent->directedLight, directedLight );
-		
-	
 	
 		directedLight[0] -= ambientLight[0];
 		directedLight[1] -= ambientLight[1];
@@ -2035,7 +2019,9 @@ int			i;
 		} else {
 			l = l*l;
 			l = l*l;
-			b = (l * 255) *(highest);
+			//b = (l * 255) * (highest);
+			b = (l * 16) * (highest);
+
 			if (b > 255) {
 				b = 255;
 			}
@@ -2065,9 +2051,9 @@ int			i;
 		}
 		else
 		{
-			colors[i*4+0] = b;
-			colors[i*4+1] = b;
-			colors[i*4+2] = b;
+			colors[i*4+0] = (b);
+			colors[i*4+1] = (b);
+			colors[i*4+2] = (b);
 		}
 	}
 }

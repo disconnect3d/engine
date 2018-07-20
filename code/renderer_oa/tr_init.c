@@ -63,6 +63,7 @@ cvar_t	*r_detailTextureLayers;
 cvar_t	*r_detailTextureTMU;	// leilei - debug
 cvar_t	*r_detailTextureSub;	
 
+cvar_t	*r_specular;
 
 cvar_t	*r_znear;
 cvar_t	*r_zproj;
@@ -144,6 +145,7 @@ cvar_t	*r_finish;
 cvar_t	*r_clear;
 cvar_t	*r_swapInterval;
 cvar_t	*r_textureMode;
+cvar_t	*r_picLod;
 cvar_t	*r_offsetFactor;
 cvar_t	*r_offsetUnits;
 cvar_t	*r_gamma;
@@ -1235,6 +1237,7 @@ void R_Register( void )
 	r_dlightBacks = ri.Cvar_Get( "r_dlightBacks", "1", CVAR_ARCHIVE );
 	r_finish = ri.Cvar_Get ("r_finish", "0", CVAR_ARCHIVE);
 	r_textureMode = ri.Cvar_Get( "r_textureMode", "GL_LINEAR_MIPMAP_NEAREST", CVAR_ARCHIVE );
+	r_picLod = ri.Cvar_Get( "r_picLod", "0", CVAR_ARCHIVE );	// leilei - adjustable lod bias
 	r_swapInterval = ri.Cvar_Get( "r_swapInterval", "0",
 	                              CVAR_ARCHIVE | CVAR_LATCH );
 	r_gamma = ri.Cvar_Get( "r_gamma", "1", CVAR_ARCHIVE );
@@ -1334,6 +1337,7 @@ void R_Register( void )
 	r_modelshader = ri.Cvar_Get( "r_modelshader", "0" , CVAR_ARCHIVE | CVAR_LATCH);		// leilei - load and use special shaders for lightDiffuse models
 	r_detailTextureScale = ri.Cvar_Get( "r_detailtextureScale", "0", CVAR_ARCHIVE | CVAR_LATCH ); // leilei - adjust scale of detail textures
 	r_detailTextureLayers = ri.Cvar_Get( "r_detailtextureLayers", "0", CVAR_ARCHIVE | CVAR_LATCH ); // leilei - add more detail layers
+	r_specular = ri.Cvar_Get( "r_specular", "1", CVAR_ARCHIVE | CVAR_LATCH );	// leilei - model specular
 
 	r_ntsc = ri.Cvar_Get( "r_ntsc", "0" , CVAR_ARCHIVE | CVAR_LATCH);			// leilei - ntsc filter
 
