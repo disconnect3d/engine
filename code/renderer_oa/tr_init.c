@@ -217,6 +217,8 @@ cvar_t	*r_leifx;		// Leilei - leifx nostalgia filter
 cvar_t	*r_modelshader;		// Leilei
 cvar_t	*r_particles;		// Leilei - particle effects motif
 
+cvar_t	*r_legacycard;		// leilei - selection of shader to mimic notable old video cards
+
 cvar_t	*r_ntsc;		// Leilei - ntsc / composite signals
 //cvar_t	*r_tvMode;		// Leilei - tv fake mode
 cvar_t	*r_retroAA;		// Leilei - old console AA
@@ -1333,6 +1335,9 @@ void R_Register( void )
 
 	r_mockvr = ri.Cvar_Get( "r_mockvr", "0" , CVAR_CHEAT);
 	r_parseStageSimple = ri.Cvar_Get( "r_parseStageSimple", "0" , CVAR_CHEAT);
+
+	r_legacycard = ri.Cvar_Get( "r_legacyCard", "0" , CVAR_LATCH | CVAR_ARCHIVE);
+
 	r_leifx = ri.Cvar_Get( "r_leifx", "0" , CVAR_ARCHIVE | CVAR_LATCH);
 	r_modelshader = ri.Cvar_Get( "r_modelshader", "0" , CVAR_ARCHIVE | CVAR_LATCH);		// leilei - load and use special shaders for lightDiffuse models
 	r_detailTextureScale = ri.Cvar_Get( "r_detailtextureScale", "0", CVAR_ARCHIVE | CVAR_LATCH ); // leilei - adjust scale of detail textures
@@ -1425,6 +1430,9 @@ static glslProgram_t *R_GLSL_AllocProgram(void)
 	program->u_Time							= -1;
 	program->u_ViewOrigin					= -1;
 	program->u_Normal					= -1;
+
+	program->u_ScreenSizeX							= -1;
+	program->u_ScreenSizeY							= -1;
 
 	program->u_mpass1						= -1;
 	program->u_mpass2						= -1;
@@ -1570,7 +1578,55 @@ void R_GLSL_Init(void)
 
 	Q_strncpyz(programVertexObjects[0], "glsl/brightness_vp.glsl", sizeof(programVertexObjects[0]));
 	Q_strncpyz(programFragmentObjects[0], "glsl/brightness_fp.glsl", sizeof(programFragmentObjects[0]));
-	tr.BrightnessProgram = RE_GLSL_RegisterProgram("brightness", (const char *)programVertexObjects, 1, (const char *)programFragmentObjects, 1);
+//	if (!(tr.BrightnessProgram = RE_GLSL_RegisterProgram("brightness", (const char *)programVertexObjects, 1, (const char *)programFragmentObjects, 1)))
+	{
+		// load it through this code
+	ri.Printf( PRINT_ALL, "----- Trying to load Brightness Shader internally!!! \n" );
+
+		const GLchar *brightnessfp = \
+			"uniform sampler2D u_Texture0; \n"
+			"varying vec2 texture_coordinate;\n"
+			"uniform float u_CC_Overbright; \n"
+			"uniform float u_CC_Gamma; \n"
+			"void main()\n"
+			"{\n"
+    			"gl_FragColor = texture2D(u_Texture0, texture_coordinate); \n"
+			"vec3 color;\n"
+			"vec3 colord;\n"
+			"int coloredr;\n"
+			"int coloredg;\n"
+			"int coloredb;\n"
+			"color.r = 1;\n"
+			"color.g = 1;\n"
+			"color.b = 1;\n"
+			"int yeh = 0;\n"
+			"float ohyes;\n"
+			"// Overbrights\n"
+    			"gl_FragColor *= (u_CC_Overbright + 1);\n"
+			"// Gamma Correction\n"
+			"float gamma = u_CC_Gamma;\n"
+			"gl_FragColor.r = pow(gl_FragColor.r, 1.0 / gamma);\n"
+			"gl_FragColor.g = pow(gl_FragColor.g, 1.0 / gamma);\n"
+			"gl_FragColor.b = pow(gl_FragColor.b, 1.0 / gamma);\n"
+			"}\n";
+
+		const GLchar *brightnessvp = \
+			"varying vec2 texture_coordinate;\n"
+			"varying vec2 texture_coordinate2;\n"
+			"varying vec2 texture_coordinate3;\n"
+			"varying vec2 texture_coordinate4;\n"
+			"varying vec2 texture_coordinate5;\n"
+			"varying float scale;\n"
+			"uniform float u_CC_Overbright;\n"
+			"uniform float u_CC_Gamma;\n"
+			"void main()\n"
+			"{\n"
+	    		"gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex; \n"
+	    		"texture_coordinate = vec2(gl_MultiTexCoord0); \n"
+			"}\n";
+
+			tr.BrightnessProgram = RE_GLSL_RegisterProgramRaw("brightnessInternal", (const char *)brightnessvp, 1, (const char *)brightnessfp, 1);
+	}
 
 	Q_strncpyz(programVertexObjects[0], "glsl/crt_vp.glsl", sizeof(programVertexObjects[0]));
 	Q_strncpyz(programFragmentObjects[0], "glsl/crt_fp.glsl", sizeof(programFragmentObjects[0]));
@@ -1602,7 +1658,7 @@ void R_GLSL_Init(void)
 #endif
 }
 extern qboolean		initparticles;
-
+extern void R_InitFakeFBO();
 /*
 ===============
 R_Init
@@ -1661,6 +1717,7 @@ void R_Init( void )
 
 	R_BloomInit();
 	R_PostprocessingInit();
+	R_InitFakeFBO();
 	R_AltBrightnessInit();	// leilei	- alternate brightness
 	R_WaterInit();		// leilei - water test
 	max_polys = r_maxpolys->integer;

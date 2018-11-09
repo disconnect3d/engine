@@ -61,6 +61,7 @@ typedef struct dlight_s {
 	int		additive;			// texture detail is lost tho when the lightmap is dark
 } dlight_t;
 
+image_t	*notfbotex;
 
 
 // a trRefEntity_t has all the information passed in by
@@ -1434,8 +1435,9 @@ extern	cvar_t	*r_flaresMotionBlur;
 extern cvar_t	*r_alternateBrightness;		// leilei - alternate brightness
 extern cvar_t	*r_parseStageSimple;	// Leilei - handling textures into alphas
 extern cvar_t	*r_leifx;	// Leilei - leifx nostalgia filter
+extern cvar_t	*r_legacycard;	// Leilei - mocking old cards
 extern cvar_t	*r_modelshader;	// Leilei - new model shading
-
+extern cvar_t	*r_mockvr;	// Leilei - 
 
 extern cvar_t	*r_ntsc;	// Leilei - ntsc
 
@@ -1998,6 +2000,12 @@ static ID_INLINE void R_GLSL_SetUniform_u_ActualScreenSizeY(glslProgram_t *progr
 	qglUniform1iARB(program->u_ActualScreenSizeY, value);
 }
 
+static ID_INLINE void R_GLSL_SetUniform_rubyTextureSizeX(glslProgram_t *program, GLint value) {
+	qglUniform1iARB(program->v_rubyTextureSize[0], value);
+}
+static ID_INLINE void R_GLSL_SetUniform_rubyTextureSizeY(glslProgram_t *program, GLint value) {
+	qglUniform1iARB(program->v_rubyTextureSize[1], value);
+}
 
 static ID_INLINE void R_GLSL_SetUniform_rubyTextureSize(glslProgram_t *program, const GLint value, const GLint valub) {
 //	if (VectorCompare(program->v_rubyTextureSize, value))
@@ -2035,6 +2043,7 @@ static ID_INLINE void R_GLSL_SetUniform_Mpass4(glslProgram_t *program, GLint val
 
 void R_GLSL_Init(void);
 qhandle_t RE_GLSL_RegisterProgram(const char *name, const char *programVertexObjects, int numVertexObjects, const char *programFragmentObjects, int numFragmentObjects);
+qhandle_t RE_GLSL_RegisterProgramRaw(const char *name, const char *programVertexObjects, int numVertexObjects, const char *programFragmentObjects, int numFragmentObjects);
 void R_GLSL_UseProgram(qhandle_t index);
 void RB_GLSL_StageIteratorGeneric(void);
 void RB_GLSL_StageIteratorVertexLitTexture(void);

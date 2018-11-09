@@ -54,6 +54,7 @@ int tvWidth;
 int tvHeight;
 int tvinterlace;	// leilei - interlace value for height
 float tvAspectW;	// leilei - for aspect correction
+int im3dfx;		// leilei - indicating we're a 3dfx so we can do 3dfx tricks
 
 //int vresWidth;		
 //int vresHeight;		
@@ -82,6 +83,7 @@ cvar_t *r_allowResize; // make window resizable
 cvar_t *r_conMode; // leilei - console mode - force native resolutions of various consoles
 cvar_t *r_centerWindow;
 cvar_t *r_sdlDriver;
+cvar_t *r_glDriver;
 
 #ifndef GL_VERSION_ES_CM_1_0
 void (APIENTRYP qglActiveTextureARB) (GLenum texture);
@@ -566,6 +568,8 @@ static qboolean GLimp_StartDriverAndSetMode(int mode, qboolean fullscreen, qbool
 		SDL_VideoDriverName( driverName, sizeof( driverName ) - 1 );
 		ri.Printf( PRINT_ALL, "SDL using driver \"%s\"\n", driverName );
 		ri.Cvar_Set( "r_sdlDriver", driverName );
+
+		//SDL_GL_LoadLibrary("3dfxvgl"); 	// leilei - load the gl driver
 	}
 
 	if (fullscreen && ri.Cvar_VariableIntegerValue( "in_nograb" ) )
@@ -804,6 +808,8 @@ void GLimp_Init( void )
 
 	r_tvFilter = ri.Cvar_Get( "r_tvFilter", "1", CVAR_LATCH | CVAR_ARCHIVE );
 
+
+	r_glDriver = ri.Cvar_Get( "r_glDriver", "opengl32", CVAR_ROM );	// leilei - allow load of other gl drivers
 // leilei - move motionblur cvar here to get it to not upset the other renderers when setting up an accumulation buffer
 	r_motionblur = ri.Cvar_Get( "r_motionblur", "0", CVAR_LATCH | CVAR_ARCHIVE );
 
@@ -819,6 +825,16 @@ void GLimp_Init( void )
 
 	ri.Sys_GLimpInit( );
 
+#ifdef _WIN32
+	// leilei - 3dfx gamma - moved it here so it works on the first boot
+	if ( qwglSetDeviceGammaRamp3DFX )
+	{
+		glConfig.deviceSupportsGamma = 1; // force it
+	}
+#endif
+
+		ri.Printf( PRINT_ALL, "glimp init first try!" );
+
 	// Create the window and set up the context
 	if(GLimp_StartDriverAndSetMode(r_mode->integer, r_fullscreen->integer, r_noborder->integer))
 		goto success;
@@ -826,8 +842,13 @@ void GLimp_Init( void )
 	// Try again, this time in a platform specific "safe mode"
 	ri.Sys_GLimpSafeInit( );
 
+		ri.Printf( PRINT_ALL, "glimp init second (safe) try!" );
+
 	if(GLimp_StartDriverAndSetMode(r_mode->integer, r_fullscreen->integer, qfalse))
 		goto success;
+
+
+		ri.Printf( PRINT_ALL, "glimp init third fallback try!" );
 
 	// Finally, try the default screen resolution
 	if( r_mode->integer != R_MODE_FALLBACK )
@@ -855,13 +876,6 @@ success:
 	glConfig.deviceSupportsGamma = SDL_SetGamma( 1.0f, 1.0f, 1.0f ) >= 0;
 
 
-#ifdef _WIN32
-	// leilei - 3dfx gamma 
-	if ( qwglSetDeviceGammaRamp3DFX )
-	{
-		glConfig.deviceSupportsGamma = 1; // force it
-	}
-#endif
 
 	if ( -1 == r_ignorehwgamma->integer)
 		glConfig.deviceSupportsGamma = 1;

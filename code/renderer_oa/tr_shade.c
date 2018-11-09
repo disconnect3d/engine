@@ -1683,6 +1683,14 @@ void GLSL_Feeder(shaderStage_t *pStage, shaderCommands_t *input)
 	if (program->u_Texture0 > -1 && pStage->bundle[0].image[0]) {
 		GL_SelectTexture(0);
 		R_BindAnimatedImage(&pStage->bundle[0]);
+
+
+	/* texture size for 'legacy' rendering */
+	if (program->u_ScreenSizeX > -1)
+		R_GLSL_SetUniform_u_ScreenSizeX(program, pStage->imgWidth);
+	if (program->u_ScreenSizeY > -1)
+		R_GLSL_SetUniform_u_ScreenSizeY(program, pStage->imgHeight);
+
 	}
 
 	/* texture unit 1 */

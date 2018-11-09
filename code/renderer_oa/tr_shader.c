@@ -465,6 +465,137 @@ static qboolean R_GLSL_LoadProgram(glslProgram_t *program, const char *name, con
 #endif
 }
 
+
+static qboolean R_GLSL_LoadProgramRaw(glslProgram_t *program, const char *name, const char *programVertexObjects, int numVertexObjects, const char *programFragmentObjects, int numFragmentObjects) {
+#ifdef GLSL_BACKEND
+	GLcharARB		*buffer_vp[MAX_PROGRAM_OBJECTS];
+	GLcharARB		*buffer_fp[MAX_PROGRAM_OBJECTS];
+	GLcharARB		*buffer;
+	GLhandleARB		shader_vp;
+	GLhandleARB		shader_fp;
+	GLint			status;
+	char			*str;
+	int				size = 0;
+	int				i;
+
+
+	/* create program */
+	program->program = qglCreateProgramObjectARB();
+
+	/* vertex program */
+	for (i = 0, str = (const char *)programVertexObjects; i < numVertexObjects; i++, str += MAX_QPATH) {
+		buffer_vp[i] = str;
+		size += sizeof(str)*32;
+		if (!buffer_vp[i]) {
+			ri.Printf( PRINT_WARNING,  "Couldn't load %s", str);
+			return qfalse;
+		}
+
+		/* compile vertex shader */
+		shader_vp = qglCreateShaderObjectARB(GL_VERTEX_SHADER_ARB);
+		qglShaderSourceARB(shader_vp, 1, (const GLcharARB **)&buffer_vp, NULL);
+		qglCompileShaderARB(shader_vp);
+
+		/* check for errors in vertex shader */
+		qglGetObjectParameterivARB(shader_vp, GL_OBJECT_COMPILE_STATUS_ARB, &status);
+		if (!status) {
+			int		length;
+			char	*msg;
+
+			/* print glsl error message */
+			qglGetObjectParameterivARB(shader_vp, GL_OBJECT_INFO_LOG_LENGTH_ARB, &length);
+			msg = ri.Hunk_AllocateTempMemory(length);
+			qglGetInfoLogARB(shader_vp, length, &length, msg);
+			ri.Printf(PRINT_ALL, "Error:\n%s\n", msg);
+			ri.Hunk_FreeTempMemory(msg);
+
+			/* exit */
+			ri.Printf( PRINT_WARNING,  "Couldn't compile vertex shader for program %s", name);
+			return qfalse;
+		}
+
+		/* attach vertex shader to program */
+		qglAttachObjectARB(program->program, shader_vp);
+		qglDeleteObjectARB(shader_vp);
+	}
+
+	/* fragment program */
+	for (i = 0, str = (const char *)programFragmentObjects; i < numFragmentObjects; i++, str += MAX_QPATH) {
+		buffer_fp[i] = str;
+		size += sizeof(str)*32;
+		if (!buffer_fp[i]) {
+			ri.Printf( PRINT_WARNING,  "Couldn't load %s", str);
+			return qfalse;
+		}
+
+		/* compile fragment shader */
+		shader_fp = qglCreateShaderObjectARB(GL_FRAGMENT_SHADER_ARB);
+		qglShaderSourceARB(shader_fp, 1, (const GLcharARB **)&buffer_fp[i], NULL);
+		qglCompileShaderARB(shader_fp);
+
+		/* check for errors in fragment shader */
+		qglGetObjectParameterivARB(shader_fp, GL_OBJECT_COMPILE_STATUS_ARB, &status);
+		if (!status) {
+			int		length;
+			char	*msg;
+
+			/* print glsl error message */
+
+			qglGetObjectParameterivARB(shader_fp, GL_OBJECT_INFO_LOG_LENGTH_ARB, &length);
+			msg = ri.Hunk_AllocateTempMemory(length);
+			qglGetInfoLogARB(shader_fp, length, &length, msg);
+			ri.Printf(PRINT_ALL, "Error:\n%s\n", msg);
+			ri.Hunk_FreeTempMemory(msg);
+			ri.Printf(PRINT_DEVELOPER, "oops\n");
+			/* exit */
+			ri.Printf( PRINT_WARNING,  "Couldn't compile fragment shader for program %s", name);
+			return qfalse;
+		}
+
+		/* attach fragment shader to program */
+		qglAttachObjectARB(program->program, shader_fp);
+		qglDeleteObjectARB(shader_fp);
+	}
+
+	/* link complete program */
+	qglLinkProgramARB(program->program);
+	/* check for linking errors */
+	qglGetObjectParameterivARB(program->program, GL_OBJECT_LINK_STATUS_ARB, &status);
+	if (!status) {
+		int		length;
+		char	*msg;
+		/* print glsl error message */
+		qglGetObjectParameterivARB(program->program, GL_OBJECT_INFO_LOG_LENGTH_ARB, &length);
+		msg = ri.Hunk_AllocateTempMemory(length);
+		qglGetInfoLogARB(program->program, length, &length, msg);
+		ri.Printf(PRINT_ALL, "Error:\n%s\n", msg);
+		ri.Hunk_FreeTempMemory(msg);
+
+		/* exit */
+		ri.Printf( PRINT_WARNING,  "Couldn't link shaders for program %s", name);
+		return qfalse;
+	}
+	/* build single large program file for parsing */
+	buffer = ri.Hunk_AllocateTempMemory(++size);
+
+	Q_strncpyz(buffer, buffer_vp[0], size);
+
+	for (i = 1; i < numVertexObjects; i++)
+		strncat(buffer, buffer_vp[i], size);
+	for (i = 0; i < numFragmentObjects; i++)
+		strncat(buffer, buffer_fp[i], size);
+	/* get uniform locations */
+	qglUseProgramObjectARB(program->program);
+	R_GLSL_ParseProgram(program, buffer);
+	qglUseProgramObjectARB(0);
+	/* clean up */
+	ri.Hunk_FreeTempMemory(buffer);
+
+	return qtrue;
+#endif
+}
+
+
 /*
  * RE_GLSL_RegisterProgram
  * Loads in a program of given name
@@ -511,6 +642,63 @@ qhandle_t RE_GLSL_RegisterProgram(const char *name, const char *programVertexObj
 
 	/* load the files */
 	if (!R_GLSL_LoadProgram(program, name, programVertexObjects, numVertexObjects, programFragmentObjects, numFragmentObjects)) {
+		qglDeleteObjectARB(program->program);
+		program->valid = qfalse; 
+		//vertexShaders=0;     //If program in error disable the glsl feature altogether
+		return 0;
+	}
+
+	program->valid = qtrue;
+	return program->index;
+#endif
+}
+
+/*
+ * RE_GLSL_RegisterProgram
+ * Loads in a program of given name
+ */
+qhandle_t RE_GLSL_RegisterProgramRaw(const char *name, const char *programVertexObjects, int numVertexObjects, const char *programFragmentObjects, int numFragmentObjects) {
+#ifdef GLSL_BACKEND
+	glslProgram_t	*program;
+	qhandle_t		hProgram;
+
+	if (!vertexShaders)
+			return 0;
+
+	if (!name || !name[0]) {
+		ri.Printf(PRINT_ALL, "RE_GLSL_RegisterProgram: NULL name\n");
+		return 0;
+	}
+
+	if (strlen(name) >= MAX_QPATH) {
+		Com_Printf("Program name exceeds MAX_QPATH\n");
+		return 0;
+	}
+
+	/* search the currently loaded programs */
+	for (hProgram = 0; hProgram < tr.numPrograms; hProgram++) {
+		program = tr.programs[hProgram];
+		if (!strcmp(program->name, name)) {
+			if (!program->valid)
+				return 0;
+
+			return hProgram;
+		}
+	}
+
+	/* allocate a new glslProgram_t */
+	if ((program = R_GLSL_AllocProgram()) == NULL) {
+		ri.Printf(PRINT_WARNING, "RE_GLSL_RegisterProgram: R_GLSL_AllocProgram() failed for '%s'\n", name);
+		return 0;
+	}
+
+	/* only set the name after the program has successfully loaded */
+	Q_strncpyz(program->name, name, sizeof(program->name));
+
+	R_IssuePendingRenderCommands();
+
+	/* load the files */
+	if (!R_GLSL_LoadProgramRaw(program, name, (const char*)programVertexObjects, numVertexObjects, (const char*)programFragmentObjects, numFragmentObjects)) {
 		qglDeleteObjectARB(program->program);
 		program->valid = qfalse; 
 		//vertexShaders=0;     //If program in error disable the glsl feature altogether
@@ -4513,8 +4701,8 @@ static qboolean CollapseMultitexture( void ) {
 		return qfalse;
 	}
 
-	if (r_leifx->integer > 1)
-		return qfalse; // don't do this for leifx mode
+	if ((r_leifx->integer > 1) || (r_legacycard->integer))
+		return qfalse; // don't do this for leifx or legacycard mode
 
 	// make sure both stages are active
 	if ( !stages[0].active || !stages[1].active ) {
@@ -4918,38 +5106,7 @@ static shader_t *FinishShader( void ) {
 			break;
 		}
 
-#ifdef GLSL_TEXTURES
-		// Try to use leifx dither here instead of postprocess for more authentic overdraw artifacts
-		if (r_leifx->integer > 1)
-		{		
-			
-			if (pStage->isBlend == 1){
-			pStage->program = RE_GLSL_RegisterProgram("leifxify2", "glsl/leifxify2_vp.glsl", 1, "glsl/leifxify2_fp.glsl", 1);	// 2x2 dither blend for vertex colors, 4x4 for texture
-			ri.Printf( PRINT_DEVELOPER, "picking blended\n");
-			}
-			else
-			pStage->program = RE_GLSL_RegisterProgram("leifxify", "glsl/leifxify2_vp.glsl", 1, "glsl/leifxify_fp.glsl", 1);		// 4x4 dither blend for both color and texture
-			pStage->isGLSL=1;
-		}
 
-		// Mockvr faking of the filtering and alpha precision of PCX2 cards
-		if ((r_mockvr->integer > 1))
-		{		
-			pStage->program = RE_GLSL_RegisterProgram("leivrify", "glsl/leivrify_vp.glsl", 1, "glsl/leivrify_fp.glsl", 1);
-			
-			pStage->isGLSL=1;
-
-			// pass texture width/height (filtering etc)
-			if(!pStage->imgWidth) pStage->imgWidth = 128;
-			if(!pStage->imgHeight) pStage->imgHeight = 128;
-		//	 R_GLSL_SetUniform_u_ScreenSizeX(pStage->program, pStage->imgWidth);
-		//	 R_GLSL_SetUniform_u_ScreenSizeY(pStage->program, pStage->imgHeight);
-		//	 R_GLSL_SetUniform_u_ScreenToNextPixelX(pStage->program, (float)1.0/(float)pStage->imgWidth);
-		//	 R_GLSL_SetUniform_u_ScreenToNextPixelY(pStage->program, (float)1.0/(float)pStage->imgHeight);
-	
-		}
-
-#endif	// GLSL_TEXTURES
 
     // check for a missing texture
 		if ( !pStage->bundle[0].image[0] ) {
@@ -4958,6 +5115,7 @@ static shader_t *FinishShader( void ) {
 			stage++;
 			continue;
 		}
+
 
 
 		//
@@ -5037,6 +5195,57 @@ static shader_t *FinishShader( void ) {
 
 #ifdef GLSL_TEXTURES
 
+		// Try to use leifx dither here instead of postprocess for more authentic overdraw artifacts
+		if (r_leifx->integer > 1)
+		{		
+			
+			if (pStage->isBlend == 1){
+			pStage->program = RE_GLSL_RegisterProgram("leifxify2", "glsl/leifxify2_vp.glsl", 1, "glsl/leifxify2_fp.glsl", 1);	// 2x2 dither blend for vertex colors, 4x4 for texture
+			//ri.Printf( PRINT_DEVELOPER, "picking blended\n");
+			}
+			else
+			pStage->program = RE_GLSL_RegisterProgram("leifxify", "glsl/leifxify2_vp.glsl", 1, "glsl/leifxify_fp.glsl", 1);		// 4x4 dither blend for both color and texture
+			pStage->isGLSL=1;
+		}
+
+		// Apply a shader for mimicing old hardware's looks by ways of modern shader technology
+		if ((r_legacycard->integer) && (pStage->isGLSL==0) && (r_ext_vertex_shader->integer) )
+		{	
+			if (r_legacycard->integer == 1)	// "Midas" cards
+			if (pStage->program = RE_GLSL_RegisterProgram("legacy", "glsl/legacy/common_vp.glsl", 1, "glsl/legacy/midas.glsl", 1))
+			pStage->isGLSL=1;
+
+			if (r_legacycard->integer == 2)	// "MGA" cards
+			if (pStage->program = RE_GLSL_RegisterProgram("legacy", "glsl/legacy/common_vp.glsl", 1, "glsl/legacy/mga.glsl", 1))
+			pStage->isGLSL=1;
+
+			if (r_legacycard->integer == 3)	// "GF" cards
+			if (pStage->program = RE_GLSL_RegisterProgram("legacy", "glsl/legacy/common_vp.glsl", 1, "glsl/legacy/gf.glsl", 1))
+			pStage->isGLSL=1;
+
+			if (r_legacycard->integer == 4)	// 3dfx cards in 2x2 dither configuration
+			if (pStage->program = RE_GLSL_RegisterProgram("legacy", "glsl/legacy/common_vp.glsl", 1, "glsl/legacy/3dfx2x2.glsl", 1))
+			pStage->isGLSL=1;
+
+			if (r_legacycard->integer == 5)	// 3dfx cards in 4x4 dither + subtraction configuration
+			if (pStage->program = RE_GLSL_RegisterProgram("legacy", "glsl/legacy/common_vp.glsl", 1, "glsl/legacy/3dfx4x4.glsl", 1))
+			pStage->isGLSL=1;
+
+			if (r_legacycard->integer == 1001)
+			if (pStage->program = RE_GLSL_RegisterProgram("legacy", "glsl/legacy/1001_vp.glsl", 1, "glsl/legacy/1001.glsl", 1))
+			pStage->isGLSL=1;
+
+			if (r_legacycard->integer == 64)
+			if (pStage->program = RE_GLSL_RegisterProgram("legacy", "glsl/legacy/common_vp.glsl", 1, "glsl/legacy/64.glsl", 1))
+			pStage->isGLSL=1;
+
+			if (r_legacycard->integer == 666)	// test
+			if (pStage->program = RE_GLSL_RegisterProgram("legacy", "glsl/legacy/common_vp.glsl", 1, "glsl/legacy/test.glsl", 1))
+			pStage->isGLSL=1;
+		}
+
+
+
 		// leilei - force new phong on lightdiffuse and lightdiffusespecular models
 		// FIXME: Intel HD doesn't like this.
 		// ALSO FIXME: Make this only happen when we definitely have vertex shaders working and enabled so we don't see models turning into glowing normals
@@ -5111,7 +5320,7 @@ static shader_t *FinishShader( void ) {
 	//
 	// look for multitexture potential
 	//
-	if (!r_leifx->integer)
+	if (!r_leifx->integer || r_legacycard->integer)
 	if ( stage > 1 && CollapseMultitexture() ) {
 		stage--;
 	}
