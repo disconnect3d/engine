@@ -1587,7 +1587,8 @@ void RB_DrawAccumBlur (void)
       blurstate = 0;
       return;
    }
-
+/*
+	// leilei - sadly, glAccum upsets S3's GL Drivers. :(
    if (!blurstate)
    {
       // load the scene into the accumulation buffer
@@ -1600,7 +1601,7 @@ void RB_DrawAccumBlur (void)
       qglAccum (GL_ACCUM, 1.0f - accblur); // add screen contents
       qglAccum (GL_RETURN, 1.0f); // read result back
    }
-
+*/
    blurstate = 1;
 }
 
@@ -1736,6 +1737,9 @@ const void	*RB_SwapBuffers( const void *data ) {
 	time_last =  backEnd.refdef.time;
 	return (const void *)(cmd + 1);
 }
+extern void R_FakeFBO_BackupScreen( void );
+#include "tr_notfbo.h"
+
 
 /*
 ====================
@@ -1772,6 +1776,7 @@ void RB_ExecuteRenderCommands( const void *data ) {
 		case RC_SWAP_BUFFERS:
 			//Check if it's time for BLOOM!
 			leifxmode = 0;
+			R_FakeFBO_BackupScreen();
 			R_PostprocessScreen();
 			R_BloomScreen();
 			R_FilmScreen();

@@ -21,7 +21,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //		that's postprocessed.  Maintained by leilei and Hitchiker
 
 #include "tr_local.h"
-
+#include "tr_notfbo.h"
 
 static cvar_t *r_bloom;
 static cvar_t *r_bloom_sample_size;
@@ -42,7 +42,7 @@ static cvar_t *r_bloom_reflection;		// LEILEI
 static cvar_t *r_bloom_sky_only;		// LEILEI
 
 
-
+cvar_t *r_bufferfx;
 
 
 extern float ScreenFrameCount;
@@ -1098,6 +1098,8 @@ void R_BloomInit( void )
 	r_bloom_cascade_dry = ri.Cvar_Get( "r_bloom_cascade_dry", "0.8", CVAR_ARCHIVE );
 	r_bloom_dry = ri.Cvar_Get( "r_bloom_dry", "1", CVAR_ARCHIVE );
 	r_bloom_sky_only = ri.Cvar_Get( "r_bloom_sky_only", "0", CVAR_ARCHIVE );
+
+	r_bufferfx = ri.Cvar_Get( "r_bufferfx", "1", CVAR_ARCHIVE );
 }
 
 
@@ -2260,5 +2262,28 @@ void R_WaterInit( void )
 void R_WaterScreen( void )
 {
 	// NO!
+}
+
+
+
+
+
+
+
+
+
+
+static void R_FakeFBO_InitTextures( void )
+{
+}
+
+void R_InitFakeFBO( void )
+{
+}
+
+
+
+void R_FakeFBO_BackupScreen( void )
+{
 }
 
