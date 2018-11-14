@@ -3060,13 +3060,14 @@ static qboolean ParseStage( shaderStage_t *stage, char **text )
 
 
 			// leilei - if it's a detail tex and we're in subtraction mode, hijack the blend
-			if ( !Q_strncmp( stage->bundle[0].image[0], "textures/detail/", 16 )  || !Q_strncmp( stage->bundle[0].image[0], "gfx/fx/detail/", 14 ))  {
-				if (r_detailTextureSub->integer  )
-				{
+			if (r_detailTextureSub->integer  )
+			{
+					if ( !Q_strncmp( stage->bundle[0].image[0], "textures/detail/", 16 )  || !Q_strncmp( stage->bundle[0].image[0], "gfx/fx/detail/", 14 ))  
+				{	// FIXME: I crash Q3DM0,DM5,DM6,DM11,DM12,DM18,TOURNEY6
 					blendSrcBits = GLS_SRCBLEND_ZERO;
 					blendDstBits = GLS_DSTBLEND_ONE_MINUS_SRC_COLOR;
 				}
-			}
+			}	
 
 
 	// END DITHER TEST
