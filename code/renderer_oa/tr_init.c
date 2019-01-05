@@ -287,6 +287,7 @@ static void InitOpenGL( void )
 	//		- r_(color|depth|stencil)bits
 	//		- r_ignorehwgamma
 	//		- r_gamma
+	//		- r_alternateBrightness
 	//
 
 	if ( glConfig.vidWidth == 0 ) {

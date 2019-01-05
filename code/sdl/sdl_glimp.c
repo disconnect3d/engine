@@ -35,6 +35,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "../sys/sys_local.h"
 #include "sdl_icon.h"
 
+extern cvar_t	*r_alternateBrightness;		
 /* Just hack it for now. */
 #ifdef MACOS_X
 #include <OpenGL/OpenGL.h>
@@ -833,7 +834,7 @@ void GLimp_Init( void )
 	}
 #endif
 
-		ri.Printf( PRINT_ALL, "glimp init first try!" );
+		ri.Printf( PRINT_ALL, "GLimp_Init: first try!\n" );
 
 	// Create the window and set up the context
 	if(GLimp_StartDriverAndSetMode(r_mode->integer, r_fullscreen->integer, r_noborder->integer))
@@ -842,13 +843,13 @@ void GLimp_Init( void )
 	// Try again, this time in a platform specific "safe mode"
 	ri.Sys_GLimpSafeInit( );
 
-		ri.Printf( PRINT_ALL, "glimp init second (safe) try!" );
+		ri.Printf( PRINT_ALL, "GLimp_Init: second (safe) try!\n" );
 
 	if(GLimp_StartDriverAndSetMode(r_mode->integer, r_fullscreen->integer, qfalse))
 		goto success;
 
 
-		ri.Printf( PRINT_ALL, "glimp init third fallback try!" );
+		ri.Printf( PRINT_ALL, "GLimp_Init: third fallback try!\n" );
 
 	// Finally, try the default screen resolution
 	if( r_mode->integer != R_MODE_FALLBACK )
@@ -867,21 +868,32 @@ success:
 	// This values force the UI to disable driver selection
 	glConfig.driverType = GLDRV_ICD;
 	glConfig.hardwareType = GLHW_GENERIC;
-	glConfig.deviceSupportsGamma = SDL_SetGamma( 1.0f, 1.0f, 1.0f ) >= 0;
+	glConfig.deviceSupportsGamma = 0;
+//	glConfig.deviceSupportsGamma = SDL_SetGamma( 1.0f, 1.0f, 1.0f ) >= 0;
 
 	// Mysteriously, if you use an NVidia graphics card and multiple monitors,
 	// SDL_SetGamma will incorrectly return false... the first time; ask
 	// again and you get the correct answer. This is a suspected driver bug, see
 	// http://bugzilla.icculus.org/show_bug.cgi?id=4316
-	glConfig.deviceSupportsGamma = SDL_SetGamma( 1.0f, 1.0f, 1.0f ) >= 0;
+//	glConfig.deviceSupportsGamma = SDL_SetGamma( 1.0f, 1.0f, 1.0f ) >= 0;
 
 
-
+/*
 	if ( -1 == r_ignorehwgamma->integer)
 		glConfig.deviceSupportsGamma = 1;
 
 	if ( 1 == r_ignorehwgamma->integer)
 		glConfig.deviceSupportsGamma = 0;
+*/
+	// leilei - hacky workaround to not mess with color profiles when we got shader gamma
+	if ( r_ignorehwgamma->integer || r_alternateBrightness->integer == 2)
+	{
+		glConfig.deviceSupportsGamma = 0;
+	}
+	else
+	{
+	        glConfig.deviceSupportsGamma = SDL_SetGamma( 1.0f, 1.0f, 1.0f ) >= 0;
+	}
 
 	// get our config strings
 	Q_strncpyz( glConfig.vendor_string, (char *) qglGetString (GL_VENDOR), sizeof( glConfig.vendor_string ) );
