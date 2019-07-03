@@ -2554,8 +2554,6 @@ void LFX_ParticleEffect200X (int effect, const vec3_t org, const vec3_t dir)
 	// Grenade/Rocket/Prox Explosion
 
 	else if (effect == 5 || effect == 4 || effect == 11) {
-
-
 		colory[0] = 1.0;
 		colory[1] = 1.0;
 		colory[2] = 1.0;
@@ -2575,77 +2573,39 @@ void LFX_ParticleEffect200X (int effect, const vec3_t org, const vec3_t dir)
 		VectorMA( origin, 4, dir, sprOrg );
 		VectorScale( dir, 64, sprVel );
 
-		R_LFX_Shock (sprOrg, dir, 0, 0, colory, colory2, colory3, colory4, colory4, 1, 500, 270, 1);
+		R_LFX_Shock (sprOrg, dir, 0, 0, colory, colory2, colory3, colory4, colory4, 1, 500, 270, BLEND_ADD);
 
 		// fireball
-
-		colory[0] = 1.0;
-		colory[1] = 0.2;
-		colory[2] = 0.1;
-		colory[3] = 0.0;
-		colory2[0] = 0.5;
-		colory2[1] = 0.0;
-		colory2[2] = 0.0;
-		colory2[3] = 0.2;
-		colory3[0] = 0.1;
-		colory3[1] = 0.0;
-		colory3[2] = 0.0;
-		colory3[3] = 0.7;
-		colory4[0] = 0.0;
-		colory4[1] = 0.0;
-		colory4[2] = 0.0;
-		colory4[3] = 0.0;
 		VectorMA( origin, 12, dir, sprOrg );
 		VectorScale( dir, 64, sprVel );
 
-		R_LFX_Smoke (sprOrg, sprVel, 32, 3.54, colory, colory2, colory3, colory4, colory4, 16, 1000, 94, 1);
+		R_LFX_Smoke (sprOrg, sprVel, 1, 1.54, colory, colory2, colory3, colory4, colory4, 1, 1200, 94, 8);
+		R_LFX_Smoke (sprOrg, sprVel, 2, 2.54, colory, colory2, colory3, colory4, colory4, 2, 600, 94, BLEND_ADD);
+		R_LFX_Smoke (sprOrg, sprVel, 3, 3.54, colory, colory2, colory3, colory4, colory4, 3, 400, 94, BLEND_ADD);
+		R_LFX_Smoke (sprOrg, sprVel, 4, 4.54, colory, colory2, colory3, colory4, colory4, 4, 200, 94, BLEND_ADD);
+
+
+		// Subtractve smoke
+		VectorMA( origin, 4, dir, sprOrg );
+		VectorScale( dir, 44, sprVel );
 
 		colory[0] = 1.0;
 		colory[1] = 1.0;
-		colory[2] = 0.9;
+		colory[2] = 1.0;
 		colory[3] = 1.0;
 		colory2[0] = 1.0;
-		colory2[1] = 0.7;
-		colory2[2] = 0.2;
-		colory2[3] = 0.9;
-		colory3[0] = 0.3;
-		colory3[1] = 0.2;
-		colory3[2] = 0.1;
-		colory3[3] = 0.7;
-		colory4[0] = 0.0;
-		colory4[1] = 0.0;
-		colory4[2] = 0.0;
-		colory4[3] = 0.0;
-
-		R_LFX_Smoke (sprOrg, sprVel, 62, 2, colory, colory2, colory3, colory4, colory4, 12, 200,84, 8);
-		R_LFX_Smoke (sprOrg, sprVel, 32, 1.54, colory, colory2, colory3, colory4, colory4, 22, 600, 74, 8);
-
-		R_LFX_Smoke (sprOrg, sprVel, 44, 1.3, colory, colory2, colory3, colory4, colory4, 3, 800,3, 8);
-
-		R_LFX_Smoke (sprOrg, sprVel, 32, 0.54, colory, colory2, colory3, colory4, colory4, 12, 600, 74, 8);
-
-		// Shroom Cloud
-		VectorMA( origin, 16, dir, sprOrg );
-		VectorScale( dir, 64, sprVel );
-
-		colory[0] = 0.5;
-		colory[1] = 0.0;
-		colory[2] = 0.0;
-		colory[3] = 0.0;
-		colory2[0] = 1.0;
 		colory2[1] = 1.0;
-		colory2[2] = 0.2;
-		colory2[3] = 0.2;
-		colory3[0] = 0.5;
-		colory3[1] = 0.1;
-		colory3[2] = 0.0;
-		colory3[3] = 0.5;
+		colory2[2] = 1.0;
+		colory2[3] = 1.0;
+		colory3[0] = 0.6;
+		colory3[1] = 0.6;
+		colory3[2] = 0.6;
+		colory3[3] = 0.6;
 		colory4[0] = 0.0;
 		colory4[1] = 0.0;
 		colory4[2] = 0.0;
 		colory4[3] = 0.0;
-		R_LFX_Smoke (sprOrg, sprVel, 3, 0.7, colory, colory2, colory3, colory4, colory4, 22, 300,135, 8);
-
+		R_LFX_Smoke (sprOrg, sprVel, 3, 1.54, colory, colory2, colory3, colory4, colory4, 1, 2000, 194, BLEND_SUB);
 		// Sparks!
 
 		colory[0] = 1;
@@ -2667,9 +2627,7 @@ void LFX_ParticleEffect200X (int effect, const vec3_t org, const vec3_t dir)
 		VectorMA( origin, 12, dir, sprOrg );
 		VectorScale( dir, 64, sprVel );
 
-		R_LFX_Burst (sprOrg, sprVel, 175, 15, colory, colory2, colory3, colory4, colory4, 15, 240, 22, 1);
-
-		R_LFX_Spark (sprOrg, sprVel, 175, 5, colory, colory2, colory3, colory4, colory4, 25, 1240, 0.8f, 1);
+		R_LFX_Spark (sprOrg, sprVel, 175, 3, colory, colory2, colory3, colory4, colory4, 12, 1240, 0.8f, BLEND_ADD);
 
 	}
 
@@ -2702,30 +2660,24 @@ void LFX_ParticleEffect200X (int effect, const vec3_t org, const vec3_t dir)
 		VectorMA( origin, 12, dir, sprOrg );
 		VectorScale( dir, 64, sprVel );
 
-		R_LFX_Smoke (sprOrg, sprVel, 32, 3.54, colory, colory2, colory3, colory4, colory4, 16, 200, 174, 1);
+		R_LFX_Smoke (sprOrg, sprVel, 1, 1.54, colory, colory2, colory3, colory4, colory4, 1, 1200, 94, 8);
+		R_LFX_Smoke (sprOrg, sprVel, 2, 2.54, colory, colory2, colory3, colory4, colory4, 2, 600, 94, BLEND_ADD);
+		R_LFX_Smoke (sprOrg, sprVel, 3, 3.54, colory, colory2, colory3, colory4, colory4, 3, 400, 94, BLEND_ADD);
+		R_LFX_Smoke (sprOrg, sprVel, 4, 4.54, colory, colory2, colory3, colory4, colory4, 4, 200, 94, BLEND_ADD);
 
-
-		R_LFX_Smoke (sprOrg, sprVel, 62, 2, colory, colory2, colory3, colory4, colory4, 12, 800,84, 8);
-		R_LFX_Smoke (sprOrg, sprVel, 32, 1.54, colory, colory2, colory3, colory4, colory4, 22, 400, 74, 8);
-
-		R_LFX_Smoke (sprOrg, sprVel, 44, 1.3, colory, colory2, colory3, colory4, colory4, 3, 500,3, 8);
-
-		R_LFX_Smoke (sprOrg, sprVel, 32, 0.54, colory, colory2, colory3, colory4, colory4, 12, 400, 74, 8);
 
 		// Shroom Cloud
 		VectorMA( origin, 16, dir, sprOrg );
 		VectorScale( dir, 64, sprVel );
 
-		R_LFX_Smoke (sprOrg, sprVel, 3, 0.7, colory, colory2, colory3, colory4, colory4, 22, 300,135, 8);
+		R_LFX_Smoke (sprOrg, sprVel, 3, 1.54, colory, colory2, colory3, colory4, colory4, 1, 2000, 194, BLEND_SUB);
 
 		// Sparks!
 
 		VectorMA( origin, 12, dir, sprOrg );
 		VectorScale( dir, 64, sprVel );
 
-		R_LFX_Burst (sprOrg, sprVel, 175, 15, colory, colory2, colory3, colory4, colory4, 15, 140, 32, 1);
-
-		R_LFX_Spark (sprOrg, sprVel, 175, 5, colory, colory2, colory3, colory4, colory4, 15, 1040, 0.8f, 1);
+		R_LFX_Spark (sprOrg, sprVel, 175, 5, colory, colory2, colory3, colory4, colory4, 4, 1040, 0.8f, 1);
 	}
 
 	// Nail Hit

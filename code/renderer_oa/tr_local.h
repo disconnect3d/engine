@@ -1287,7 +1287,10 @@ typedef struct {
 	qboolean				placeholderFogAvail;
 	qboolean				placeholderAvail;
 
-
+	// leilei - activated fragment shader lighting
+	
+	int					leiShaded;	
+	int					shadeMode;
 
 } trGlobals_t;
 

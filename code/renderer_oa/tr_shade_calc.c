@@ -1383,7 +1383,6 @@ void RB_CalcRotateTexCoords( float degsPerSecond, float *st )
 
 void RB_CalcAtlasTexCoords( const atlas_t *at, float *st )
 {
-	float p;
 	texModInfo_t tmi;
 	int w = (int)at->width;	
 	int h = (int)at->height;
@@ -1702,6 +1701,53 @@ static void RB_CalcDiffuseColor_scalar( unsigned char *colors )
 	}
 }
 
+
+static void RB_CalcDiffuseColor_flat( unsigned char *colors )
+{
+	int				i, j;
+	float			*v, *normal;
+	trRefEntity_t	*ent;
+	int				ambientLightInt;
+	vec3_t			ambientLight;
+	vec3_t			lightDir;
+	vec3_t			directedLight;
+	int				numVertexes;
+	ent = backEnd.currentEntity;
+	ambientLightInt = ent->ambientLightInt;
+	VectorCopy( ent->ambientLight, ambientLight );
+	VectorCopy( ent->directedLight, directedLight );
+	VectorCopy( ent->lightDir, lightDir );
+
+	v = tess.xyz[0];
+	normal = tess.normal[0];
+
+	directedLight[0] /= 4<<tr.overbrightBits;
+	directedLight[1] /= 4<<tr.overbrightBits;
+	directedLight[2] /= 4<<tr.overbrightBits;
+	numVertexes = tess.numVertexes;
+	for (i = 0 ; i < numVertexes ; i++, v += 4, normal += 4) {
+		j = ri.ftol(ambientLight[0] + directedLight[0]);
+		if ( j > 255 ) {
+			j = 255;
+		}
+		colors[i*4+0] = j;
+
+		j = ri.ftol(ambientLight[1] + directedLight[1]);
+		if ( j > 255 ) {
+			j = 255;
+		}
+		colors[i*4+1] = j;
+
+		j = ri.ftol(ambientLight[2] + directedLight[2]);
+		if ( j > 255 ) {
+			j = 255;
+		}
+		colors[i*4+2] = j;
+
+		colors[i*4+3] = 255;
+	}
+}
+
 // leilei - reveal normals to GLSL for light processing. HACK HACK HACK HACK HACK HACK
 void RB_CalcNormal( unsigned char *colors )
 {
@@ -1748,6 +1794,7 @@ void RB_CalcNormal( unsigned char *colors )
 
 
 
+void RB_CalcFresnelColor( unsigned char *colors );
 
 void RB_CalcDiffuseColor( unsigned char *colors )
 {
@@ -1760,8 +1807,13 @@ void RB_CalcDiffuseColor( unsigned char *colors )
 #endif
 
 
-	// leilei - reduced it to just this, r_shadeMode deprecated. :(
-	RB_CalcDiffuseColor_scalar( colors );
+	if (tr.shadeMode == 1)
+		RB_CalcFresnelColor( colors );
+	else if (tr.shadeMode == -1)	
+		RB_CalcDiffuseColor_flat( colors );
+	else
+		RB_CalcDiffuseColor_scalar( colors );
+
 
 }
 
@@ -1948,6 +2000,116 @@ void RB_CalcFlatDirect( unsigned char *colors )
 		colors[i*4+3] = 255;
 	}
 }
+
+// The following specular stuff is also still ZEQ2Lite
+
+//
+// "Fake" Fresnel Diffuse
+//
+
+void RB_CalcFresnelColor( unsigned char *colors )
+{
+	int			i;
+	float		*v, *normal;
+	vec3_t		viewer,  reflected;
+	float		l, d;
+	int		b, am = 0;
+	int		minamb;
+	trRefEntity_t	*ent;
+	vec3_t		lightDir;
+	int			numVertexes;
+	vec3_t			directedLight;
+
+	v = tess.xyz[0];
+	normal = tess.normal[0];
+	
+		int				ambientLightInt;
+		vec3_t			ambientLight;
+		ent = backEnd.currentEntity;
+		ambientLightInt = ent->ambientLightInt;
+		VectorCopy( ent->ambientLight, ambientLight );
+		VectorCopy( ent->directedLight, directedLight );
+	
+	numVertexes = tess.numVertexes;
+	for (i = 0 ; i < numVertexes ; i++, v += 4, normal += 4) {
+		float ilength;
+
+		VectorCopy( backEnd.currentEntity->lightDir, lightDir );
+
+		VectorNormalizeFast( lightDir );
+
+		// calculate the specular color
+		d = DotProduct (normal, lightDir);
+
+		// we don't optimize for the d < 0 case since this tends to
+		// cause visual artifacts such as faceted "snapping"
+		reflected[0] = normal[0]*2*d - lightDir[0];
+		reflected[1] = normal[1]*2*d - lightDir[1];
+		reflected[2] = normal[2]*2*d - lightDir[2];
+
+		minamb = ((ambientLight[0] + ambientLight[1] + ambientLight[2]) / 3);
+		minamb *= (tr.overbrightBits+1);
+		float lgtajst = 1;
+
+		VectorSubtract (backEnd.or.viewOrigin, v, viewer);
+		ilength = Q_rsqrt( DotProduct( viewer, viewer ));
+		l = DotProduct (reflected, viewer);
+		l *= ilength;
+
+		if (l < 0) {
+			am = (-l*128) + minamb;
+
+			if (am > 255) {
+				am = 255;
+			}
+			if (am < minamb) {
+				am = minamb;
+			}
+			b=0;
+		} else {
+			b = l*255;
+			if (b > 255) {
+				b = 255;
+			}
+			//if (b>minamb)
+			//b-=minamb;
+			//if (b<0) b=0;
+			am=minamb;
+		}
+
+		{
+			float bah = (b / 255.0f);
+			float amb = (am / 255.0f);
+			int k, j;
+			k = ri.ftol(ambientLight[0]*amb);
+			j = ri.ftol(directedLight[0]*bah);
+			if (j<k) j=k;
+
+			if ( j > 255 ) {
+				j = 255;
+			}
+			colors[i*4+0] = j;
+	
+			k = ri.ftol(ambientLight[1]*amb);
+			j = ri.ftol(directedLight[1]*bah);
+			if (j<k) j=k;
+			if ( j > 255 ) {
+				j = 255;
+			}
+			colors[i*4+1] = j;
+	
+			k = ri.ftol(ambientLight[2]*amb);
+			j = ri.ftol(directedLight[2]*bah);
+			if (j<k) j=k;
+			if ( j > 255 ) {
+				j = 255;
+			}
+			colors[i*4+2] = j;
+		}
+	}
+}
+
+
 
 //
 //	Specular RGB for additive-only stages

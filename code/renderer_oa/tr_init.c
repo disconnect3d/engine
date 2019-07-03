@@ -1503,8 +1503,14 @@ void R_GLSL_Init(void)
 
 	postprocess=qfalse;
 	depthimage=0;
+
+	tr.leiShaded = 0;
+
 	if (!vertexShaders)
 		return;
+	
+	if (r_modelshader->integer >= 3)
+		tr.leiShaded = r_modelshader->integer;
 
 	ri.Printf(PRINT_ALL, "Initializing Programs\n");
 
@@ -1753,6 +1759,8 @@ void R_Init( void )
 	err = qglGetError();
 	if ( err != GL_NO_ERROR )
 		ri.Printf (PRINT_ALL, "glGetError() = 0x%x\n", err);
+
+	tr.shadeMode = r_modelshader->integer;
 
 	// print info
 	GfxInfo_f();
