@@ -219,18 +219,12 @@ cvar_t	*r_particles;		// Leilei - particle effects motif
 
 cvar_t	*r_legacycard;		// leilei - selection of shader to mimic notable old video cards
 
-cvar_t	*r_ntsc;		// Leilei - ntsc / composite signals
-//cvar_t	*r_tvMode;		// Leilei - tv fake mode
 cvar_t	*r_retroAA;		// Leilei - old console AA
-cvar_t	*r_anime;		// Leilei - anime filter
 cvar_t	*r_palletize;		// Leilei - palletization
 cvar_t	*r_leidebug;		// Leilei - debug
 cvar_t	*r_leidebugeye;		// Leilei - eye debug
 
 cvar_t	*r_suggestiveThemes;		// leilei - mature content control
-
-//cvar_t	*r_motionblur;		// Leilei - motionblur
-cvar_t	*r_motionblur_fps;		// Leilei - motionblur framerated
 
 cvar_t	*r_slowness;		// Leilei - the cvar that slows everything down. use with caution.
 cvar_t	*r_slowness_cpu;		// Leilei
@@ -244,24 +238,14 @@ cvar_t	*r_textureDither;	// leilei - Dithered texture
 
 
 #ifdef USE_FALLBACK_GLSL
-extern const char *fallbackShader_anime_vp;
-extern const char *fallbackShader_anime_fp;
-extern const char *fallbackShader_anime_film_vp;
-extern const char *fallbackShader_anime_film_fp;
 extern const char *fallbackShader_brightness_vp;
 extern const char *fallbackShader_brightness_fp;
-extern const char *fallbackShader_leifx_dither_vp;
-extern const char *fallbackShader_leifx_dither_fp;
 extern const char *fallbackShader_leifx_filter_vp;
 extern const char *fallbackShader_leifx_filter_fp;
 extern const char *fallbackShader_leifx_gamma_vp;
 extern const char *fallbackShader_leifx_gamma_fp;
 extern const char *fallbackShader_leifx_vgasignal_vp;
 extern const char *fallbackShader_leifx_vgasignal_fp;
-extern const char *fallbackShader_motionblur_accum_vp;
-extern const char *fallbackShader_motionblur_accum_fp;
-extern const char *fallbackShader_motionblur_post_vp;
-extern const char *fallbackShader_motionblur_post_fp;
 #endif
 
 
@@ -600,15 +584,6 @@ const void *RB_TakeScreenshotCmd( const void *data )
 	const screenshotCommand_t	*cmd;
 
 	cmd = (const screenshotCommand_t *)data;
-
-	// leilei - hack for tvmode
-	if (r_tvMode->integer > -1) {
-
-		if (cmd->jpeg)
-			RB_TakeScreenshotJPEG( cmd->x, cmd->y, tvWidth, tvHeight, cmd->fileName);
-		else
-			RB_TakeScreenshot( cmd->x, cmd->y, tvWidth, tvHeight, cmd->fileName);
-	}
 
 	if (cmd->jpeg)
 		RB_TakeScreenshotJPEG( cmd->x, cmd->y, cmd->width, cmd->height, cmd->fileName);
@@ -1345,17 +1320,10 @@ void R_Register( void )
 	r_detailTextureLayers = ri.Cvar_Get( "r_detailtextureLayers", "0", CVAR_ARCHIVE | CVAR_LATCH ); // leilei - add more detail layers
 	r_specular = ri.Cvar_Get( "r_specular", "1", CVAR_ARCHIVE | CVAR_LATCH );	// leilei - model specular
 
-	r_ntsc = ri.Cvar_Get( "r_ntsc", "0" , CVAR_ARCHIVE | CVAR_LATCH);			// leilei - ntsc filter
-
-	//r_tvMode = ri.Cvar_Get( "r_tvMode", "0" , CVAR_ARCHIVE | CVAR_LATCH);
 	r_retroAA = ri.Cvar_Get( "r_retroAA", "0" , CVAR_ARCHIVE | CVAR_LATCH);
 
 	r_suggestiveThemes = ri.Cvar_Get( "r_suggestiveThemes", "1" , CVAR_ARCHIVE | CVAR_LATCH);
 
-//	r_motionblur = ri.Cvar_Get( "r_motionblur", "0" , CVAR_ARCHIVE | CVAR_LATCH);
-	r_motionblur_fps = ri.Cvar_Get( "r_motionblur_fps", "60", 0);
-
-	r_anime = ri.Cvar_Get( "r_anime", "0" , CVAR_ARCHIVE | CVAR_LATCH);
 	r_palletize = ri.Cvar_Get( "r_palletize", "0" , CVAR_ARCHIVE | CVAR_LATCH);
 	r_leidebug = ri.Cvar_Get( "r_leidebug", "0" , CVAR_CHEAT);
 	r_particles = ri.Cvar_Get( "r_particles", "0" , CVAR_ARCHIVE | CVAR_LATCH);
@@ -1430,21 +1398,9 @@ static glslProgram_t *R_GLSL_AllocProgram(void)
 	program->u_Texture7						= -1;
 	program->u_Time							= -1;
 	program->u_ViewOrigin					= -1;
-	program->u_Normal					= -1;
 
 	program->u_ScreenSizeX							= -1;
 	program->u_ScreenSizeY							= -1;
-
-	program->u_mpass1						= -1;
-	program->u_mpass2						= -1;
-	program->u_mpass3						= -1;
-	program->u_mpass4						= -1;
-
-
-	program->rubyTextureSize				= -1;
-	program->rubyInputSize					= -1;
-	program->rubyOutputSize					= -1;
-	program->rubyFrameCount					= -1;
 
 	tr.programs[tr.numPrograms] = program;
 	tr.numPrograms++;
@@ -1545,28 +1501,11 @@ void R_GLSL_Init(void)
 	Q_strncpyz(programFragmentObjects[0], "glsl/sky_fp.glsl", sizeof(programFragmentObjects[0]));
 	tr.skyProgram = RE_GLSL_RegisterProgram("sky", (const char *)programVertexObjects, 1, (const char *)programFragmentObjects, 1);
 
-
-
-	Q_strncpyz(programVertexObjects[0], "glsl/anime_vp.glsl", sizeof(programVertexObjects[0]));
-	Q_strncpyz(programFragmentObjects[0], "glsl/anime_fp.glsl", sizeof(programFragmentObjects[0]));
-	tr.animeProgram = RE_GLSL_RegisterProgram("anime", (const char *)programVertexObjects, 1, (const char *)programFragmentObjects, 1);
-
-	Q_strncpyz(programVertexObjects[0], "glsl/anime_film_vp.glsl", sizeof(programVertexObjects[0]));
-	Q_strncpyz(programFragmentObjects[0], "glsl/anime_film_fp.glsl", sizeof(programFragmentObjects[0]));
-	tr.animeFilmProgram = RE_GLSL_RegisterProgram("anime_film", (const char *)programVertexObjects, 1, (const char *)programFragmentObjects, 1);
-
 	Q_strncpyz(programVertexObjects[0], "glsl/palette_vp.glsl", sizeof(programVertexObjects[0]));
 	Q_strncpyz(programFragmentObjects[0], "glsl/palette_fp.glsl", sizeof(programFragmentObjects[0]));
 	tr.paletteProgram = RE_GLSL_RegisterProgram("palette", (const char *)programVertexObjects, 1, (const char *)programFragmentObjects, 1);
 
 
-	Q_strncpyz(programVertexObjects[0], "glsl/leifx_dither_vp.glsl", sizeof(programVertexObjects[0]));
-	Q_strncpyz(programFragmentObjects[0], "glsl/leifx_dither_fp.glsl", sizeof(programFragmentObjects[0]));
-	tr.leiFXDitherProgram = RE_GLSL_RegisterProgram("leifx_dither", (const char *)programVertexObjects, 1, (const char *)programFragmentObjects, 1);
-#ifdef USE_FALLBACK_GLSL
-//	if (!tr.leiFXDitherProgram) // try fallback shader
-//	tr.leiFXDitherProgram = RE_GLSL_RegisterProgram("leifx_dither", fallbackShader_leifx_dither_vp, 1, fallbackShader_leifx_dither_fp, 1);
-#endif
 	Q_strncpyz(programVertexObjects[0], "glsl/leifx_gamma_vp.glsl", sizeof(programVertexObjects[0]));
 	Q_strncpyz(programFragmentObjects[0], "glsl/leifx_gamma_fp.glsl", sizeof(programFragmentObjects[0]));
 	tr.leiFXGammaProgram = RE_GLSL_RegisterProgram("leifx_gamma", (const char *)programVertexObjects, 1, (const char *)programFragmentObjects, 1);
@@ -1575,17 +1514,9 @@ void R_GLSL_Init(void)
 	Q_strncpyz(programFragmentObjects[0], "glsl/leifx_filter_fp.glsl", sizeof(programFragmentObjects[0]));
 	tr.leiFXFilterProgram = RE_GLSL_RegisterProgram("leifx_filter", (const char *)programVertexObjects, 1, (const char *)programFragmentObjects, 1);
 
-	Q_strncpyz(programVertexObjects[0], "glsl/motionblur_accum_vp.glsl", sizeof(programVertexObjects[0]));
-	Q_strncpyz(programFragmentObjects[0], "glsl/motionblur_accum_fp.glsl", sizeof(programFragmentObjects[0]));
-	tr.motionBlurProgram = RE_GLSL_RegisterProgram("motionblur_accum", (const char *)programVertexObjects, 1, (const char *)programFragmentObjects, 1);
-
-	Q_strncpyz(programVertexObjects[0], "glsl/motionblur_post_vp.glsl", sizeof(programVertexObjects[0]));
-	Q_strncpyz(programFragmentObjects[0], "glsl/motionblur_post_fp.glsl", sizeof(programFragmentObjects[0]));
-	tr.motionBlurPostProgram = RE_GLSL_RegisterProgram("motionblur_post", (const char *)programVertexObjects, 1, (const char *)programFragmentObjects, 1);
-
 	Q_strncpyz(programVertexObjects[0], "glsl/brightness_vp.glsl", sizeof(programVertexObjects[0]));
 	Q_strncpyz(programFragmentObjects[0], "glsl/brightness_fp.glsl", sizeof(programFragmentObjects[0]));
-//	if (!(tr.BrightnessProgram = RE_GLSL_RegisterProgram("brightness", (const char *)programVertexObjects, 1, (const char *)programFragmentObjects, 1)))
+	if (!(tr.BrightnessProgram = RE_GLSL_RegisterProgram("brightness", (const char *)programVertexObjects, 1, (const char *)programFragmentObjects, 1)))
 	{
 		// load it through this code
 	ri.Printf( PRINT_ALL, "----- Trying to load Brightness Shader internally!!! \n" );
@@ -1635,22 +1566,6 @@ void R_GLSL_Init(void)
 			tr.BrightnessProgram = RE_GLSL_RegisterProgramRaw("brightnessInternal", (const char *)brightnessvp, 1, (const char *)brightnessfp, 1);
 	}
 
-	Q_strncpyz(programVertexObjects[0], "glsl/crt_vp.glsl", sizeof(programVertexObjects[0]));
-	Q_strncpyz(programFragmentObjects[0], "glsl/crt_fp.glsl", sizeof(programFragmentObjects[0]));
-	tr.CRTProgram = RE_GLSL_RegisterProgram("crt", (const char *)programVertexObjects, 1, (const char *)programFragmentObjects, 1);
-
-	Q_strncpyz(programVertexObjects[0], "glsl/ntsc_encode_vp.glsl", sizeof(programVertexObjects[0]));
-	Q_strncpyz(programFragmentObjects[0], "glsl/ntsc_encode_fp.glsl", sizeof(programFragmentObjects[0]));
-	tr.NTSCEncodeProgram = RE_GLSL_RegisterProgram("ntsc_encode", (const char *)programVertexObjects, 1, (const char *)programFragmentObjects, 1);
-
-	Q_strncpyz(programVertexObjects[0], "glsl/ntsc_decode_vp.glsl", sizeof(programVertexObjects[0]));
-	Q_strncpyz(programFragmentObjects[0], "glsl/ntsc_decode_fp.glsl", sizeof(programFragmentObjects[0]));
-	tr.NTSCDecodeProgram = RE_GLSL_RegisterProgram("ntsc_decode", (const char *)programVertexObjects, 1, (const char *)programFragmentObjects, 1);
-
-	Q_strncpyz(programVertexObjects[0], "glsl/ntsc_bleed_vp.glsl", sizeof(programVertexObjects[0]));
-	Q_strncpyz(programFragmentObjects[0], "glsl/ntsc_bleed_fp.glsl", sizeof(programFragmentObjects[0]));
-	tr.NTSCBleedProgram = RE_GLSL_RegisterProgram("ntsc_bleed", (const char *)programVertexObjects, 1, (const char *)programFragmentObjects, 1);
-
 	if (strcmp( (const char *)r_postprocess->string, "none" )) {
 		sprintf(p,"glsl/%s_vp.glsl",r_postprocess->string);
 		Q_strncpyz(programVertexObjects[0], (const char *)&p, sizeof(programVertexObjects[0]));
@@ -1665,7 +1580,7 @@ void R_GLSL_Init(void)
 #endif
 }
 extern qboolean		initparticles;
-extern void R_InitFakeFBO();
+
 /*
 ===============
 R_Init
@@ -1722,11 +1637,12 @@ void R_Init( void )
 
 	R_Register();
 
-	R_BloomInit();
-	R_PostprocessingInit();
-	R_InitFakeFBO();
-	R_AltBrightnessInit();	// leilei	- alternate brightness
-	R_WaterInit();		// leilei - water test
+	//R_BloomInit();
+	
+	//R_PostprocessingInit();
+	
+	//R_AltBrightnessInit();	// leilei	- alternate brightness
+	
 	max_polys = r_maxpolys->integer;
 	if (max_polys < MAX_POLYS)
 		max_polys = MAX_POLYS;

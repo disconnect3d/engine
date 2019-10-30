@@ -134,9 +134,6 @@ static glslProgram_t *R_GLSL_AllocProgram(void) {
 	program->u_ScreenToNextPixelX			= -1;
 	program->u_ScreenToNextPixelY			= -1;
 	program->u_zFar							= -1;
-	program->u_MotionBlurX			= -1;
-	program->u_MotionBlurY			= -1;
-	program->u_mpasses			= -1;
 	program->u_CC_Brightness		= -1;	
 	program->u_CC_Gamma			= -1;
 	program->u_CC_Overbright		= -1;
@@ -145,12 +142,7 @@ static glslProgram_t *R_GLSL_AllocProgram(void) {
 	program->u_ActualScreenSizeX					= -1;
 	program->u_ActualScreenSizeY					= -1;
 
-	program->rubyInputSize					= -1;
-	program->rubyOutputSize					= -1;
-	program->rubyTextureSize					= -1;
-	program->rubyFrameCount					= -1;
 
-	
 	tr.programs[tr.numPrograms] = program;
 	tr.numPrograms++;
 
@@ -194,8 +186,6 @@ static void R_GLSL_ParseProgram(glslProgram_t *program, char *_text) {
 					program->u_ActualScreenSizeX = qglGetUniformLocationARB(program->program, "u_ActualScreenSizeX");
 				}  else if (!Q_stricmp(token, "u_ActualScreenSizeY;")) {
 					program->u_ActualScreenSizeY = qglGetUniformLocationARB(program->program, "u_ActualScreenSizeY");
-				}  else if (!Q_stricmp(token, "u_mpasses;")) {
-					program->u_mpasses = qglGetUniformLocationARB(program->program, "u_mpasses");
 				} else {
 					ri.Printf(PRINT_WARNING, "WARNING: uniform int %s unrecognized in program %s\n", token, program->name);
 				}
@@ -213,10 +203,6 @@ static void R_GLSL_ParseProgram(glslProgram_t *program, char *_text) {
 					program->u_ScreenToNextPixelY = qglGetUniformLocationARB(program->program, "u_ScreenToNextPixelY");
 				}  else if (!Q_stricmp(token, "u_zFar;")) {
 					program->u_zFar = qglGetUniformLocationARB(program->program, "u_zFar");
-				}  else if (!Q_stricmp(token, "u_MotionBlurX;")) {
-					program->u_MotionBlurX = qglGetUniformLocationARB(program->program, "u_MotionBlurX");
-				}  else if (!Q_stricmp(token, "u_MotionBlurY;")) {
-					program->u_MotionBlurY = qglGetUniformLocationARB(program->program, "u_MotionBlurY");
 				}  else if (!Q_stricmp(token, "u_CC_Brightness;")) {
 					program->u_CC_Brightness = qglGetUniformLocationARB(program->program, "u_CC_Brightness");
 				}  else if (!Q_stricmp(token, "u_CC_Overbright;")) {
@@ -269,17 +255,6 @@ static void R_GLSL_ParseProgram(glslProgram_t *program, char *_text) {
 					R_GLSL_SetUniform_Texture7(program, 7);
 				} else {
 					ri.Printf(PRINT_WARNING, "WARNING: uniform sampler2D %s unrecognized in program %s\n", token, program->name);
-				}
-			} else if (!Q_stricmp(token, "vec2")) {
-				token = COM_ParseExt(text, qfalse);
-				if (!Q_stricmp(token, "rubyTextureSize;")) {
-					program->rubyTextureSize = qglGetUniformLocationARB(program->program, "rubyTextureSize");
-				} else if (!Q_stricmp(token, "rubyInputSize;")) {
-					program->rubyInputSize = qglGetUniformLocationARB(program->program, "rubyInputSize");
-				} else if (!Q_stricmp(token, "rubyOutputSize;")) {
-					program->rubyOutputSize = qglGetUniformLocationARB(program->program, "rubyOutputSize");
-				} else {
-					ri.Printf(PRINT_WARNING, "WARNING: uniform vec2 %s unrecognized in program %s\n", token, program->name);
 				}
 			} else if (!Q_stricmp(token, "vec3")) {
 				token = COM_ParseExt(text, qfalse);
@@ -1181,7 +1156,7 @@ static void ParseTexMod( char *_text, shaderStage_t *stage )
 			return;
 		}
 		tmi->atlas.width = atof( token );
-			ri.Printf( PRINT_WARNING, "shader '%s' has width %f\n", shader.name, tmi->atlas.width );
+		//	ri.Printf( PRINT_WARNING, "shader '%s' has width %f\n", shader.name, tmi->atlas.width );
 
 		token = COM_ParseExt( text, qfalse );
 		if ( token[0] == 0 )
@@ -5199,13 +5174,13 @@ static shader_t *FinishShader( void ) {
 		// Try to use leifx dither here instead of postprocess for more authentic overdraw artifacts
 		if (r_leifx->integer > 1)
 		{		
-			
 			if (pStage->isBlend == 1){
-			pStage->program = RE_GLSL_RegisterProgram("leifxify2", "glsl/leifxify2_vp.glsl", 1, "glsl/leifxify2_fp.glsl", 1);	// 2x2 dither blend for vertex colors, 4x4 for texture
-			//ri.Printf( PRINT_DEVELOPER, "picking blended\n");
+				pStage->program = RE_GLSL_RegisterProgram("leifxify2", "glsl/leifxify2_vp.glsl", 1, "glsl/leifxify2_fp.glsl", 1);	// 2x2 dither blend for vertex colors, 4x4 for texture
 			}
 			else
-			pStage->program = RE_GLSL_RegisterProgram("leifxify", "glsl/leifxify2_vp.glsl", 1, "glsl/leifxify_fp.glsl", 1);		// 4x4 dither blend for both color and texture
+			{
+				pStage->program = RE_GLSL_RegisterProgram("leifxify", "glsl/leifxify2_vp.glsl", 1, "glsl/leifxify_fp.glsl", 1);		// 4x4 dither blend for both color and texture
+			}
 			pStage->isGLSL=1;
 		}
 
@@ -5213,36 +5188,68 @@ static shader_t *FinishShader( void ) {
 		if ((r_legacycard->integer) && (pStage->isGLSL==0) && (r_ext_vertex_shader->integer) )
 		{	
 			if (r_legacycard->integer == 1)	// "Midas" cards
-			if (pStage->program = RE_GLSL_RegisterProgram("legacy", "glsl/legacy/common_vp.glsl", 1, "glsl/legacy/midas.glsl", 1))
-			pStage->isGLSL=1;
+			{ 
+				if (pStage->program = RE_GLSL_RegisterProgram("legacy", "glsl/legacy/common_vp.glsl", 1, "glsl/legacy/midas.glsl", 1))
+				{
+				pStage->isGLSL=1;
+				}
+			}
 
 			if (r_legacycard->integer == 2)	// "MGA" cards
-			if (pStage->program = RE_GLSL_RegisterProgram("legacy", "glsl/legacy/common_vp.glsl", 1, "glsl/legacy/mga.glsl", 1))
-			pStage->isGLSL=1;
+			{ 
+				if (pStage->program = RE_GLSL_RegisterProgram("legacy", "glsl/legacy/common_vp.glsl", 1, "glsl/legacy/mga.glsl", 1))
+				{
+					pStage->isGLSL=1;
+				}
+			}
 
 			if (r_legacycard->integer == 3)	// "GF" cards
-			if (pStage->program = RE_GLSL_RegisterProgram("legacy", "glsl/legacy/common_vp.glsl", 1, "glsl/legacy/gf.glsl", 1))
-			pStage->isGLSL=1;
+			{
+				if (pStage->program = RE_GLSL_RegisterProgram("legacy", "glsl/legacy/common_vp.glsl", 1, "glsl/legacy/gf.glsl", 1))
+				{
+					pStage->isGLSL=1;
+				}
+			}
 
 			if (r_legacycard->integer == 4)	// 3dfx cards in 2x2 dither configuration
-			if (pStage->program = RE_GLSL_RegisterProgram("legacy", "glsl/legacy/common_vp.glsl", 1, "glsl/legacy/3dfx2x2.glsl", 1))
-			pStage->isGLSL=1;
+				{ 
+				if (pStage->program = RE_GLSL_RegisterProgram("legacy", "glsl/legacy/common_vp.glsl", 1, "glsl/legacy/3dfx2x2.glsl", 1))
+				{
+					pStage->isGLSL=1;
+				}
+			}
 
 			if (r_legacycard->integer == 5)	// 3dfx cards in 4x4 dither + subtraction configuration
-			if (pStage->program = RE_GLSL_RegisterProgram("legacy", "glsl/legacy/common_vp.glsl", 1, "glsl/legacy/3dfx4x4.glsl", 1))
-			pStage->isGLSL=1;
+			{ 
+				if (pStage->program = RE_GLSL_RegisterProgram("legacy", "glsl/legacy/common_vp.glsl", 1, "glsl/legacy/3dfx4x4.glsl", 1))
+				{
+					pStage->isGLSL=1;
+				}
+			}
 
 			if (r_legacycard->integer == 1001)
-			if (pStage->program = RE_GLSL_RegisterProgram("legacy", "glsl/legacy/1001_vp.glsl", 1, "glsl/legacy/1001.glsl", 1))
-			pStage->isGLSL=1;
+			{
+				if (pStage->program = RE_GLSL_RegisterProgram("legacy", "glsl/legacy/1001_vp.glsl", 1, "glsl/legacy/1001.glsl", 1))
+				{
+					pStage->isGLSL=1;
+				}
+			}
 
 			if (r_legacycard->integer == 64)
-			if (pStage->program = RE_GLSL_RegisterProgram("legacy", "glsl/legacy/common_vp.glsl", 1, "glsl/legacy/64.glsl", 1))
-			pStage->isGLSL=1;
+			{ 
+				if (pStage->program = RE_GLSL_RegisterProgram("legacy", "glsl/legacy/common_vp.glsl", 1, "glsl/legacy/64.glsl", 1))
+				{
+					pStage->isGLSL=1;
+				}
+			}
 
 			if (r_legacycard->integer == 666)	// test
-			if (pStage->program = RE_GLSL_RegisterProgram("legacy", "glsl/legacy/common_vp.glsl", 1, "glsl/legacy/test.glsl", 1))
-			pStage->isGLSL=1;
+			{
+				if (pStage->program = RE_GLSL_RegisterProgram("legacy", "glsl/legacy/common_vp.glsl", 1, "glsl/legacy/test.glsl", 1))
+				{
+					pStage->isGLSL=1;
+				}
+			}
 		}
 
 
@@ -5950,14 +5957,6 @@ shader_t *R_FindShader( const char *name, int lightmapIndex, qboolean mipRawImag
 		shader_t	*sh;		
 		shader_t	*ahsh;	
 
-/*			// Sadly, I have deprecated the old cel hack. I am leaving it here. It breaks 2D textures BTW!!! :(
-	if (r_anime->integer){
-		sh = R_FindShaderReal(va("%s_cel",name), lightmapIndex, mipRawImage);
-		if ( sh->defaultShader )
-		sh = R_FindShaderReal(name, lightmapIndex, mipRawImage);
-		return sh;
-	}
-	else*/
 
 	// load real shader first?
 	sh = R_FindShaderReal(name, lightmapIndex, mipRawImage);

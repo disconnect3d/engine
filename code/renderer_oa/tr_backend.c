@@ -61,7 +61,6 @@ void GL_Bind( image_t *image ) {
 		qglBindTexture (GL_TEXTURE_2D, texnum);
 	}
 }
-void R_LeiFXPostprocessDitherScreen( void );
 void R_LeiFXPostprocessFilterScreen( void );
 
 
@@ -1462,148 +1461,9 @@ extern cvar_t	*r_slowness;  // leilei - experimental variable slowness
 extern cvar_t	*r_slowness_cpu;  // leilei - experimental variable slowness
 extern cvar_t	*r_slowness_gpu;  // leilei - experimental variable slowness
 
-// leilei - motion blur hack
-float		motiontime;
-float		motion_finished;
-int		motionframe;
-int		motionpasses;
-int		numofmotionpasses;
-int		inmotion;
 
-int		mblurred;	// tells the renderer if we are rendering to a motion blur accum buffer instead of our drawing buffer
-int		mpasses;	// how many passes of motion blur we should render.
-
-float		motioner;
-
-void R_TVScreen( void );
 void R_RetroAAScreen( void );
 
-void R_MblurScreen( void );
-void R_MblurScreenPost( void );
-void RB_UpdateMotionBlur (void){
-	// leilei - motion blur hack
-	int e;
-	numofmotionpasses = 4; 
-	numofmotionpasses = backEnd.refdef.time - backEnd.refdef.floatTime / 1000.0f;
-
-	motioner = (backEnd.refdef.time - motiontime);
-	numofmotionpasses = (int)motioner / 3;
-
-
-
-	// unfortunately doing this with some math just causes it to loop 
-	if (numofmotionpasses == 4) numofmotionpasses = 0;
-	else if (numofmotionpasses == 3) numofmotionpasses = 1;
-	else if (numofmotionpasses == 2) numofmotionpasses = 2;
-	else if (numofmotionpasses == 1) numofmotionpasses = 3;
-	else if (numofmotionpasses == 0) numofmotionpasses = 4;
-	//else numofmotionpasses = 0;
-	
-	//ri.Printf( PRINT_WARNING, "hah %i\n", numofmotionpasses);
-	mpasses = floor(numofmotionpasses);
-	if (mpasses > 4) mpasses = 4;
-	if (mpasses < 1) return;	// JUST DONT!!
-	motion_finished = (1000.0f / r_motionblur_fps->integer / 5 / mpasses);
-
-
-	if (motionpasses > numofmotionpasses){
-		motionpasses = 0;
-	}
-
-	if (motionframe > 5){
-
-		// do an accumulating post process
-		motionpasses += 1;
-	//	R_MotionBlur_BackupScreen(10 + motionpasses);	
-		R_MotionBlur_BackupScreen(11);	// back it up in there...
-		motionframe = 1;
-		//return;
-	}
-
-	if (backEnd.refdef.time > motiontime){
-		R_MotionBlur_BackupScreen(motionframe);	// back it up in there...
-		motionframe += 1;
-		R_MblurScreen();
-		motiontime = backEnd.refdef.time + motion_finished;
-		inmotion = 1;
-
-	}
-	else
-	inmotion = 0;
-}
-
-
-float	mtime;	// motion blur frame time
-
-//
-// leilei - accumulation buffer-based motion blur, a much more legacy technique
-//	code addapted from MH's "Quake motion blur" thread (which is intended for GLQuake)
-//      but made to work with our cvars relating to the crappy pixel shader'd motion blur
-//	i coded on a whim one day.
-//
-
-float	mblur_time;
-float	mblur_timelast;
-
-float	time_now;
-float	time_last;
-float	mbluracc;
-int	mblurredframes;
-int	mblurredframestotal;
-void RB_AccumBlurValue (void)
-{
-	int ah, tim, oltim;
-	oltim = time_last * 10;
-	tim = time_now * 10;
-	// calculate how much we need, determined by motion blur fps
-	mblur_time = time_now - time_last;
-	mbluracc = (mblur_time) / 32;
-	mbluracc *= -1;
-	mbluracc += 1.0f;
-	mbluracc /= 2;
-};
-
-void RB_DrawAccumBlur (void)
-{
-   static int blurstate = 0;
-   float accblur;
-   static float damagetime = -1.0f;
-
-   if (r_tvMode->integer > -1) return;	// tvmode causes this to crash
-   if (!r_motionblur->integer) return;
-   if (r_motionblur->integer > 1) return; 	// don't do it for the other motion blur techniques
-
-	RB_AccumBlurValue ();
-	accblur = mbluracc;
-
-	//ri.Printf( PRINT_WARNING, "accum value %f\n", mbluracc );
-//	if (accblur > 1.0f)
-//		accblur = 0.5f;
-
-   if (accblur <= 0.0f)
-   {
-      // reinit if we're not blurring so that the contents of the
-      // accumulation buffer are valid for the frame
-      blurstate = 0;
-      return;
-   }
-/*
-	// leilei - sadly, glAccum upsets S3's GL Drivers. :(
-   if (!blurstate)
-   {
-      // load the scene into the accumulation buffer
-      qglAccum (GL_LOAD, 1.0f);
-   }
-   else
-   {
-      qglAccum (GL_LOAD, 1.0f);
-      qglAccum (GL_MULT, accblur); // scale contents of accumulation buffer
-      qglAccum (GL_ACCUM, 1.0f - accblur); // add screen contents
-      qglAccum (GL_RETURN, 1.0f); // read result back
-   }
-*/
-   blurstate = 1;
-}
 
 /*
 =============
@@ -1620,15 +1480,7 @@ const void	*RB_SwapBuffers( const void *data ) {
 		RB_EndSurface();
 	}
 
-	if (r_motionblur->integer > 2){
-		{
-			mtime = backEnd.refdef.time + (1000.0f / r_motionblur_fps->integer);
-			mblurred = 0;
-			RB_UpdateMotionBlur();
-		}
-	}
-
-
+	
 	// texture swapping test
 	if ( r_showImages->integer ) {
 		RB_ShowImages();
@@ -1638,7 +1490,6 @@ const void	*RB_SwapBuffers( const void *data ) {
 
 
 	if (r_ext_vertex_shader->integer){		// leilei - leifx filters
-	R_LeiFXPostprocessDitherScreen();
 	R_LeiFXPostprocessFilterScreen();
 
 
@@ -1647,9 +1498,6 @@ const void	*RB_SwapBuffers( const void *data ) {
 	R_BrightScreen();		// leilei - alternate brightness - do it here so we hit evereything that represents our video buffer
 	R_RetroAAScreen();		// leilei - then apply 'anti aliasing' (hint: IT'S NOT really antialiasing)
 	R_PaletteScreen();		// leilei - then we palette our overbrighted antialiased screen.
-	R_NTSCScreen();			// leilei - then we get it through a DAC, degrading our precious VGA signals 
-	R_TVScreen();			// leilei - tv operation comes last, this is a SCREEN
-
 
 	cmd = (const swapBuffersCommand_t *)data;
 
@@ -1690,13 +1538,10 @@ const void	*RB_SwapBuffers( const void *data ) {
 	backEnd.doneAltBrightness = qfalse;
 	backEnd.doneFilm = qfalse;
 	backEnd.doneleifx = qfalse;
-	backEnd.doneanime = qfalse;
 	backEnd.donepalette = qfalse;
-	backEnd.donemblur = qfalse;
 	backEnd.doneSurfaces = qfalse;
 	backEnd.doneSun	     = qfalse;
 	backEnd.doneSunFlare = qfalse;
-	backEnd.donentsc = qfalse;
 	backEnd.donetv = qfalse;
 	backEnd.doneraa = qfalse;
 	backEnd.doneParticles = qfalse;
@@ -1734,10 +1579,9 @@ const void	*RB_SwapBuffers( const void *data ) {
 
 
 	
-	time_last =  backEnd.refdef.time;
 	return (const void *)(cmd + 1);
 }
-extern void R_FakeFBO_BackupScreen( void );
+
 #include "tr_notfbo.h"
 
 
@@ -1750,7 +1594,6 @@ void RB_ExecuteRenderCommands( const void *data ) {
 	int		t1, t2;
 
 	t1 = ri.Milliseconds ();
-	time_now = t1;
 
 	while ( 1 ) {
 		data = PADP(data, sizeof(void *));
@@ -1776,7 +1619,6 @@ void RB_ExecuteRenderCommands( const void *data ) {
 		case RC_SWAP_BUFFERS:
 			//Check if it's time for BLOOM!
 			leifxmode = 0;
-			R_FakeFBO_BackupScreen();
 			R_PostprocessScreen();
 			R_BloomScreen();
 			R_FilmScreen();

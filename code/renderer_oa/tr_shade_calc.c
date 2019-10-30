@@ -194,6 +194,11 @@ void RB_CalcDeformVertexes( deformStage_t *ds )
 				ds->deformationWave.frequency );
 
 			VectorScale( normal, scale, offset );
+	//		normal[ 0 ] += ds->deformationWave.amplitude * scale;
+		//	normal[ 0 ] = xyz[0] + offset[0];
+		//	normal[ 1 ] = xyz[1] + offset[1];
+		//	normal[ 2 ] = xyz[2] + offset[2];
+	//		normal[ 2 ] += ds->deformationWave.amplitude * scale;
 			
 			xyz[0] += offset[0];
 			xyz[1] += offset[1];
@@ -201,6 +206,7 @@ void RB_CalcDeformVertexes( deformStage_t *ds )
 		}
 	}
 }
+
 
 /*
 =========================
@@ -1012,7 +1018,7 @@ void RB_CalcEnvironmentTexCoords( float *st )
 
 		d = DotProduct (normal, viewer);
 
-		reflected[0] = normal[0]*2*d - viewer[0];
+		//reflected[0] = normal[0]*2*d - viewer[0]; // leilei - apparently unused!!!
 		reflected[1] = normal[1]*2*d - viewer[1];
 		reflected[2] = normal[2]*2*d - viewer[2];
 
@@ -1021,215 +1027,57 @@ void RB_CalcEnvironmentTexCoords( float *st )
 	}
 }
 
-/*
-** RB_CalcEnvironmentTexCoordsNew
-
-	This one also is offset by origin and axis which makes it look better on moving
-	objects and weapons. May be slow.
-
-*/
-void RB_CalcEnvironmentTexCoordsNew( float *st ) 
-{
-
-	int			i;
-	float		*v, *normal;
-	vec3_t		viewer, reflected, where, what, why, who;
-	float		d, a;
-
-	v = tess.xyz[0];
-	normal = tess.normal[0];
-
-	for (i = 0 ; i < tess.numVertexes ; i++, v += 4, normal += 4, st += 2 ) 
-	{
-
-		VectorSubtract (backEnd.or.axis[0], v, what);
-		VectorSubtract (backEnd.or.axis[1], v, why);
-		VectorSubtract (backEnd.or.axis[2], v, who);
-
-		VectorSubtract (backEnd.or.origin, v, where);
-		VectorSubtract (backEnd.or.viewOrigin, v, viewer);
-
-		VectorNormalizeFast (viewer);
-		VectorNormalizeFast (where);
-		VectorNormalizeFast (what);
-		VectorNormalizeFast (why);
-		VectorNormalizeFast (who);
-
-		d = DotProduct (normal, viewer);
-		a = DotProduct (normal, where);
-
-		if ( backEnd.currentEntity == &tr.worldEntity ){
-
-		reflected[0] = normal[0]*2*d - viewer[0];
-		reflected[1] = normal[1]*2*d - viewer[1];
-		reflected[2] = normal[2]*2*d - viewer[2];
-
-		}
-	else
-		{
-		reflected[0] = normal[0]*2*d - viewer[0] - (where[0] * 5) + (what[0] * 4);
-		reflected[1] = normal[1]*2*d - viewer[1] - (where[1] * 5) + (why[1] * 4);
-		reflected[2] = normal[2]*2*d - viewer[2] - (where[2] * 5) + (who[2] * 4);
-
-
-		}
-		st[0] = 0.33 + reflected[1] * 0.33;
-		st[1] = 0.33 - reflected[2] * 0.33;
-	}
-}
-
 
 /*
-** RB_CalcEnvironmentTexCoordsHW
+** RB_CalcEnvironmentTexCoordsW
 
-	Hardware-native cubemapping (or sphere mapping if the former is unsupported)
-
-	adapted from this tremulous patch by Odin 
-
-	NOTE: THIS BREAKS OTHER TCMODS IN A STAGE
+	Modified to reflect from light in the first person
+	and to try and imitate a hemisphere...
 */
-void RB_CalcEnvironmentTexCoordsHW() 
-{
-	qglTexGeni(GL_S, GL_TEXTURE_GEN_MODE, GL_REFLECTION_MAP);
-	qglTexGeni(GL_T, GL_TEXTURE_GEN_MODE, GL_REFLECTION_MAP);
-	qglTexGeni(GL_R, GL_TEXTURE_GEN_MODE, GL_REFLECTION_MAP);
-	qglEnable(GL_TEXTURE_GEN_S);
-	qglEnable(GL_TEXTURE_GEN_T);
-	qglEnable(GL_TEXTURE_GEN_R);
-}
 
 
-/*
-** RB_CalcEnvironmentTexCoordsJO
-	from JediOutcast source
-*/
-void RB_CalcEnvironmentTexCoordsJO( float *st ) 
+
+void RB_CalcEnvironmentTexCoordsW( float *st, qboolean shine ) 
 {
 	int			i;
 	float		*v, *normal;
-	vec3_t		viewer;
+	vec3_t		viewer, reflected;
 	float		d;
 
 	v = tess.xyz[0];
 	normal = tess.normal[0];
-
-	if (backEnd.currentEntity && backEnd.currentEntity->e.renderfx&RF_FIRST_PERSON)	//this is a view model so we must use world lights instead of vieworg
+	if (backEnd.currentEntity->e.renderfx & RF_FIRST_PERSON || shine ) // Weapons
 	{
-		for (i = 0 ; i < tess.numVertexes ; i++, v += 4, normal += 4, st += 2 ) 
-		{
-			d = DotProduct (normal, backEnd.currentEntity->lightDir);
-			st[0] = normal[0]*d - backEnd.currentEntity->lightDir[0];
-			st[1] = normal[1]*d - backEnd.currentEntity->lightDir[1];
-		}
-	} else {	//the normal way
+		VectorSubtract (backEnd.currentEntity->lightDir, v, viewer);
+		VectorNormalizeFast (viewer);
+
+		d = DotProduct (normal, viewer);
+
+		reflected[0] = normal[0]*2*d - viewer[0]; // leilei - apparently unused!!!
+		reflected[1] = normal[1]*2*d - viewer[1];
+		reflected[2] = normal[2]*2*d - viewer[2];
+
+		st[0] = 0.5 + reflected[1] * 0.5;
+		st[1] = 0.5 - reflected[2] * 0.5;
+	}
+	else
+	{
 		for (i = 0 ; i < tess.numVertexes ; i++, v += 4, normal += 4, st += 2 ) 
 		{
 			VectorSubtract (backEnd.or.viewOrigin, v, viewer);
 			VectorNormalizeFast (viewer);
-
+	
 			d = DotProduct (normal, viewer);
-			st[0] = normal[0]*d - 0.5*viewer[0];
-			st[1] = normal[1]*d - 0.5*viewer[1];
+
+			reflected[0] = normal[0]*d - viewer[0];
+			reflected[1] = normal[1]*d - viewer[1];
+	
+			st[0] = reflected[0] * 0.5;
+			st[1] = reflected[1] * 0.5;
 		}
 	}
 }
 
-/*
-** RB_CalcEnvironmentTexCoordsR
-	Inpsired by Revolution, reflect from the sun light position instead
-*/
-
-void RB_CalcEnvironmentTexCoordsR( float *st ) 
-{
-	int			i;
-	float		*v, *normal;
-	vec3_t		viewer, reflected, sunned;
-	float		d;
-	vec3_t		sundy;
-	float		size;
-	float		dist;
-	vec3_t		origin, vec1, vec2;
-
-	v = tess.xyz[0];
-	normal = tess.normal[0];
-
-	dist = 	backEnd.viewParms.zFar / 1.75;		// div sqrt(3)
-	size = dist * 0.4;
-
-	VectorScale( tr.sunDirection, dist, sundy);
-	PerpendicularVector( vec1, tr.sunDirection );
-	CrossProduct( tr.sunDirection, vec1, vec2 );
-
-	VectorScale( vec1, size, vec1 );
-	VectorScale( vec2, size, vec2 );
-
-
-	v = tess.xyz[0];
-	normal = tess.normal[0];
-
-	for (i = 0 ; i < tess.numVertexes ; i++, v += 4, normal += 4, st += 2 ) 
-	{
-		VectorSubtract (backEnd.or.viewOrigin, v, viewer);
-		VectorNormalizeFast (viewer);
-
-		VectorSubtract (sundy, v, sunned);
-		VectorNormalizeFast (sunned);
-
-		d = DotProduct (normal, viewer) + DotProduct (viewer, sunned);
-
-		reflected[0] = normal[0]*2*d - viewer[0];
-		reflected[1] = normal[1]*2*d - viewer[1];
-		reflected[2] = normal[2]*2*d - viewer[2];
-
-		st[0] = 0.5 + reflected[1] * 0.5;
-		st[1] = 0.5 - reflected[2] * 0.5;
-	}
-}
-
-/*
-** RB_CalcCelTexCoords
-	Butchered from JediOutcast source, note that this is not the same method as ZEQ2.
-*/
-void RB_CalcCelTexCoords( float *st ) 
-{
-	int			i;
-	float		*v, *normal;
-	vec3_t		viewer, reflected, lightdir, directedLight, lightdured;
-	float		d, l, p;
-
-
-	v = tess.xyz[0];
-	normal = tess.normal[0];
-
-	VectorCopy(backEnd.currentEntity->lightDir, lightdir);
-	VectorCopy(backEnd.currentEntity->directedLight, directedLight);
-	float light = (directedLight[0] + directedLight[1] + directedLight[2] / 3);
-	p = 1.0f - (light / 255);
-
-	for (i = 0 ; i < tess.numVertexes ; i++, v += 4, normal += 4, st += 2 ) 
-	{
-		VectorSubtract (backEnd.or.viewOrigin, v, viewer);
-		VectorNormalizeFast (viewer);
-
-		d = DotProduct (normal, viewer);
-
-		l = DotProduct (normal, backEnd.currentEntity->lightDir);
-
-		if (d < 0)d = 0;
-		if (l < 0)l = 0;
-
-		if (d < p)d = p;
-		if (l < p)l = p;
-
-		reflected[0] = normal[0]*1*(d+l) - (viewer[0] + lightdir[0] );
-		reflected[1] = normal[1]*1*(d+l) - (viewer[1] + lightdir[1] );
-		reflected[2] = normal[2]*1*(d+l) - (viewer[2] + lightdir[2] );
-
-		st[0] = 0.5 + reflected[1] * 0.5;
-		st[1] = 0.5 - reflected[2] * 0.5;
-
-	}
-}
 
 
 
@@ -2019,6 +1867,7 @@ void RB_CalcFresnelColor( unsigned char *colors )
 	vec3_t		lightDir;
 	int			numVertexes;
 	vec3_t			directedLight;
+	float		lamt; // light amount for directlight
 
 	v = tess.xyz[0];
 	normal = tess.normal[0];
@@ -2048,8 +1897,11 @@ void RB_CalcFresnelColor( unsigned char *colors )
 		reflected[2] = normal[2]*2*d - lightDir[2];
 
 		minamb = ((ambientLight[0] + ambientLight[1] + ambientLight[2]) / 3);
-		minamb *= (tr.overbrightBits+1);
+		lamt = ((directedLight[0] + directedLight[1] + directedLight[2]) / 3);		
+		minamb *= (tr.overbrightBits+1) * 1.5;
 		float lgtajst = 1;
+
+		lamt *= 4;
 
 		VectorSubtract (backEnd.or.viewOrigin, v, viewer);
 		ilength = Q_rsqrt( DotProduct( viewer, viewer ));
@@ -2057,7 +1909,7 @@ void RB_CalcFresnelColor( unsigned char *colors )
 		l *= ilength;
 
 		if (l < 0) {
-			am = (-l*128) + minamb;
+			am = ((-l*128)*2);
 
 			if (am > 255) {
 				am = 255;
@@ -2067,10 +1919,11 @@ void RB_CalcFresnelColor( unsigned char *colors )
 			}
 			b=0;
 		} else {
-			b = l*255;
+			b = l * lamt;
 			if (b > 255) {
 				b = 255;
 			}
+			//b *= lamt;
 			//if (b>minamb)
 			//b-=minamb;
 			//if (b<0) b=0;
@@ -2228,9 +2081,11 @@ void RB_CalcSpecular( unsigned char *colors )
 
 
 
-//
-//	Detail fade
-//
+/*
+** RB_CalcDetailFade
+**
+** Intended to fade out moirey detail texture stages
+*/
 
 void RB_CalcDetailFade( unsigned char *colors)
 {
@@ -2287,7 +2142,7 @@ void RB_CalcDetailFade( unsigned char *colors)
 
 
 //
-// EYES
+// EYES O_O
 //
 
 vec3_t eyemin = { -12, -12, -8 };		// clamps
@@ -2313,22 +2168,10 @@ void RB_CalcEyes( float *st, qboolean theothereye)
 	VectorCopy(lightOrigin, staree);
 	VectorCopy(backEnd.or.viewOrigin, stareat);
 
-
-
-
 	// transform the direction to local space
-//	VectorNormalize( staree );
-//	stareat[0] = DotProduct( staree, backEnd.currentEntity->e.axis[0] );
-//	stareat[1] = DotProduct( staree, backEnd.currentEntity->e.axis[1] );
-//	stareat[2] = DotProduct( staree, backEnd.currentEntity->e.axis[2] );
-//	VectorNormalize( stareat );
 	v = tess.xyz[0];
 	normal = tess.normal[0];
 
-
-
-	//VectorCopy(lightOrigin, eyepos);
-	//normal = backEnd.currentEntity.eyepos[0];
 	VectorCopy(backEnd.currentEntity->e.eyepos[0], eyepos);
 
 	if (!theothereye){
@@ -2337,78 +2180,32 @@ void RB_CalcEyes( float *st, qboolean theothereye)
 
 	VectorCopy(backEnd.currentEntity->e.eyelook, stareat);
 
-
 	// We need to adjust the stareat vectors to local coordinates
 
-
-		vec3_t temp;
-		VectorSubtract( stareat, backEnd.currentEntity->e.origin, temp );
-		stareat[0] = DotProduct( temp, backEnd.currentEntity->e.axis[0] );
-		stareat[1] = DotProduct( temp, backEnd.currentEntity->e.axis[1] );
-		stareat[2] = DotProduct( temp, backEnd.currentEntity->e.axis[2] );
-
-
-
-
-// debug light positions
-if (r_leidebugeye->integer == 2)
-	{
-	vec3_t	temp;
-	vec3_t	temp2;
-
-
-	VectorCopy(eyepos, temp);
-	VectorCopy(backEnd.currentEntity->e.eyelook, temp2);
-//	VectorCopy(backEnd.currentEntity->e.eyelook, stareat);
-
-	ri.Printf( PRINT_WARNING, "EYES %f %f %f--\nVieworigin:%f %f %f \nEye look desired:%f %f %f\n", temp[0], temp[1], temp[2], backEnd.or.viewOrigin[0], backEnd.or.viewOrigin[1], backEnd.or.viewOrigin[2], stareat[0], stareat[1], stareat[2] );
-
-
-	VectorNormalize(temp2);
-
-	GL_Bind( tr.whiteImage );
-	qglColor3f (1,1,1);
-	qglDepthRange( 0, 0 );	// never occluded
-	GL_State( GLS_POLYMODE_LINE | GLS_DEPTHMASK_TRUE );
-	qglBegin (GL_LINES);
-	qglVertex3fv (eyepos);
-	qglVertex3fv (stareat);
-	qglEnd ();
-	qglDepthRange( 0, 1 );
-	}
-
+	vec3_t temp;
+	VectorSubtract( stareat, backEnd.currentEntity->e.origin, temp );
+	stareat[0] = DotProduct( temp, backEnd.currentEntity->e.axis[0] );
+	stareat[1] = DotProduct( temp, backEnd.currentEntity->e.axis[1] );
+	stareat[2] = DotProduct( temp, backEnd.currentEntity->e.axis[2] );
 
 	for (i = 0 ; i < tess.numVertexes ; i++, v += 4, normal += 4, st += 2 ) 
 	{
 		
 		float norm1, norm2;
+
 		// Base eye position
 		VectorSubtract (backEnd.or.viewOrigin, v, viewer);
-		//VectorSubtract (backEnd.currentEntity->e.eyepos[0], v, viewer);
-
 		VectorSubtract (eyepos, v, viewer);
 
 		VectorNormalizeFast (viewer);
 
-		
-
 		d = DotProduct (normal, viewer);
 		d = d * 0.01f;	// only have a slight normal
-		//d = r_leidebug->value;
-
-		//d = 1;
-		// Stuff to look at
-
-
-		//VectorSubtract (backEnd.currentEntity->e.eyelook, v, stare);
 
 		if (r_leidebugeye->integer==1)
 		VectorSubtract (backEnd.or.viewOrigin, v, stare);
 		else if (r_leidebugeye->integer==3)
 		VectorSubtract (stareat, v, stare);
-
-
-
 
 		VectorSubtract (stareat, v, stare);
 		VectorNormalizeFast (stare);

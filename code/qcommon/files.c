@@ -245,6 +245,7 @@ typedef struct searchpath_s {
 static	char		fs_gamedir[MAX_OSPATH];	// this will be a single file name with no separators
 static	cvar_t		*fs_debug;
 static	cvar_t		*fs_homepath;
+static	cvar_t		*fs_logload;	// leilei - FS_MISSING/FS_PRESENT cvar
 
 #ifdef MACOS_X
 // Also search the .app bundle for .pk3 files
@@ -305,7 +306,7 @@ char lastValidBase[MAX_OSPATH];
 char lastValidGame[MAX_OSPATH];
 
 
-//#define FS_PRESENT			// leilei - track files that are read to file (for clean pak building)
+#define FS_PRESENT			// leilei - track files that are read to file (for clean pak building)
 					// intended for InfoZip -@; literally the opposite of FS_MISSING
 
 #ifdef FS_PRESENT
@@ -1365,7 +1366,7 @@ long FS_FOpenFileRead(const char *filename, fileHandle_t *file, qboolean uniqueF
 			if(len > 0)
 				{
 #ifdef FS_PRESENT
-					if(presentFiles)
+					if(presentFiles && (fs_logload->integer == 1))
 						fprintf(presentFiles, "%s\n", filename);
 #endif
 					return len;
@@ -1376,7 +1377,7 @@ long FS_FOpenFileRead(const char *filename, fileHandle_t *file, qboolean uniqueF
 			if(len >= 0 && *file)
 				{
 #ifdef FS_PRESENT
-					if(presentFiles)
+					if(presentFiles && (fs_logload->integer == 1))
 						fprintf(presentFiles, "%s\n", filename);
 #endif
 					return len;
@@ -1386,7 +1387,7 @@ long FS_FOpenFileRead(const char *filename, fileHandle_t *file, qboolean uniqueF
 	}
 	
 #ifdef FS_MISSING
-	if(missingFiles)
+	if(missingFiles && (fs_logload->integer == 2))
 		fprintf(missingFiles, "%s\n", filename);
 #endif
 
@@ -3373,14 +3374,16 @@ static void FS_Startup( const char *gameName )
 
 	Com_Printf( "----------------------\n" );
 
+	fs_logload = Cvar_Get( "fs_logload", "0", 0 );
+
 #ifdef FS_PRESENT
-	if (presentFiles == NULL) {
+	if (presentFiles == NULL && (fs_logload->integer == 1)) {
 		presentFiles = Sys_FOpen( "usedcontent.txt", "ab" );
 	}
 #endif
 
 #ifdef FS_MISSING
-	if (missingFiles == NULL) {
+	if (missingFiles == NULL && (fs_logload->integer == 2)) {
 		missingFiles = Sys_FOpen( "\\missing.txt", "ab" );
 	}
 #endif

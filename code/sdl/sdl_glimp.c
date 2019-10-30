@@ -75,11 +75,11 @@ static SDL_Surface *screen = NULL;
 static const SDL_VideoInfo *videoInfo = NULL;
 
 cvar_t *r_allowSoftwareGL; // Don't abort out if a hardware visual can't be obtained
+cvar_t *r_alternateBrightnress; // leilei - alternate brightness methods (had to move here to prevent segfault)
 cvar_t *r_tvMode; // leilei - tv mode - force 480i rendering, which is then stretched and interlaced
 cvar_t *r_tvFilter; // leilei - tv filter
 cvar_t *r_tvModeAspect; // leilei - tv mode - to do widescreen and low res tv etc
 cvar_t *r_tvModeForceAspect; // leilei - tv mode - to force the screen into its native aspect
-cvar_t *r_motionblur; // leilei - moved here to set up accumulation bits
 cvar_t *r_allowResize; // make window resizable
 cvar_t *r_conMode; // leilei - console mode - force native resolutions of various consoles
 cvar_t *r_centerWindow;
@@ -217,7 +217,6 @@ static int GLimp_SetMode(int mode, qboolean fullscreen, qboolean noborder)
 	int sdlcolorbits;
 	int colorbits, depthbits, stencilbits;
 	int tcolorbits, tdepthbits, tstencilbits;
-	int accumbits;	// leilei - motionblur
 	int samples;
 	int i = 0;
 	SDL_Surface *vidscreen = NULL;
@@ -309,12 +308,7 @@ static int GLimp_SetMode(int mode, qboolean fullscreen, qboolean noborder)
 	stencilbits = r_stencilbits->value;
 	samples = r_ext_multisample->value;
 
-	// leilei - motion blur via accumulation buffer support
-	if (r_motionblur->integer == 1)
-	accumbits = 16;
-	else
-	accumbits = 0;
-
+	
 	for (i = 0; i < 16; i++)
 	{
 		// 0 - default
@@ -390,13 +384,6 @@ static int GLimp_SetMode(int mode, qboolean fullscreen, qboolean noborder)
 		SDL_GL_SetAttribute( SDL_GL_DEPTH_SIZE, tdepthbits );
 		SDL_GL_SetAttribute( SDL_GL_STENCIL_SIZE, tstencilbits );
 
-		// leilei - accumulation buffer motion blur	
-		/*
-		SDL_GL_SetAttribute( SDL_GL_ACCUM_RED_SIZE,   accumbits );
-		SDL_GL_SetAttribute( SDL_GL_ACCUM_GREEN_SIZE, accumbits );
-		SDL_GL_SetAttribute( SDL_GL_ACCUM_BLUE_SIZE,  accumbits );
-		SDL_GL_SetAttribute( SDL_GL_ACCUM_ALPHA_SIZE, accumbits );
-		*/
 		SDL_GL_SetAttribute( SDL_GL_MULTISAMPLEBUFFERS, samples ? 1 : 0 );
 		SDL_GL_SetAttribute( SDL_GL_MULTISAMPLESAMPLES, samples );
 
@@ -809,10 +796,9 @@ void GLimp_Init( void )
 
 	r_tvFilter = ri.Cvar_Get( "r_tvFilter", "1", CVAR_LATCH | CVAR_ARCHIVE );
 
+	r_alternateBrightness = ri.Cvar_Get( "r_alternateBrightness", "2", CVAR_ARCHIVE | CVAR_LATCH);
 
 	r_glDriver = ri.Cvar_Get( "r_glDriver", "opengl32", CVAR_ROM );	// leilei - allow load of other gl drivers
-// leilei - move motionblur cvar here to get it to not upset the other renderers when setting up an accumulation buffer
-	r_motionblur = ri.Cvar_Get( "r_motionblur", "0", CVAR_LATCH | CVAR_ARCHIVE );
 
 	if( ri.Cvar_VariableIntegerValue( "com_abnormalExit" ) )
 	{
