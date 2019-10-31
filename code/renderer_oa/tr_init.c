@@ -1483,7 +1483,7 @@ void R_GLSL_Init(void)
 
 	/* load default programs */
 	tr.skipProgram = RE_GLSL_RegisterProgram("skip", (const char *)NULL, 0, (const char *)NULL, 0);
-	//tr.defaultProgram = 0;
+	tr.defaultProgram = 0;
 	Q_strncpyz(programVertexObjects[0], "glsl/generic_vp.glsl", sizeof(programVertexObjects[0]));
 	Q_strncpyz(programFragmentObjects[0], "glsl/generic_fp.glsl", sizeof(programFragmentObjects[0]));
 	Q_strncpyz(programFragmentObjects[1], "glsl/texturing.glsl", sizeof(programFragmentObjects[1]));
@@ -1637,11 +1637,11 @@ void R_Init( void )
 
 	R_Register();
 
-	//R_BloomInit();
+	R_BloomInit();
 	
-	//R_PostprocessingInit();
+	R_PostprocessingInit();
 	
-	//R_AltBrightnessInit();	// leilei	- alternate brightness
+	R_AltBrightnessInit();	// leilei	- alternate brightness
 	
 	max_polys = r_maxpolys->integer;
 	if (max_polys < MAX_POLYS)
