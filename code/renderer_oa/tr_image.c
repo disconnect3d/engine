@@ -366,7 +366,7 @@ void GL_TextureMode( const char *string ) {
 
 	// hack to prevent trilinear from being set on voodoo,
 	// because their driver freaks...
-	if ( i == 5 && glConfig.hardwareType == GLHW_3DFX_2D3D || r_leifx->integer ) {
+	if ( i == 5 && glConfig.hardwareType == GLHW_3DFX_2D3D || (r_legacycard->integer == 4 && r_legacycard->integer == 5) ) {
 		ri.Printf( PRINT_ALL, "Refusing to set trilinear on a voodoo.\n" );
 		i = 3;
 	}
@@ -1197,7 +1197,7 @@ static void Upload32( unsigned *data,
 	texsizey = glConfig.maxTextureSize;
 	
 
-	if (r_leifx->integer && !force32upload){	// leilei
+	if ( (r_legacycard->integer == 1 && r_legacycard->integer == 2 && r_legacycard->integer == 4 && r_legacycard->integer == 5 && r_legacycard->integer == 1001) && !force32upload){	// leilei
 	texsizex = 256;	// 3dfx 
 	texsizey = 256;	// 3dfx 
 	}
@@ -1613,7 +1613,7 @@ static void Upload32( unsigned *data,
 #ifndef GL_VERSION_ES_CM_1_0
 					if (detailhack) internalFormat = GL_LUMINANCE; // leilei - use paletted mono format for detail textures
 					if (force32upload) internalFormat = GL_RGB8;   // leilei - gets bloom and postproc working on s3tc & 8bit & palettes
-					if ((r_leifx->integer) && (!force32upload)) internalFormat = GL_RGB5;
+					if ((r_legacycard->integer > 0) && (r_legacycard->integer < 6) && (!force32upload)) internalFormat = GL_RGB5;
 #endif
 			}
 		}
@@ -1665,7 +1665,7 @@ static void Upload32( unsigned *data,
 				}
 #ifndef GL_VERSION_ES_CM_1_0
 					if (force32upload) internalFormat = GL_RGBA8;   // leilei - gets bloom and postproc working on s3tc & 8bit & palettes
-					if ((r_leifx->integer) && (!force32upload)) internalFormat = GL_RGBA4;
+					if ((r_legacycard->integer > 0) && (r_legacycard->integer < 6) && (!force32upload)) internalFormat = GL_RGBA4;
 #endif
 			}
 		}
@@ -1891,7 +1891,7 @@ static void Upload8( unsigned *data,
 	texsizey = glConfig.maxTextureSize;
 	
 
-	if ((r_leifx->integer) && (!force32upload)){	// leilei
+		if ( (r_legacycard->integer == 1 && r_legacycard->integer == 2 && r_legacycard->integer == 4 && r_legacycard->integer == 5 && r_legacycard->integer == 1001) && (!force32upload)){	// leilei
 	texsizex = 256;	// 3dfx 
 	texsizey = 256;	// 3dfx 
 	}

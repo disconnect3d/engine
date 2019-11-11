@@ -199,6 +199,7 @@ extern cvar_t *s_musicVolume;
 extern cvar_t *s_muted;
 extern cvar_t *s_doppler;
 extern cvar_t *s_defaultSound;
+extern cvar_t *s_interrupts;
 
 extern cvar_t *s_testsound;
 

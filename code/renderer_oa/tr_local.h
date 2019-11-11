@@ -31,7 +31,6 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "../renderercommon/tr_public.h"
 #include "../renderercommon/tr_common.h"
 #include "../renderercommon/iqm.h"
-#include "tr_mdo.h"
 #include "../renderercommon/qgl.h"
 
 #define GL_INDEX_TYPE		GL_UNSIGNED_INT
@@ -82,18 +81,6 @@ typedef struct {
 
 	// leilei - eyes
 	vec3_t		eyepos[2];			// looking from
-
-	// leilei - optimization attempt
-	int		lightTime;			// time since last lit
-	vec3_t		oldAmbientLight;	
-	vec3_t		oldLightDir;		
-	vec3_t		oldDirectedLight;
-	vec3_t		oldDynamicLight;
-
-	vec3_t		newAmbientLight;	
-	vec3_t		newLightDir;		
-	vec3_t		newDirectedLight;
-	vec3_t		newDynamicLight;
 } trRefEntity_t;
 
 
@@ -166,8 +153,7 @@ typedef enum {
 	DEFORM_TEXT4,
 	DEFORM_TEXT5,
 	DEFORM_TEXT6,
-	DEFORM_TEXT7,
-	DEFORM_LFX
+	DEFORM_TEXT7
 } deform_t;
 
 typedef enum {
@@ -194,8 +180,6 @@ typedef enum {
 	CGEN_ONE_MINUS_VERTEX,
 	CGEN_WAVEFORM,			// programmatically generated
 	CGEN_LIGHTING_DIFFUSE,
-	CGEN_LIGHTING_UNIFORM,
-	CGEN_LIGHTING_DYNAMIC,
 	CGEN_LIGHTING_FLAT_AMBIENT,		// leilei - cel hack
 	CGEN_LIGHTING_FLAT_DIRECT,
 	CGEN_FOG,				// standard fog
@@ -204,7 +188,8 @@ typedef enum {
 	CGEN_LIGHTING_DIFFUSE_SPECULAR,		// leilei - LIGHTING_DIFFUSE, capped by specular exponent
 	CGEN_LIGHTING_SPECULAR,			// leilei - specular only
 	CGEN_LIGHTING_SPECULAR_COLOR,		// leilei - specular only, but with direct color
-	CGEN_DETAIL_FADE				// leilei - fade away detail from origin radius
+	CGEN_MATERIAL,				// leilei - material system
+	CGEN_DETAIL_FADE			// leilei - fade away detail from origin radius (Deprecated?)
 } colorGen_t;
 
 typedef enum {
@@ -213,9 +198,7 @@ typedef enum {
 	TCGEN_LIGHTMAP,
 	TCGEN_TEXTURE,
 	TCGEN_ENVIRONMENT_MAPPED,
-	TCGEN_ENVIRONMENT_CELSHADE_MAPPED,
-	TCGEN_ENVIRONMENT_CELSHADE_LEILEI,	// leilei - cel hack
-	TCGEN_ENVIRONMENT_MAPPED_WATER,	// leilei - fake water reflection
+	TCGEN_ENVIRONMENT_MAPPED_WATER,		// leilei - fake water reflection
 	TCGEN_EYE_LEFT,				// eyes
 	TCGEN_EYE_RIGHT,			// eyes
 	TCGEN_FOG,
@@ -281,6 +264,12 @@ typedef enum {
 	TMOD_ROTATE,
 	TMOD_ENTITY_TRANSLATE
 } texMod_t;
+
+// leilei - color modulations
+typedef enum {
+	CMOD_BAD,
+	CMOD_GLOW
+} colorMod_t;
 
 #define	MAX_SHADER_DEFORMS	3
 typedef struct {
@@ -379,6 +368,16 @@ typedef struct {
 	int			imgHeight;		//leilei for glsl shaders
 	qboolean		isSpecular;		// leilei - for specular layers
 
+	colorMod_t		rgbMod;
+	int			rgbModCol;
+	int			rgbModMode;
+
+	int			matAmb;			// leilei - material ambience
+	int			matDif;			// leilei - material diffuse
+	int			matSpec;		// leilei - material specular
+	int			matEmis;		// leilei - material emissive
+	int			matHard;		// leilei - material specular hardness
+	int			matAlpha;		// leilei - material alpha
 } shaderStage_t;
 
 struct shaderCommands_s;
@@ -469,10 +468,10 @@ typedef struct shader_s {
 	struct	shader_s	*next;
 
 	// leilei dlights
-	int			lmtmu;			// leilei - for combine dlights
+	//int			lmtmu;			// leilei - for combine dlights
 	//int			lmbundle;			// leilei - for combine dlights
-	int			lmimg;			// leilei - for combine dlights
-	textureBundle_t		*lmbundle;		// pwanter to bundle
+	//int			lmimg;			// leilei - for combine dlights
+	//textureBundle_t		*lmbundle;		// pwanter to bundle
 } shader_t;
 
 
@@ -590,7 +589,6 @@ typedef enum {
 	SF_POLY,
 	SF_MD3,
 	SF_MDR,
-	SF_MDO,
 	SF_IQM,
 	SF_FLARE,
 	SF_ENTITY,				// beams, rails, lightning, etc that can be determined by entity
@@ -954,7 +952,6 @@ typedef enum {
 	MOD_BRUSH,
 	MOD_MESH,
 	MOD_MDR,
-	MOD_MDO,
 	MOD_IQM
 } modtype_t;
 
@@ -966,7 +963,7 @@ typedef struct model_s {
 	int			dataSize;	// just for listing purposes
 	bmodel_t	*bmodel;		// only if type == MOD_BRUSH
 	md3Header_t	*md3[MD3_MAX_LODS];	// only if type == MOD_MESH
-	void	*modelData;			// only if type == (MOD_MDR | MOD_IQM | MOD_MDO)
+	void	*modelData;			// only if type == (MOD_MDR | MOD_IQM )
 
 	int			 numLods;
 } model_t;
@@ -1139,6 +1136,10 @@ typedef struct {
 	shader_t				*defaultShader;
 	shader_t				*shadowShader;
 	shader_t				*projectionShadowShader;
+
+	shader_t				*coneShader;		// leilei - cone particles
+	shader_t				*coneAlphaShader;
+	shader_t				*coneSubShader;
 
 	shader_t				*flareShader;
 	shader_t				*flareShaderAtlas;	// leilei - lens reflections
@@ -1370,8 +1371,6 @@ extern	cvar_t	*r_lensReflectionBrightness;
 
 extern cvar_t	*r_ext_paletted_texture;		// leilei - Paletted Texture
 extern cvar_t	*r_ext_gamma_control;			// leilei - 3dfx gamma control
-extern	cvar_t	*r_specMode;		
-//extern	cvar_t	*r_waveMode;	
 
 extern	cvar_t	*r_flaresDlight;
 extern	cvar_t	*r_flaresDlightShrink;
@@ -1384,7 +1383,7 @@ extern	cvar_t	*r_flaresMotionBlur;
 
 extern cvar_t	*r_alternateBrightness;		// leilei - alternate brightness
 extern cvar_t	*r_parseStageSimple;	// Leilei - handling textures into alphas
-extern cvar_t	*r_leifx;	// Leilei - leifx nostalgia filter
+extern cvar_t	*r_leifx;	// Leilei - leifx nostalgia filter (DEPRECATED)
 extern cvar_t	*r_legacycard;	// Leilei - mocking old cards
 extern cvar_t	*r_modelshader;	// Leilei - new model shading
 extern cvar_t	*r_mockvr;	// Leilei - 
@@ -2082,7 +2081,7 @@ void	R_TransformClipToWindow( const vec4_t clip, const viewParms_t *view, vec4_t
 void	RB_DeformTessGeometry( void );
 
 void	RB_CalcEnvironmentTexCoords( float *dstTexCoords );
-void	RB_CalcEnvironmentTexCoordsW( float *dstTexCoords, qboolean shine );	// leilei
+void	RB_CalcEnvironmentTexCoordsEx( float *dstTexCoords, int xx, int yy, int mode ); // leilei
 void    RB_CalcEyes( float *st, qboolean theothereye); // leilei - eyes
 void	RB_CalcEnvironmentCelShadeTexCoords( float *dstTexCoords );
 void	RB_CalcFogTexCoords( float *dstTexCoords );
@@ -2104,17 +2103,15 @@ void	RB_CalcAtlasTexCoords( const atlas_t *at, float *st );
 void	RB_CalcColorFromEntity( unsigned char *dstColors );
 void	RB_CalcColorFromOneMinusEntity( unsigned char *dstColors );
 void	RB_CalcSpecularAlpha( unsigned char *alphas );
-void	RB_CalcSpecularAlphaNew( unsigned char *alphas );
 void	RB_CalcDiffuseColor( unsigned char *colors );
-void	RB_CalcUniformColor( unsigned char *colors );
-void	RB_CalcDynamicColor( unsigned char *colors );
-void	RB_CalcDiffuseColor_Specular( unsigned char *colors );	// leilei - specular hack
 void	RB_CalcFlatAmbient( unsigned char *colors ); // leilei - cel hack
 void	RB_CalcFlatDirect( unsigned char *colors ); // leilei - cel hack
 void	RB_CalcNormal( unsigned char *colors ); // leilei - normal hack
 void	RB_CalcSpecular( unsigned char *colors ); // leilei - specular hack
 void	RB_CalcSpecularColor( unsigned char *colors, int usecolor ); // leilei - specular hack
 void	RB_CalcDetailFade( unsigned char *colors ); // leilei - detail hack
+void 	RB_CalcGlowBlend( unsigned char *colors, int glowcol, int fx ); // leilei - glow blend
+void    RB_CalcMaterials( unsigned char *colors, int ambient, int diffuse, int specular, int emissive, int spechard, int alpha );
 
 /*
 =============================================================

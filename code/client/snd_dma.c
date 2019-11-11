@@ -328,7 +328,7 @@ void S_DefaultSound( sfx_t *sfx ) {
 	int		i, w;
 
 	sfx->soundLength = 512;
-	//sfx->soundLength = 2048;	// leilei - need it this long but it crashes :(
+//	sfx->soundLength = 2048;	// leilei - need it this long but it crashes :(
 	sfx->soundData = SND_malloc();
 	sfx->soundData->next = NULL;
 
@@ -340,10 +340,10 @@ void S_DefaultSound( sfx_t *sfx ) {
 //	}
 
 	// leilei - make a sawtooth 
-	for ( i = 0 ; i < sfx->soundLength ; i+=512 ) {
-		for ( w = 0 ; w < 512 ; w++ )
+	for ( i = 0 ; i < sfx->soundLength ; i+=sfx->soundLength ) {
+		for ( w = 0 ; w < sfx->soundLength ; w++ )
 			{	
-				sfx->soundData->sndChunk[i+w] = (w - abs(w % (512) - 512))<<4;
+				sfx->soundData->sndChunk[i+w] = (w - abs(w % (sfx->soundLength) - sfx->soundLength))<<4;
 			}
 	}
 
@@ -603,6 +603,32 @@ static void S_Base_StartSoundEx( vec3_t origin, int entityNum, int entchannel, s
 	}
 
 	ch = s_channels;
+
+
+	// leilei - check if this sound is already playing and kill it
+	if (s_interrupts->integer == 1)
+	{
+		for ( i = 0; i < MAX_CHANNELS ; i++, ch++ ) {		
+			if (ch->entnum == entityNum && ch->thesfx == sfx) 
+				{
+					S_ChannelFree(ch);
+				}
+		}
+	}
+
+	// leilei - check if this channel is being used, and kill that too
+	if (s_interrupts->integer == 2)
+	{
+		for ( i = 0; i < MAX_CHANNELS ; i++, ch++ ) {		
+			if (ch->entnum == entityNum && ch->entchannel == entchannel && ch->thesfx && (entchannel != CHAN_AUTO)) 
+				{
+					S_ChannelFree(ch);
+				}
+		}
+	}
+
+
+
 	inplay = 0;
 	for ( i = 0; i < MAX_CHANNELS ; i++, ch++ ) {		
 		if (ch->entnum == entityNum && ch->thesfx == sfx) {
@@ -615,6 +641,7 @@ static void S_Base_StartSoundEx( vec3_t origin, int entityNum, int entchannel, s
 			inplay++;
 		}
 	}
+
 
 	if (inplay>allowed) {
 		return;

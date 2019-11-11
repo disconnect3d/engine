@@ -1138,12 +1138,6 @@ static void ComputeColors( shaderStage_t *pStage )
 				}
 			}
 			break;
-		case CGEN_LIGHTING_UNIFORM:
-			RB_CalcUniformColor( ( unsigned char * ) tess.svars.colors );
-			break;
-		case CGEN_LIGHTING_DYNAMIC:
-			RB_CalcDynamicColor( ( unsigned char * ) tess.svars.colors );
-			break;
 		case CGEN_LIGHTING_FLAT_AMBIENT:
 			RB_CalcFlatAmbient( ( unsigned char * ) tess.svars.colors );
 			if(r_monolightmaps->integer)
@@ -1268,7 +1262,7 @@ static void ComputeColors( shaderStage_t *pStage )
 				RB_CalcNormal( ( unsigned char * ) tess.svars.colors ); // leilei - debug normals, or use the normals as a color for a lighting shader
 				break;
 			}
-			RB_CalcDiffuseColor_Specular( ( unsigned char * ) tess.svars.colors );
+			RB_CalcDiffuseColor( ( unsigned char * ) tess.svars.colors );
 			if(r_monolightmaps->integer)
 			{
 				int scale;
@@ -1296,6 +1290,13 @@ static void ComputeColors( shaderStage_t *pStage )
 		case CGEN_DETAIL_FADE:		// leilei - detail fade
 			RB_CalcDetailFade( ( unsigned char * ) tess.svars.colors);
 			break;
+		case CGEN_MATERIAL:
+			if (r_shownormals->integer > 1 || (pStage->isLeiShade)){
+				RB_CalcNormal( ( unsigned char * ) tess.svars.colors ); // leilei - debug normals, or use the normals as a color for a lighting shader
+				break;
+			}
+			RB_CalcMaterials( ( unsigned char * ) tess.svars.colors,  pStage->matAmb, pStage->matDif, pStage->matSpec, pStage->matEmis, pStage->matHard, pStage->matAlpha  );
+			break;
 
 	}
 
@@ -1317,11 +1318,6 @@ static void ComputeColors( shaderStage_t *pStage )
 					normme[0] = tess.svars.colors[i][0];
 					normme[1] = tess.svars.colors[i][1];
 					normme[2] = tess.svars.colors[i][2];
-
-				//	normme[0] *= (4 * tr.identityLight);
-				//	normme[1] *= (4 * tr.identityLight);
-				//	normme[2] *= (4 * tr.identityLight);
-
 
 					VectorNormalize(normme);
 
@@ -1362,10 +1358,7 @@ static void ComputeColors( shaderStage_t *pStage )
 		RB_CalcWaveAlpha( &pStage->alphaWave, ( unsigned char * ) tess.svars.colors );
 		break;
 	case AGEN_LIGHTING_SPECULAR:
-		if ( r_specMode->integer == 1)
-			RB_CalcSpecularAlphaNew( ( unsigned char * ) tess.svars.colors );
-		else
-			RB_CalcSpecularAlpha( ( unsigned char * ) tess.svars.colors );
+		RB_CalcSpecularAlpha( ( unsigned char * ) tess.svars.colors );
 		break;
 	case AGEN_ENTITY:
 		RB_CalcAlphaFromEntity( ( unsigned char * ) tess.svars.colors );
@@ -1418,6 +1411,20 @@ static void ComputeColors( shaderStage_t *pStage )
 		}
 		break;
 	}
+
+
+	//
+	// rgbMod
+	//
+	switch ( pStage->rgbMod )
+	{
+		case CMOD_GLOW:
+			RB_CalcGlowBlend( ( unsigned char * ) tess.svars.colors, pStage->rgbModCol, pStage->rgbModMode );
+			break;
+		case CMOD_BAD:
+			return;
+	}
+
 
 	//
 	// fog adjustment for colors to fade out as fog increases
@@ -1509,13 +1516,7 @@ static void ComputeTexCoords( shaderStage_t *pStage ) {
 			RB_CalcEnvironmentTexCoords( ( float * ) tess.svars.texcoords[b] ); 
 			break;
 		case TCGEN_ENVIRONMENT_MAPPED_WATER:
-			RB_CalcEnvironmentTexCoordsW( ( float * ) tess.svars.texcoords[b], 0 ); 			
-			break;
-		case TCGEN_ENVIRONMENT_CELSHADE_MAPPED:
-			RB_CalcEnvironmentCelShadeTexCoords( ( float * ) tess.svars.texcoords[b] );
-			break;
-		case TCGEN_ENVIRONMENT_CELSHADE_LEILEI:
-			RB_CalcEnvironmentTexCoordsW( ( float * ) tess.svars.texcoords[b], 1 );
+			RB_CalcEnvironmentTexCoordsEx( ( float * ) tess.svars.texcoords[b], 0, 1, 1 ); 			
 			break;
 		case TCGEN_EYE_LEFT:
 			RB_CalcEyes( ( float * ) tess.svars.texcoords[b], 1); 
@@ -1848,7 +1849,7 @@ static void RB_IterateStagesGeneric( shaderCommands_t *input )
 	
 		if ( pStage->bundle[1].image[0] != 0 )
 		{
-	if (!r_leifx->integer)
+		if (r_legacycard->integer != 4 && r_legacycard->integer != 5)
 			DrawMultitextured( input, stage );
 		}
 		else

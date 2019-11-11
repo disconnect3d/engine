@@ -27,7 +27,6 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 static qboolean R_LoadMD3(model_t *mod, int lod, void *buffer, const char *name );
 static qboolean R_LoadMDR(model_t *mod, void *buffer, int filesize, const char *name );
-qboolean R_LoadMDO( model_t *mod, void *buffer, int filesize, const char *mod_name );
 extern int ismaptexture; // leilei - for listing map textures
 /*
 ====================
@@ -183,46 +182,6 @@ qhandle_t R_RegisterIQM(const char *name, model_t *mod)
 }
 
 
-/*
-====================
-R_RegisterMDO
-====================
-*/
-qhandle_t R_RegisterMDO(const char *name, model_t *mod)
-{
-	union {
-		unsigned *u;
-		void *v;
-	} buf;
-	int	ident;
-	qboolean loaded = qfalse;
-	int filesize;
-
-	filesize = ri.FS_ReadFile(name, (void **) &buf.v);
-	if(!buf.u)
-	{
-		mod->type = MOD_BAD;
-		return 0;
-	}
-	
-	ident = LittleLong(*(unsigned *)buf.u);
-	if(ident == MDO_IDENT)
-		loaded = R_LoadMDO(mod, buf.u, filesize, name);
-
-	ri.FS_FreeFile (buf.v);
-	
-	if(!loaded)
-	{
-		ri.Printf(PRINT_WARNING,"R_RegisterMDO: couldn't load mdo file %s\n", name);
-		mod->type = MOD_BAD;
-		return 0;
-	}
-	
-	return mod->index;
-}
-
-
-
 
 typedef struct
 {
@@ -235,7 +194,6 @@ typedef struct
 static modelExtToLoaderMap_t modelLoaders[ ] =
 {
 	{ "iqm", R_RegisterIQM },
-	{ "mdo", R_RegisterMDO },
 	{ "mdr", R_RegisterMDR },
 	{ "md3", R_RegisterMD3 }
 };

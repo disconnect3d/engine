@@ -49,6 +49,11 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define LFXBUBBLE	9
 #define	LFXQUAKE	10
 #define LFXDLIGHT	11
+#define LFXCONE		12
+#define LFXCONERING	13
+#define LFXCONEFLUF	14
+
+#define LFXFOGBALL	69
 
 #define PARTICLE_Z_CLIP 8
 // color types
@@ -158,6 +163,8 @@ static shader_t	*modsmoke;
 static shader_t	*alfsmoke;
 
 
+// leilei - textureless smoke
+static float smokeset[16];
 
 #define MAX_ENTITIES 500
 
@@ -309,6 +316,30 @@ void R_AddParticleToScene (particle_t *p, vec3_t org, float alpha)
 	// qarticle transitions
 	cl.time = THEtime / 10; // quarticles
 
+	// Simple particle rendering
+	if (r_particles->integer == 1001) // TODO: activate when Virge/Rage
+	{
+		// leilei - force cone alternates
+		// TODO: LFXSPARK
+		if (p->rendertype == LFXSHOCK) { 
+			p->rendertype = LFXCONERING;
+			p->pshader = tr.coneShader;
+			}
+		else if (p->rendertype < 10){
+			p->rendertype = LFXCONEFLUF;
+			}
+
+		// Swap textures
+		if (p->pshader == addsmoke || p->pshader == addball || p->pshader == addshock || p->pshader == fireball || p->pshader == watsplash || p->pshader == watbubble || p->pshader == watburst ) 
+			p->pshader = tr.coneShader;
+
+		if (p->pshader == alfsmoke || p->pshader == alfball || p->pshader == alfshock || p->pshader == blood1 || p->pshader == blood2 ) 
+			p->pshader = tr.coneAlphaShader;
+
+		if (p->pshader == subsmoke || p->pshader == subball || p->pshader == subshock ) 
+			p->pshader = tr.coneSubShader;
+	
+	}
 
 
 	time = THEtime- p->time;
@@ -319,7 +350,7 @@ void R_AddParticleToScene (particle_t *p, vec3_t org, float alpha)
 	{
 		byte fogFactors[3] = {255, 255, 255};
 		if(tr.world && p->fogNum > 0 && p->fogNum < tr.world->numfogs) {
-			tess.numVertexes = 1;
+			tess.numVertexes = 0;
 			VectorCopy(org, tess.xyz[0]);
 			tess.fogNum = p->fogNum;
 
@@ -414,7 +445,6 @@ void R_AddParticleToScene (particle_t *p, vec3_t org, float alpha)
 		}
 
 
-	
 
 		if (p->rendertype == LFXSHOCK) {
 			// ORIENTED sprite - used for shockwaves, water waves, waves, etc.
@@ -436,8 +466,6 @@ void R_AddParticleToScene (particle_t *p, vec3_t org, float alpha)
 			RB_BeginSurface( p->pshader, fogNum );
 			VectorMA (org, -height, right, point);
 			VectorMA (point, -width, up, point);
-
-
 
 			VectorCopy (point, tess.xyz[tess.numVertexes] );
 			tess.texCoords[tess.numVertexes][0][0] = 0;
@@ -704,6 +732,274 @@ void R_AddParticleToScene (particle_t *p, vec3_t org, float alpha)
 
 			RE_AddDynamicLightToScene( org, p->width, color[0], color[1], color[2], 1);
 		}
+		else if (p->rendertype == LFXCONE) {
+			// Make a cone. GLQuake code (ab)used)
+			{
+				float	a;
+				int	qi, qj;
+				int ind=0;
+				int edgecolor = 0;
+				if (p->pshader == tr.coneSubShader)
+				edgecolor = 255;
+				width = p->width + ( ratio * ( p->endwidth - p->width) );
+				height = p->height + ( ratio * ( p->endheight - p->height) );
+
+				RB_BeginSurface( p->pshader, fogNum );
+				float rad = (height + width) * 0.5f;
+
+				// the center
+				for (qj=0 ; qj<3 ; qj++)
+				point[qj] = p->org[qj] - pvforward[qj]*rad;
+				//point[qj] = p->org[qj];// - pvforward[qj]*rad;
+				
+				VectorCopy (point, tess.xyz[tess.numVertexes] );
+				tess.texCoords[tess.numVertexes][0][0] = 0.5;
+				tess.texCoords[tess.numVertexes][0][1] = 0.5;
+				tess.vertexColors[tess.numVertexes][0] = 255 * color[0];
+				tess.vertexColors[tess.numVertexes][1] = 255 * color[1];
+				tess.vertexColors[tess.numVertexes][2] = 255 * color[2];
+				tess.vertexColors[tess.numVertexes][3] = 255 * invratio;
+				tess.numVertexes++;
+
+				// the blend
+				int density = 16; // TODO: Level of detail by distance
+				if (density < 3) density = 3; // DONT LET IT LESS THAN 3
+
+				for (qi=0 ; qi<(density+1) ; qi++)
+				{
+					a = qi/(float)(density) * M_PI*2;	
+					for (qj=0 ; qj<3 ; qj++)
+					point[qj] = p->org[qj] + pvright[qj]*cos(a)*rad + pvup[qj]*sin(a)*rad;
+					VectorCopy (point, tess.xyz[tess.numVertexes] );
+					tess.texCoords[tess.numVertexes][0][0] = 0.5 * cos(a)*0.5*rad;	// FIXME: bad math
+					tess.texCoords[tess.numVertexes][0][1] = 0.5 * sin(a)*0.5*rad;
+					tess.vertexColors[tess.numVertexes][0] = edgecolor;
+					tess.vertexColors[tess.numVertexes][1] = edgecolor;
+					tess.vertexColors[tess.numVertexes][2] = edgecolor;
+					tess.vertexColors[tess.numVertexes][3] = 0;
+					tess.numVertexes++;
+				}
+	
+				for (qi=0; qi<density; qi++)
+				{
+					tess.indexes[tess.numIndexes++] = 0;
+					tess.indexes[tess.numIndexes++] = qi+1;
+					tess.indexes[tess.numIndexes++] = qi+2;
+
+				}
+				ind+=density+2;
+
+				RB_EndSurface();
+			}
+		}
+		else if (p->rendertype == LFXCONEFLUF) {
+			// Make a cone, but simpler and does rotation
+			// to approximate smoke
+			{
+				float	a;
+				int	qi, qj;
+				int ind=0;
+				int edgecolor = 0;
+				if (p->pshader == tr.coneSubShader)
+					edgecolor = 255;
+				width = p->width + ( ratio * ( p->endwidth - p->width) );
+				height = p->height + ( ratio * ( p->endheight - p->height) );
+
+				if (p->roll) {
+					vectoangles( backEnd.refdef.viewaxis[0], rotate_ang );
+					rotate_ang[ROLL] += p->roll;
+					AngleVectors ( rotate_ang, NULL, rr, ru);
+				}
+
+				RB_BeginSurface( p->pshader, fogNum );
+				float rad = (height + width) * 0.5f;
+
+				// the center
+				for (qj=0 ; qj<3 ; qj++)
+				point[qj] = p->org[qj];// - pvforward[qj]*rad;
+
+
+			//	point[0] += cos(p->roll) * rad * 0.3;
+			//	point[1] += sin(p->roll) * rad * 0.3;
+				
+				VectorCopy (point, tess.xyz[tess.numVertexes] );
+				tess.texCoords[tess.numVertexes][0][0] = 0.5;
+				tess.texCoords[tess.numVertexes][0][1] = 0.5;
+				tess.vertexColors[tess.numVertexes][0] = 255 * color[0];
+				tess.vertexColors[tess.numVertexes][1] = 255 * color[1];
+				tess.vertexColors[tess.numVertexes][2] = 255 * color[2];
+				tess.vertexColors[tess.numVertexes][3] = 255 * invratio;
+				tess.numVertexes++;
+
+				// the blend
+				int density = 5; // TODO: Level of detail by distance
+				//if (density < 3) density = 3;
+
+				for (qi=0 ; qi<(density+1) ; qi++)
+				{
+					a = qi/(float)(density) * M_PI*2;
+					//a += rr[0];	
+					a += sin(p->roll);
+					for (qj=0 ; qj<3 ; qj++)
+					point[qj] = p->org[qj] + pvright[qj]*cos(a)*rad + pvup[qj]*sin(a)*rad;
+					VectorCopy (point, tess.xyz[tess.numVertexes] );
+					tess.texCoords[tess.numVertexes][0][0] = 0.5 * cos(a)*0.5*rad;	// FIXME: bad math
+					tess.texCoords[tess.numVertexes][0][1] = 0.5 * sin(a)*0.5*rad;
+					tess.vertexColors[tess.numVertexes][0] = edgecolor;
+					tess.vertexColors[tess.numVertexes][1] = edgecolor;
+					tess.vertexColors[tess.numVertexes][2] = edgecolor;
+					tess.vertexColors[tess.numVertexes][3] = 0;
+					tess.numVertexes++;
+				}
+	
+				for (qi=0; qi<density; qi++)
+				{
+					tess.indexes[tess.numIndexes++] = 0;
+					tess.indexes[tess.numIndexes++] = qi+1;
+					tess.indexes[tess.numIndexes++] = qi+2;
+
+				}
+				ind+=density+2;
+
+				RB_EndSurface();
+			}
+		}
+			else if (p->rendertype == LFXFOGBALL) {
+			// Attempt to make a really fake fog sphere
+			{
+				float	a;
+				int	qi, qj;
+				int ind=0;
+				int thick=2;
+				width = p->width + ( ratio * ( p->endwidth - p->width) );
+				height = p->height + ( ratio * ( p->endheight - p->height) );
+
+				RB_BeginSurface( p->pshader, fogNum );
+				float rad = (height + width) * 0.5f;
+				//rad = 100; // force big
+				// the center
+				for (thick=thick;thick>0;thick--)
+				{
+					vec3_t thepoint;
+					for (qj=0 ; qj<3 ; qj++)
+					point[qj] = p->org[qj] - (pvforward[qj]*(rad/2));
+					
+					VectorCopy (point, tess.xyz[tess.numVertexes] );
+					VectorCopy (point, thepoint );
+					tess.texCoords[tess.numVertexes][0][0] = 0.5 * cos(thick)*0.2*rad;
+					tess.texCoords[tess.numVertexes][0][1] = 0.5 * sin(thick)*0.2*rad;
+					tess.vertexColors[tess.numVertexes][0] = 255 * color[0];
+					tess.vertexColors[tess.numVertexes][1] = 255 * color[1];
+					tess.vertexColors[tess.numVertexes][2] = 255 * color[2];
+					tess.vertexColors[tess.numVertexes][3] = 255 * invratio;
+					tess.numVertexes++;
+	
+					// the blend
+					int density = 12; // TODO: Level of detail by distance
+					//if (density < 3) density = 3;
+	
+					for (qi=0 ; qi<(density+1) ; qi++)
+					{
+						a = qi/(float)(density) * M_PI*2;	
+						for (qj=0 ; qj<3 ; qj++)
+						point[qj] = p->org[qj] + pvright[qj]*cos(a)*rad + pvup[qj]*sin(a)*rad;
+						VectorCopy (point, tess.xyz[tess.numVertexes] );
+						tess.texCoords[tess.numVertexes][0][0] = 0.5 * cos(a)*0.5*rad;
+						tess.texCoords[tess.numVertexes][0][1] = 0.5 * sin(a)*0.5*rad;
+						tess.vertexColors[tess.numVertexes][0] = 255 * color[0];
+						tess.vertexColors[tess.numVertexes][1] = 255 * color[1];
+						tess.vertexColors[tess.numVertexes][2] = 255 * color[2];
+						tess.vertexColors[tess.numVertexes][3] = 0x00;
+
+						// wait. hold on. lets trace this crap
+						trace_t	trace;
+						// Do the trace of truth
+						P_Trace (&trace, thepoint, NULL, NULL, tess.xyz[tess.numVertexes], -1, CONTENTS_SOLID);
+						{
+							if (trace.fraction < 1) {
+								VectorCopy(trace.endpos, tess.xyz[tess.numVertexes]);	// cut!!
+							}
+						}
+						tess.numVertexes++;
+					}
+		
+					for (qi=0; qi<density; qi++)
+					{
+						tess.indexes[tess.numIndexes++] = 0;
+						tess.indexes[tess.numIndexes++] = qi+1;
+						tess.indexes[tess.numIndexes++] = qi+2;
+	
+					}
+					ind+=density+2;
+	
+					RB_EndSurface();
+				}
+			}
+		}
+
+		else if (p->rendertype == LFXCONERING) {
+			// Make a cone but with the edges having colors instead and being flat
+			{
+				vec3_t	argles;
+				vec3_t		right, up;
+				float	a;
+				int	qi, qj;
+				int ind=0;
+
+
+				width = p->width + ( ratio * ( p->endwidth - p->width) );
+				height = p->height + ( ratio * ( p->endheight - p->height) );
+				vectoangles( p->dir, argles );
+				AngleVectors ( argles, NULL, right, up);
+
+				RB_BeginSurface( p->pshader, fogNum );
+				float rad = (height + width) * 0.5f;
+
+				// the center
+				for (qj=0 ; qj<3 ; qj++)
+				point[qj] = p->org[qj];// - pvforward[qj]*rad;
+				
+				VectorCopy (point, tess.xyz[tess.numVertexes] );
+				tess.texCoords[tess.numVertexes][0][0] = 0.5;
+				tess.texCoords[tess.numVertexes][0][1] = 0.5;
+				tess.vertexColors[tess.numVertexes][0] = 0;
+				tess.vertexColors[tess.numVertexes][1] = 0;
+				tess.vertexColors[tess.numVertexes][2] = 0;
+				tess.vertexColors[tess.numVertexes][3] = 0;
+				tess.numVertexes++;
+
+				// the blend
+				int density = 16; // TODO: Level of detail by distance
+				//if (density < 3) density = 3;
+
+				for (qi=0 ; qi<(density+1) ; qi++)
+				{
+					a = qi/(float)(density) * M_PI*2;	
+					for (qj=0 ; qj<3 ; qj++)
+					point[qj] = p->org[qj] + right[qj]*cos(a)*rad + up[qj]*sin(a)*rad;
+					VectorCopy (point, tess.xyz[tess.numVertexes] );
+					tess.texCoords[tess.numVertexes][0][0] = 0.5 * cos(a)*0.5*rad;
+					tess.texCoords[tess.numVertexes][0][1] = 0.5 * sin(a)*0.5*rad;
+					tess.vertexColors[tess.numVertexes][0] = 255 * color[0];
+					tess.vertexColors[tess.numVertexes][1] = 255 * color[1];
+					tess.vertexColors[tess.numVertexes][2] = 255 * color[2];
+					tess.vertexColors[tess.numVertexes][3] = 255 * invratio;
+					tess.numVertexes++;
+				}
+	
+				for (qi=0; qi<density; qi++)
+				{
+					tess.indexes[tess.numIndexes++] = 0;
+					tess.indexes[tess.numIndexes++] = qi+1;
+					tess.indexes[tess.numIndexes++] = qi+2;
+
+				}
+				ind+=density+2;
+
+				RB_EndSurface();
+			}
+		}
+
 		else {
 			// VP PARALLEL sprite
 			//	trace_t pt1, pt2, pt3, pt4;
@@ -870,6 +1166,18 @@ void R_AddParticles (void)
 	active = NULL;
 	tail = NULL;
 
+	// leilei - mutate the smoke set
+
+	{	
+		int s;
+		for (s=0;s<16;s+=4){
+			smokeset[s] = (smokeset[s] + smokeset[s+3] + smokeset[s+2] + smokeset[s+1] + random()) / 5;
+			smokeset[s+1] = (smokeset[s+1] + smokeset[s] + smokeset[s+3] + smokeset[s+2]) / 4;
+			smokeset[s+2] = (smokeset[s+2] + smokeset[s+1] + smokeset[s] + smokeset[s+3]) / 4;
+			smokeset[s+3] = (smokeset[s+3] + smokeset[s+2] + smokeset[s+1] + smokeset[s]) / 4;
+			}
+
+	}
 
 
 	// Intended to keep physics calculations under control, but it doens't work properly. :(
@@ -2261,7 +2569,6 @@ void Q_RocketTrail (vec3_t start, vec3_t end, int type)
 
 void LFX_ShaderInit ( void )
 {
-
 	addsmoke = R_FindShader( "psmoke-add", LIGHTMAP_NONE, qtrue );
 	subsmoke = R_FindShader( "psmoke-sub", LIGHTMAP_NONE, qtrue );
 	modsmoke = R_FindShader( "psmoke-mod", LIGHTMAP_NONE, qtrue );

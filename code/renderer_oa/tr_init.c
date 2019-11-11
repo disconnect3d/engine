@@ -202,8 +202,6 @@ cvar_t	*r_flareSun;		// type of flare to use for the sun
 cvar_t	*r_flareDelay;		// time delay for medium quality flare testing
 cvar_t	*r_flaresMotionBlur;	// Stretch blur
 
-cvar_t	*r_specMode;
-//cvar_t	*r_waveMode;
 cvar_t	*r_flaresDlight;
 cvar_t	*r_flaresDlightShrink;
 cvar_t	*r_flaresDlightFade;
@@ -1286,11 +1284,6 @@ void R_Register( void )
 	r_maxpolys = ri.Cvar_Get( "r_maxpolys", va("%d", MAX_POLYS), 0);
 	r_maxpolyverts = ri.Cvar_Get( "r_maxpolyverts", va("%d", MAX_POLYVERTS), 0);
 
-
-
-	r_specMode = ri.Cvar_Get( "r_specMode", "1" , CVAR_ARCHIVE );
-	//r_waveMode = ri.Cvar_Get( "r_waveMode", "0" , CVAR_ARCHIVE );
-
 	r_lensReflection1 = ri.Cvar_Get( "r_lensReflection1", "1" , CVAR_ARCHIVE);	// sharp reflection
 	r_lensReflection2 = ri.Cvar_Get( "r_lensReflection2", "0" , CVAR_ARCHIVE); // fuzzy reflection
 	r_lensReflectionBrightness = ri.Cvar_Get( "r_lensReflectionBrightness", "0.5" , CVAR_ARCHIVE);
@@ -1326,7 +1319,7 @@ void R_Register( void )
 
 	r_palletize = ri.Cvar_Get( "r_palletize", "0" , CVAR_ARCHIVE | CVAR_LATCH);
 	r_leidebug = ri.Cvar_Get( "r_leidebug", "0" , CVAR_CHEAT);
-	r_particles = ri.Cvar_Get( "r_particles", "0" , CVAR_ARCHIVE | CVAR_LATCH);
+	r_particles = ri.Cvar_Get( "r_particles", "1" , CVAR_ARCHIVE | CVAR_LATCH);
 	r_leidebugeye = ri.Cvar_Get( "r_leidebugeye", "0" , CVAR_CHEAT);
 	r_slowness = ri.Cvar_Get( "r_slowness", "0" , CVAR_ARCHIVE);	// it's 0 because you want it to be the fastest possible by default.
 	r_slowness_cpu = ri.Cvar_Get( "r_slowness_cpu", "300" , CVAR_ARCHIVE);	// it's 0 because you want it to be the fastest possible by default.

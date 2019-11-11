@@ -31,6 +31,7 @@ cvar_t *s_muted;
 cvar_t *s_musicVolume;
 cvar_t *s_doppler;
 cvar_t *s_defaultSound;
+cvar_t *s_interrupts;
 cvar_t *s_backend;
 cvar_t *s_muteWhenMinimized;
 cvar_t *s_muteWhenUnfocused;
@@ -490,6 +491,7 @@ void S_Init( void )
 	s_muteWhenMinimized = Cvar_Get( "s_muteWhenMinimized", "0", CVAR_ARCHIVE );
 	s_muteWhenUnfocused = Cvar_Get( "s_muteWhenUnfocused", "0", CVAR_ARCHIVE );
 	s_defaultSound = Cvar_Get( "s_defaultSound", "3", CVAR_ARCHIVE );
+	s_interrupts = Cvar_Get( "s_interrupts", "0", CVAR_ARCHIVE );
 	s_compression = Cvar_Get( "s_compression", "0", CVAR_ARCHIVE );
 
 	cv = Cvar_Get( "s_initsound", "1", 0 );

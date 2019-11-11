@@ -1489,14 +1489,12 @@ const void	*RB_SwapBuffers( const void *data ) {
 
 
 
-	if (r_ext_vertex_shader->integer){		// leilei - leifx filters
-	R_LeiFXPostprocessFilterScreen();
-
-
+	if (r_ext_vertex_shader->integer && r_legacycard->integer){	// leilei - filter screen to approximate 3dfx hardware
+		R_LeiFXPostprocessFilterScreen();
 	}
 
 	R_BrightScreen();		// leilei - alternate brightness - do it here so we hit evereything that represents our video buffer
-	R_RetroAAScreen();		// leilei - then apply 'anti aliasing' (hint: IT'S NOT really antialiasing)
+	//R_RetroAAScreen();		// leilei - then apply 'anti aliasing' (hint: IT'S NOT really antialiasing)
 	R_PaletteScreen();		// leilei - then we palette our overbrighted antialiased screen.
 
 	cmd = (const swapBuffersCommand_t *)data;

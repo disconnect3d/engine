@@ -1258,6 +1258,49 @@ static void ParseTexMod( char *_text, shaderStage_t *stage )
 	}
 }
 
+// leilei - too lazy, so copypasting from cmdlib.c here
+
+
+/*
+==============
+ParseNum / ParseHex
+==============
+*/
+int ShParseHex (const char *hex)
+{
+	const char    *str;
+	int    num;
+
+	num = 0;
+	str = hex;
+
+	while (*str)
+	{
+		num <<= 4;
+		if (*str >= '0' && *str <= '9')
+			num += *str-'0';
+		else if (*str >= 'a' && *str <= 'f')
+			num += 10 + *str-'a';
+		else if (*str >= 'A' && *str <= 'F')
+			num += 10 + *str-'A';
+		else
+			return 0;
+		str++;
+	}
+
+	return num;
+}
+
+
+static int ShParseNum (const char *str)
+{
+	if (str[0] == '$')
+		return ShParseHex (str+1);
+	if (str[0] == '0' && str[1] == 'x')
+		return ShParseHex (str+2);
+	return atol (str);
+}
+
 
 /*
 ===================
@@ -2746,7 +2789,7 @@ static qboolean ParseStage( shaderStage_t *stage, char **text )
 			}
 
 			// leilei - if it's a detail tex and we're in subtraction mode, hijack the blend
-			if ( !Q_strncmp( stage->bundle[0].image[0], "textures/detail/", 16 )  || !Q_strncmp( stage->bundle[0].image[0], "gfx/fx/detail/", 14 ))  {
+			if ( !Q_strncmp( stage->bundle[0].image[0]->imgName, "textures/detail/", 16 )  || !Q_strncmp( stage->bundle[0].image[0]->imgName, "gfx/fx/detail/", 14 ))  {
 				if (r_detailTextureSub->integer  )
 				{
 					blendSrcBits = GLS_SRCBLEND_ZERO;
@@ -2840,14 +2883,6 @@ static qboolean ParseStage( shaderStage_t *stage, char **text )
 				stage->isSpecular = qtrue;
 
 			}
-			else if ( !Q_stricmp( token, "lightingUniform" ) )
-			{
-				stage->rgbGen = CGEN_LIGHTING_UNIFORM;
-			}
-			else if ( !Q_stricmp( token, "lightingDynamic" ) )
-			{
-				stage->rgbGen = CGEN_LIGHTING_DYNAMIC;
-			}
 			else if ( !Q_stricmp( token, "flatAmbient" ) )
 			{
 				stage->rgbGen = CGEN_LIGHTING_FLAT_AMBIENT;
@@ -2865,6 +2900,58 @@ static qboolean ParseStage( shaderStage_t *stage, char **text )
 				stage->rgbGen = CGEN_LIGHTING_DIFFUSE;
 				stage->isSpecular = qtrue;
 
+			}
+			else if ( !Q_stricmp( token, "material" ) )	// leilei - material system
+			{
+				token = COM_ParseExt( text, qfalse );
+				if ( !token[0] ) {
+					ri.Printf( PRINT_WARNING, "WARNING: missing ambient color in shader '%s', using white\n", shader.name );
+					stage->matAmb = 0xFFFFFF;
+				}
+				else
+				stage->matAmb = ShParseNum( token );
+
+				token = COM_ParseExt( text, qfalse );
+				if ( !token[0] ) {
+					ri.Printf( PRINT_WARNING, "WARNING: missing diffuse color in shader '%s', using gray\n", shader.name );
+					stage->matSpec = 0xEEEEEE;
+				}
+				else
+				stage->matDif = ShParseNum( token );
+
+				token = COM_ParseExt( text, qfalse );
+				if ( !token[0] ) {
+					ri.Printf( PRINT_WARNING, "WARNING: missing specular color for material in shader '%s', using none\n", shader.name );
+					stage->matSpec = 0x000000;
+				}
+				else
+				stage->matSpec = ShParseNum( token );
+
+				token = COM_ParseExt( text, qfalse );
+				if ( !token[0] ) {
+					ri.Printf( PRINT_WARNING, "WARNING: missing emissive color for material in shader '%s', using none\n", shader.name );
+					stage->matEmis = 0x000000;
+				}
+				else
+				stage->matEmis = ShParseNum( token );
+
+				token = COM_ParseExt( text, qfalse );
+				if ( !token[0] ) {
+					ri.Printf( PRINT_WARNING, "WARNING: missing specular hardness for material in shader '%s', using none\n", shader.name );
+					stage->matHard = 0;
+				}
+				else
+				stage->matHard = atoi( token );
+
+				token = COM_ParseExt( text, qfalse );
+				if ( !token[0] ) {
+					ri.Printf( PRINT_WARNING, "WARNING: missing alpha for material in shader '%s', using opaque\n", shader.name );
+					stage->matAlpha = 255;
+				}
+				else
+				stage->matAlpha = atoi( token );
+
+				stage->rgbGen = CGEN_MATERIAL;
 			}
 			else
 			{
@@ -2941,6 +3028,44 @@ static qboolean ParseStage( shaderStage_t *stage, char **text )
 			}
 		}
 		//
+		// rgbMod
+		//
+		else if ( !Q_stricmp( token, "rgbMod" ) )
+		{
+			token = COM_ParseExt( text, qfalse );
+			if ( token[0] == 0 )
+			{
+				ri.Printf( PRINT_WARNING, "WARNING: missing parameters for rgbMod in shader '%s'\n", shader.name );
+				continue;
+			}
+			if ( !Q_stricmp( token, "glow" ) )
+			{
+				// TODO: Parse "entity" and "vertex" for their colors, for railguns and maps
+				token = COM_ParseExt( text, qfalse );
+				if ( !token[0] ) {
+					ri.Printf( PRINT_WARNING, "WARNING: missing hex color in shader '%s'\n", shader.name );
+					return qfalse;
+				}
+				stage->rgbModCol = ShParseNum( token );
+
+				token = COM_ParseExt( text, qfalse );
+				if ( !token[0] ) {
+					stage->rgbModMode = 0;
+					stage->rgbMod = CMOD_GLOW;
+					return qtrue;
+				}
+				stage->rgbModMode = atoi( token );
+
+				stage->rgbMod = CMOD_GLOW;
+			}
+			else
+			{
+				ri.Printf( PRINT_WARNING, "WARNING: unknown rgbMod parameter '%s' in shader '%s'\n", token, shader.name );
+				continue;
+			}
+		}
+
+		//
 		// tcGen <function>
 		//
 		else if ( !Q_stricmp(token, "texgen") || !Q_stricmp( token, "tcGen" ) ) 
@@ -2958,11 +3083,11 @@ static qboolean ParseStage( shaderStage_t *stage, char **text )
 			}
 			else if ( !Q_stricmp( token, "cel" ) )
 			{
-				stage->bundle[0].tcGen = TCGEN_ENVIRONMENT_CELSHADE_MAPPED;
+				stage->bundle[0].tcGen = TCGEN_ENVIRONMENT_MAPPED; // Backwards compatibility
 			}
-			else if ( !Q_stricmp( token, "celshading" ) )		// leilei - my technique is different
+			else if ( !Q_stricmp( token, "celshading" ) )		
 			{
-				stage->bundle[0].tcGen = TCGEN_ENVIRONMENT_CELSHADE_LEILEI;
+				stage->bundle[0].tcGen = TCGEN_ENVIRONMENT_MAPPED; // Backwards compatibility
 			}
 			else if ( !Q_stricmp( token, "eyeleft" ) )		// leilei - eye tracking
 			{
@@ -3037,7 +3162,7 @@ static qboolean ParseStage( shaderStage_t *stage, char **text )
 			// leilei - if it's a detail tex and we're in subtraction mode, hijack the blend
 			if (r_detailTextureSub->integer  )
 			{
-					if ( !Q_strncmp( stage->bundle[0].image[0], "textures/detail/", 16 )  || !Q_strncmp( stage->bundle[0].image[0], "gfx/fx/detail/", 14 ))  
+					if ( !Q_strncmp( stage->bundle[0].image[0]->imgName, "textures/detail/", 16 )  || !Q_strncmp( stage->bundle[0].image[0]->imgName, "gfx/fx/detail/", 14 ))  
 				{	// FIXME: I crash Q3DM0,DM5,DM6,DM11,DM12,DM18,TOURNEY6
 					blendSrcBits = GLS_SRCBLEND_ZERO;
 					blendDstBits = GLS_DSTBLEND_ONE_MINUS_SRC_COLOR;
@@ -3075,9 +3200,7 @@ static qboolean ParseStage( shaderStage_t *stage, char **text )
 	// decide which agens we can skip
 	if ( stage->alphaGen == AGEN_IDENTITY ) {
 		if ( stage->rgbGen == CGEN_IDENTITY
-			|| stage->rgbGen == CGEN_LIGHTING_DIFFUSE 
-			|| stage->rgbGen == CGEN_LIGHTING_UNIFORM 
-			|| stage->rgbGen == CGEN_LIGHTING_DYNAMIC) {
+			|| stage->rgbGen == CGEN_LIGHTING_DIFFUSE) {
 			stage->alphaGen = AGEN_SKIP;
 		}
 	}
@@ -3634,14 +3757,6 @@ qboolean ParseStageSimple( shaderStage_t *stage, char **text )
 			{
 				stage->rgbGen = CGEN_LIGHTING_DIFFUSE;
 			}
-			else if ( !Q_stricmp( token, "lightingUniform" ) )
-			{
-				stage->rgbGen = CGEN_LIGHTING_UNIFORM;
-			}
-			else if ( !Q_stricmp( token, "lightingDynamic" ) )
-			{
-				stage->rgbGen = CGEN_LIGHTING_DYNAMIC;
-			}
 			else if ( !Q_stricmp( token, "flatAmbient" ) )
 			{
 				stage->rgbGen = CGEN_LIGHTING_FLAT_AMBIENT;
@@ -3752,11 +3867,11 @@ qboolean ParseStageSimple( shaderStage_t *stage, char **text )
 			}
 			else if ( !Q_stricmp( token, "cel" ) )
 			{
-				stage->bundle[0].tcGen = TCGEN_ENVIRONMENT_CELSHADE_MAPPED;
+				stage->bundle[0].tcGen = TCGEN_ENVIRONMENT_MAPPED;
 			}
-			else if ( !Q_stricmp( token, "celshading" ) )		// leilei - my technique is different
+			else if ( !Q_stricmp( token, "celshading" ) )		
 			{
-				stage->bundle[0].tcGen = TCGEN_ENVIRONMENT_CELSHADE_LEILEI;
+				stage->bundle[0].tcGen = TCGEN_ENVIRONMENT_MAPPED;
 			}
 			else if ( !Q_stricmp( token, "eyeleft" ) )		// leilei - eye tracking
 			{
@@ -3859,9 +3974,7 @@ qboolean ParseStageSimple( shaderStage_t *stage, char **text )
 	// decide which agens we can skip
 	if ( stage->alphaGen == AGEN_IDENTITY ) {
 		if ( stage->rgbGen == CGEN_IDENTITY
-			|| stage->rgbGen == CGEN_LIGHTING_DIFFUSE 
-			|| stage->rgbGen == CGEN_LIGHTING_UNIFORM 
-			|| stage->rgbGen == CGEN_LIGHTING_DYNAMIC) {
+			|| stage->rgbGen == CGEN_LIGHTING_DIFFUSE) {
 			stage->alphaGen = AGEN_SKIP;
 		}
 	}
@@ -4563,7 +4676,7 @@ static void ComputeStageIteratorFunc( void )
 	//
 	if ( shader.numUnfoggedPasses == 1 )
 	{
-		if ( stages[0].rgbGen == CGEN_LIGHTING_DIFFUSE || stages[0].rgbGen == CGEN_LIGHTING_UNIFORM || stages[0].rgbGen == CGEN_LIGHTING_DYNAMIC)
+		if ( stages[0].rgbGen == CGEN_LIGHTING_DIFFUSE )
 		{
 			if ( stages[0].alphaGen == AGEN_IDENTITY )
 			{
@@ -4677,7 +4790,7 @@ static qboolean CollapseMultitexture( void ) {
 		return qfalse;
 	}
 
-	if ((r_leifx->integer > 1) || (r_legacycard->integer))
+	if ((r_legacycard->integer))
 		return qfalse; // don't do this for leifx or legacycard mode
 
 	// make sure both stages are active
@@ -4686,7 +4799,7 @@ static qboolean CollapseMultitexture( void ) {
 	}
 
 	// on voodoo2, don't combine different tmus
-	if ( glConfig.driverType == GLDRV_VOODOO || r_leifx->integer ) {
+	if ( glConfig.driverType == GLDRV_VOODOO || (r_legacycard->integer == 4 && r_legacycard->integer == 5) ) {
 		if ( stages[0].bundle[0].image[0]->TMU ==
 			 stages[1].bundle[0].image[0]->TMU ) {
 			return qfalse;
@@ -5171,85 +5284,42 @@ static shader_t *FinishShader( void ) {
 
 #ifdef GLSL_TEXTURES
 
-		// Try to use leifx dither here instead of postprocess for more authentic overdraw artifacts
-		if (r_leifx->integer > 1)
-		{		
-			if (pStage->isBlend == 1){
-				pStage->program = RE_GLSL_RegisterProgram("leifxify2", "glsl/leifxify2_vp.glsl", 1, "glsl/leifxify2_fp.glsl", 1);	// 2x2 dither blend for vertex colors, 4x4 for texture
-			}
-			else
-			{
-				pStage->program = RE_GLSL_RegisterProgram("leifxify", "glsl/leifxify2_vp.glsl", 1, "glsl/leifxify_fp.glsl", 1);		// 4x4 dither blend for both color and texture
-			}
-			pStage->isGLSL=1;
-		}
 
 		// Apply a shader for mimicing old hardware's looks by ways of modern shader technology
 		if ((r_legacycard->integer) && (pStage->isGLSL==0) && (r_ext_vertex_shader->integer) )
 		{	
-			if (r_legacycard->integer == 1)	// "Midas" cards
-			{ 
-				if (pStage->program = RE_GLSL_RegisterProgram("legacy", "glsl/legacy/common_vp.glsl", 1, "glsl/legacy/midas.glsl", 1))
-				{
+			// "Midas" cards
+			if ((r_legacycard->integer == 1) && (pStage->program = RE_GLSL_RegisterProgram("legacy", "glsl/legacy/common_vp.glsl", 1, "glsl/legacy/midas.glsl", 1)))
 				pStage->isGLSL=1;
-				}
-			}
 
-			if (r_legacycard->integer == 2)	// "MGA" cards
-			{ 
-				if (pStage->program = RE_GLSL_RegisterProgram("legacy", "glsl/legacy/common_vp.glsl", 1, "glsl/legacy/mga.glsl", 1))
-				{
-					pStage->isGLSL=1;
-				}
-			}
 
-			if (r_legacycard->integer == 3)	// "GF" cards
-			{
-				if (pStage->program = RE_GLSL_RegisterProgram("legacy", "glsl/legacy/common_vp.glsl", 1, "glsl/legacy/gf.glsl", 1))
-				{
-					pStage->isGLSL=1;
-				}
-			}
+			// "MGA" cards
+			if ((r_legacycard->integer == 2) && (pStage->program = RE_GLSL_RegisterProgram("legacy", "glsl/legacy/common_vp.glsl", 1, "glsl/legacy/mga.glsl", 1)))
+				pStage->isGLSL=1;
 
-			if (r_legacycard->integer == 4)	// 3dfx cards in 2x2 dither configuration
-				{ 
-				if (pStage->program = RE_GLSL_RegisterProgram("legacy", "glsl/legacy/common_vp.glsl", 1, "glsl/legacy/3dfx2x2.glsl", 1))
-				{
-					pStage->isGLSL=1;
-				}
-			}
+			// "GF" cards
+			if ((r_legacycard->integer == 15) && (pStage->program = RE_GLSL_RegisterProgram("legacy", "glsl/legacy/common_vp.glsl", 1, "glsl/legacy/gf.glsl", 1)))
+				pStage->isGLSL=1;
 
-			if (r_legacycard->integer == 5)	// 3dfx cards in 4x4 dither + subtraction configuration
-			{ 
-				if (pStage->program = RE_GLSL_RegisterProgram("legacy", "glsl/legacy/common_vp.glsl", 1, "glsl/legacy/3dfx4x4.glsl", 1))
-				{
-					pStage->isGLSL=1;
-				}
-			}
+			// 3dfx cards in 2x2 dither configuration
+			if ((r_legacycard->integer == 4) && (pStage->program = RE_GLSL_RegisterProgram("legacy", "glsl/legacy/common_vp.glsl", 1, "glsl/legacy/3dfx2x2.glsl", 1)))
+				pStage->isGLSL=1;
 
-			if (r_legacycard->integer == 1001)
-			{
-				if (pStage->program = RE_GLSL_RegisterProgram("legacy", "glsl/legacy/1001_vp.glsl", 1, "glsl/legacy/1001.glsl", 1))
-				{
-					pStage->isGLSL=1;
-				}
-			}
+			// 3dfx cards in 4x4 dither + subtraction configuration
+			if ((r_legacycard->integer == 5) && (pStage->program = RE_GLSL_RegisterProgram("legacy", "glsl/legacy/common_vp.glsl", 1, "glsl/legacy/3dfx4x4.glsl", 1)))
+				pStage->isGLSL=1;
 
-			if (r_legacycard->integer == 64)
-			{ 
-				if (pStage->program = RE_GLSL_RegisterProgram("legacy", "glsl/legacy/common_vp.glsl", 1, "glsl/legacy/64.glsl", 1))
-				{
-					pStage->isGLSL=1;
-				}
-			}
 
-			if (r_legacycard->integer == 666)	// test
-			{
-				if (pStage->program = RE_GLSL_RegisterProgram("legacy", "glsl/legacy/common_vp.glsl", 1, "glsl/legacy/test.glsl", 1))
-				{
-					pStage->isGLSL=1;
-				}
-			}
+			// PSX
+			if ((r_legacycard->integer == 1001) && (pStage->program = RE_GLSL_RegisterProgram("legacy", "glsl/legacy/1001_vp.glsl", 1, "glsl/legacy/1001.glsl", 1)))
+				pStage->isGLSL=1;
+
+			if ((r_legacycard->integer == 64) && (pStage->program = RE_GLSL_RegisterProgram("legacy", "glsl/legacy/common_vp.glsl", 1, "glsl/legacy/64.glsl", 1)))
+				pStage->isGLSL=1;
+
+			// test
+			if ((r_legacycard->integer == 666) && (pStage->program = RE_GLSL_RegisterProgram("legacy", "glsl/legacy/common_vp.glsl", 1, "glsl/legacy/test.glsl", 1)))
+				pStage->isGLSL=1;
 		}
 
 
@@ -5936,9 +6006,9 @@ shader_t *R_FindShaderReal( const char *name, int lightmapIndex, qboolean mipRaw
 							for (f=0;f<NUM_TEXTURE_BUNDLES;f++)
 							{
 							if (stages[e].bundle[f].isLightmap){
-								shader.lmimg = e;
-								shader.lmtmu = f;
-								//shader.lmbundle = (*textureBundle_t)stages[e].bundle[f];
+							//	shader.lmimg = e;
+							//	shader.lmtmu = f;
+							//shader.lmbundle = (*textureBundle_t)stages[e].bundle[f];
 								}
 							}
 	
@@ -6465,6 +6535,31 @@ static void CreateInternalShaders( void ) {
 	Q_strncpyz( shader.name, "<stencil shadow>", sizeof( shader.name ) );
 	shader.sort = SS_STENCIL_SHADOW;
 	tr.shadowShader = FinishShader();
+
+	// cone shaders for particles
+	Q_strncpyz( shader.name, "<cone add>", sizeof( shader.name ) );
+	stages[0].bundle[0].image[0] = tr.whiteImage;
+	stages[0].active = qtrue;
+	stages[0].rgbGen = CGEN_VERTEX;
+	stages[0].alphaGen = AGEN_VERTEX;
+ 	stages[0].stateBits = GLS_SRCBLEND_ONE | GLS_DSTBLEND_ONE;
+	tr.coneShader = FinishShader();
+
+	Q_strncpyz( shader.name, "<cone alpha>", sizeof( shader.name ) );
+	stages[0].bundle[0].image[0] = tr.whiteImage;
+	stages[0].active = qtrue;
+	stages[0].rgbGen = CGEN_VERTEX;
+	stages[0].alphaGen = AGEN_VERTEX;
+ 	stages[0].stateBits = GLS_SRCBLEND_SRC_ALPHA | GLS_DSTBLEND_ONE_MINUS_SRC_ALPHA;
+	tr.coneAlphaShader = FinishShader();
+
+	Q_strncpyz( shader.name, "<cone subtract>", sizeof( shader.name ) );
+	stages[0].bundle[0].image[0] = tr.whiteImage;
+	stages[0].active = qtrue;
+	stages[0].rgbGen = CGEN_VERTEX;
+	stages[0].alphaGen = AGEN_VERTEX;
+ 	stages[0].stateBits = GLS_SRCBLEND_ZERO | GLS_DSTBLEND_ONE;
+	tr.coneSubShader = FinishShader();
 }
 
 static void CreateExternalShaders( void ) {

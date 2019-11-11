@@ -609,10 +609,6 @@ static void R_Bloom_RestoreScreen_Postprocessed( void )
 #ifdef GLSL_POSTPROCESSING
 	glslProgram_t	*program = NULL;
 	if (leifxmode) {
-		if (leifxmode == 2) {
-			if (vertexShaders) R_GLSL_UseProgram(tr.leiFXGammaProgram);
-			program=tr.programs[tr.leiFXGammaProgram];
-		}
 		if (leifxmode == 3) {
 			if (vertexShaders) R_GLSL_UseProgram(tr.leiFXFilterProgram);
 			program=tr.programs[tr.leiFXFilterProgram];
@@ -656,9 +652,9 @@ static void R_Bloom_RestoreScreen_Postprocessed( void )
 	if (program->u_CC_Contrast > -1) R_GLSL_SetUniform_u_CC_Contrast(program, 1.0);
 
 	//
-	if (leifxmode == 3) {
-		R_GLSL_SetUniform_u_CC_Brightness(program, leifxpass);
-	}
+//	if (leifxmode == 3) {
+//		R_GLSL_SetUniform_u_CC_Brightness(program, leifxpass);
+//	}
 
 	if (program->u_zFar > -1) R_GLSL_SetUniform_u_zFar(program, tr.viewParms.zFar);
 	GL_SelectTexture(0);
@@ -668,9 +664,6 @@ static void R_Bloom_RestoreScreen_Postprocessed( void )
 	GL_State( GLS_DEPTHTEST_DISABLE | GLS_SRCBLEND_ONE | GLS_DSTBLEND_ZERO );
 	GL_Bind( postproc.depth.texture );
 	qglColor4f( 1, 1, 1, 1 );
-
-//	if (leifxmode == 778)
-//		return;
 
 	R_Bloom_Quad( glConfig.vidWidth, glConfig.vidHeight, 0, 0,
               postproc.screen.readW,postproc.screen.readH );
@@ -1066,7 +1059,7 @@ void R_LeiFX_Stupid_Hack (void)
 void R_LeiFXPostprocessFilterScreen( void )
 {
 #ifdef GLSL_POSTPROCESSING
-	if( !r_leifx->integer)
+	if ( (r_legacycard->integer != 4) && (r_legacycard->integer != 5) )  
 		return;
 	if ( backEnd.doneleifx)
 		return;
@@ -1086,19 +1079,10 @@ void R_LeiFXPostprocessFilterScreen( void )
 	}
 	force32upload = 1;
 
-//	postprocess = 1;
-
-	/*	if (r_leifx->integer == 3){
-			leifxmode = 2;			// gamma - 1 pass
-		// The stupidest hack in america
-		R_LeiFX_Stupid_Hack();
-			R_Postprocess_BackupScreen();
-			R_Bloom_RestoreScreen_Postprocessed();
-			}
-	*/						// Gamma disabled because r_alternateBrightness 2 makes it redundant now.
-	if (r_leifx->integer > 3) {
+	// Gamma disabled because r_alternateBrightness 2 makes it redundant now.
+	if ( (r_legacycard->integer == 4) && (r_legacycard->integer == 5) ) { 
 		leifxmode = 3;			// filter - 4 pass
-		// The stupidest hack in america
+		// TODO: Voodoo2 1-pass
 		R_LeiFX_Stupid_Hack();
 		leifxpass = 0;
 		R_Postprocess_BackupScreen();

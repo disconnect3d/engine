@@ -29,8 +29,6 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 
 
-
-
 #define	WAVEVALUE( table, base, amplitude, phase, freq )  ((base) + table[ ri.ftol( ( ( (phase) + tess.shaderTime * (freq) ) * FUNCTABLE_SIZE ) ) & FUNCTABLE_MASK ] * (amplitude))
 
 static float *TableForFunc( genFunc_t func ) 
@@ -115,14 +113,8 @@ void RB_CalcLightscaleTexCoords(float *st )
 	float p;
 	texModInfo_t tmi;
 	float light = 1.0f;
-	float ilength;
-	vec3_t		lightDir;
-	vec3_t		ambientLight;
 	vec3_t		directedLight;
-	VectorCopy( backEnd.currentEntity->ambientLight, ambientLight );
 	VectorCopy( backEnd.currentEntity->directedLight, directedLight );
-	VectorCopy( backEnd.currentEntity->lightDir, lightDir );
-	//light = DotProduct (directedLight, lightDir);
 	light = ((directedLight[0] + directedLight[1] + directedLight[2]) * 0.333) / 255;
 	if (light > 1)
 		light = 1.0f;
@@ -1027,17 +1019,22 @@ void RB_CalcEnvironmentTexCoords( float *st )
 	}
 }
 
-
 /*
-** RB_CalcEnvironmentTexCoordsW
+** RB_CalcEnvironmentTexCoordsEx
+  
+   leilei - extended environment texcoords (to replace redundancy), to:
 
-	Modified to reflect from light in the first person
-	and to try and imitate a hemisphere...
+	- specify which axis are used
+	- imitate raven behavior
+	- allow reflection from local lights (i.e. for celshading, or weapon glimmer)
+
+	mode 1 = raven mode (including weapon shine)
+	mode 2 = weapon shine
+	mode 3 = all models shine
+	mode 4? = sun shine (water)?
+
 */
-
-
-
-void RB_CalcEnvironmentTexCoordsW( float *st, qboolean shine ) 
+void RB_CalcEnvironmentTexCoordsEx( float *st, int xx, int yy, int mode ) 
 {
 	int			i;
 	float		*v, *normal;
@@ -1046,74 +1043,82 @@ void RB_CalcEnvironmentTexCoordsW( float *st, qboolean shine )
 
 	v = tess.xyz[0];
 	normal = tess.normal[0];
-	if (backEnd.currentEntity->e.renderfx & RF_FIRST_PERSON || shine ) // Weapons
+
+	// clamp these
+	if (xx > 2) xx = 2;	if (yy > 2) yy = 2;
+	if (xx < 0) xx = 0;	if (yy < 0) yy = 0;
+
+	if (mode == 1) // raven
 	{
-		VectorSubtract (backEnd.currentEntity->lightDir, v, viewer);
-		VectorNormalizeFast (viewer);
-
-		d = DotProduct (normal, viewer);
-
-		reflected[0] = normal[0]*2*d - viewer[0]; // leilei - apparently unused!!!
-		reflected[1] = normal[1]*2*d - viewer[1];
-		reflected[2] = normal[2]*2*d - viewer[2];
-
-		st[0] = 0.5 + reflected[1] * 0.5;
-		st[1] = 0.5 - reflected[2] * 0.5;
+		if (backEnd.currentEntity->e.renderfx & RF_FIRST_PERSON) // Weapons
+		{
+			for (i = 0 ; i < tess.numVertexes ; i++, v += 4, normal += 4, st += 2 ) 
+			{
+				VectorCopy (backEnd.currentEntity->lightDir, viewer);
+				VectorNormalizeFast (viewer);
+	
+				d = DotProduct (normal, viewer);
+		
+				reflected[0] = normal[0]*2*d - viewer[0];
+				reflected[1] = normal[1]*2*d - viewer[1];
+				reflected[2] = normal[2]*2*d - viewer[2];
+		
+				st[0] = reflected[xx] * 0.5;
+				st[1] = reflected[yy] * 0.5;
+			}
+		}
+		else	// World
+		{
+			for (i = 0 ; i < tess.numVertexes ; i++, v += 4, normal += 4, st += 2 ) 
+			{
+				VectorSubtract (backEnd.or.viewOrigin, v, viewer);
+				VectorNormalizeFast (viewer);
+		
+				d = DotProduct (normal, viewer);
+		
+				reflected[0] = normal[0]*2*d - viewer[0];
+				reflected[1] = normal[1]*2*d - viewer[1];
+				reflected[2] = normal[2]*2*d - viewer[2];
+		
+				st[0] = reflected[xx] * 0.5;
+				st[1] = reflected[yy] * 0.5;
+			}
+		}
 	}
 	else
 	{
+		if ((backEnd.currentEntity->e.renderfx & RF_FIRST_PERSON && mode == 2) || ( ( backEnd.currentEntity != &tr.worldEntity ) && mode == 3)) // local light sine
+		{
+			for (i = 0 ; i < tess.numVertexes ; i++, v += 4, normal += 4, st += 2 ) 
+			{
+				VectorCopy (backEnd.currentEntity->lightDir, viewer);
+				VectorNormalizeFast (viewer);
+	
+				d = DotProduct (normal, viewer);
+		
+				reflected[0] = normal[0]*2*d - viewer[0];
+				reflected[1] = normal[1]*2*d - viewer[1];
+				reflected[2] = normal[2]*2*d - viewer[2];
+		
+				st[0] = 0.5 + reflected[xx] * 0.5;
+				st[1] = 0.5 - reflected[yy] * 0.5;
+			}
+		}
 		for (i = 0 ; i < tess.numVertexes ; i++, v += 4, normal += 4, st += 2 ) 
 		{
 			VectorSubtract (backEnd.or.viewOrigin, v, viewer);
 			VectorNormalizeFast (viewer);
 	
 			d = DotProduct (normal, viewer);
-
-			reflected[0] = normal[0]*d - viewer[0];
-			reflected[1] = normal[1]*d - viewer[1];
 	
-			st[0] = reflected[0] * 0.5;
-			st[1] = reflected[1] * 0.5;
+			//reflected[0] = normal[0]*2*d - viewer[0]; // leilei - apparently unused!!!
+			reflected[1] = normal[1]*2*d - viewer[1];
+			reflected[2] = normal[2]*2*d - viewer[2];
+	
+			st[0] = 0.5 + reflected[xx] * 0.5;
+			st[1] = 0.5 - reflected[yy] * 0.5;
 		}
 	}
-}
-
-
-
-
-/*
-** RB_CalcEnvironmentCelShadeTexCoords
-**
-** RiO; celshade 1D environment map
-*/
-
-
-
-
-void RB_CalcEnvironmentCelShadeTexCoords( float *st ) 
-{
-    int    i;
-    float  *v, *normal;
-    vec3_t lightDir;
-    float  d;
-
-    normal = tess.normal[0];
-	v = tess.xyz[0];
-
-	// Calculate only once
-//	VectorCopy( backEnd.currentEntity->lightDir, lightDir );
-//	if ( backEnd.currentEntity == &tr.worldEntity )
-//		VectorSubtract( lightOrigin, v, lightDir );
-//	else
-		VectorCopy( backEnd.currentEntity->lightDir, lightDir );
-	VectorNormalizeFast( lightDir );
-
-    for (i = 0 ; i < tess.numVertexes ; i++, v += 4, normal += 4, st += 2 ) {
-		d= DotProduct( normal, lightDir );
-
-		st[0] = 0.5 + d * 0.5;
-		st[1] = 0.5;
-    }
 }
 
 /*
@@ -1227,7 +1232,7 @@ void RB_CalcRotateTexCoords( float degsPerSecond, float *st )
 */
 
 
-// TODO: refactor. There is a loop in there for now
+// TODO: refactor. There is a loop in there for now. Something is slow about this!
 
 void RB_CalcAtlasTexCoords( const atlas_t *at, float *st )
 {
@@ -1238,8 +1243,9 @@ void RB_CalcAtlasTexCoords( const atlas_t *at, float *st )
 	int framex, framey;
 
 	// modes:
-	// 0 - static / animated
+	// 0 - static / animated sequence
 	// 1 - entity alpha (i.e. cgame rocket smoke)
+	// 2 - first vertex alpha (i.e. particles)
 
 	if (at->mode == 1)	// follow alpha modulation
 	{
@@ -1247,7 +1253,7 @@ void RB_CalcAtlasTexCoords( const atlas_t *at, float *st )
 		float alha = ((0.25+backEnd.currentEntity->e.shaderRGBA[3]) / (tr.identityLight * 256.0f));
 		int framethere = frametotal - ((frametotal * alha));
 			int f;
-			framex = 0;
+			framex = 0; framey = 0;
 			for(f=0; f<framethere; f++)
 			{
 				framex +=1;
@@ -1269,7 +1275,7 @@ void RB_CalcAtlasTexCoords( const atlas_t *at, float *st )
 			int framethere = (tess.shaderTime * at->fps) + at->frame;			
 
 				int f;
-				framex = 0;
+				framex = 0; framey = 0;
 				for(f=0; f<framethere; f++)
 				{
 					framex +=1;
@@ -1297,12 +1303,10 @@ void RB_CalcAtlasTexCoords( const atlas_t *at, float *st )
 
 	tmi.matrix[0][0] = 1.0f / w;
 	tmi.matrix[1][0] = 0;
-	tmi.matrix[2][0] = 0;
 	tmi.translate[0] = ((1.0f / w) * framex);
 
 	tmi.matrix[0][1] = 0;
 	tmi.matrix[1][1] = 1.0f / h;
-	tmi.matrix[2][1] = 0;
 	tmi.translate[1] = ((1.0f / h) * framey);
 
 	RB_CalcTransformTexCoords( &tmi, st );
@@ -1323,7 +1327,19 @@ void RB_CalcSpecularAlpha( unsigned char *alphas ) {
 	float		l, d;
 	int			b;
 	vec3_t		lightDir;
+	int 		ismodel = 0;
 	int			numVertexes;
+
+	// leilei - Try to approximate stvoy's specular
+	if ( backEnd.currentEntity != &tr.worldEntity )
+	{
+		VectorCopy(backEnd.currentEntity->lightDir, lightDir);	
+		ismodel = 1;
+	}
+	else // gcc wants this
+	{
+		VectorCopy(lightOrigin, lightDir);	
+	}
 
 	v = tess.xyz[0];
 	normal = tess.normal[0];
@@ -1334,13 +1350,25 @@ void RB_CalcSpecularAlpha( unsigned char *alphas ) {
 	for (i = 0 ; i < numVertexes ; i++, v += 4, normal += 4, alphas += 4) {
 		float ilength;
 
-		VectorSubtract( lightOrigin, v, lightDir );
-//		ilength = Q_rsqrt( DotProduct( lightDir, lightDir ) );
-		VectorNormalizeFast( lightDir );
+		if (ismodel) // entities
+		{
+			ilength = Q_rsqrt( DotProduct( lightDir, lightDir ) );
+	
+			// calculate the specular color
+			d = DotProduct (normal, lightDir);
+			d *= ilength;
 
-		// calculate the specular color
-		d = DotProduct (normal, lightDir);
-//		d *= ilength;
+		}
+		else	// world 
+		{
+			VectorSubtract( lightOrigin, v, lightDir );
+	
+			VectorNormalizeFast( lightDir );
+	
+			// calculate the specular color
+			d = DotProduct (normal, lightDir);
+		}
+//
 
 		// we don't optimize for the d < 0 case since this tends to
 		// cause visual artifacts such as faceted "snapping"
@@ -1368,61 +1396,62 @@ void RB_CalcSpecularAlpha( unsigned char *alphas ) {
 	}
 }
 
-// This fixed version comes from ZEQ2Lite
-void RB_CalcSpecularAlphaNew( unsigned char *alphas ) {
-int			i;
-	float		*v, *normal;
-	vec3_t		viewer,  reflected;
-	float		l, d;
-	int			b;
-	vec3_t		lightDir;
-	int			numVertexes;
+/*
+** RB_GlowBlend
+**
+** leilei - blends a specific color (specified in hex)
+*/
+
+static void RB_GlowBlend( unsigned char *colors, int glowcol, int fx )
+{
+	int				i;
+	float			*v, *normal;
+	float			incoming;
+	vec3_t			lightDir;
+	vec3_t			directedLight;
+	int				numVertexes;
+
+	directedLight[0] = (glowcol >> 16) & 0xFF;
+	directedLight[1] = (glowcol >> 8 ) & 0xFF;
+	directedLight[2] = glowcol & 0xFF;
+	
+	VectorCopy( backEnd.or.viewOrigin, lightDir );
 
 	v = tess.xyz[0];
 	normal = tess.normal[0];
-
-	alphas += 3;
-
-	numVertexes = tess.numVertexes;
-	for (i = 0 ; i < numVertexes ; i++, v += 4, normal += 4, alphas += 4) {
-		float ilength;
-
-		if ( backEnd.currentEntity == &tr.worldEntity )
-			VectorSubtract( lightOrigin, v, lightDir );	// old compatibility with maps that use it on some models
-		else
-			VectorCopy( backEnd.currentEntity->lightDir, lightDir );
-
 		VectorNormalizeFast( lightDir );
 
-		// calculate the specular color
-		d = DotProduct (normal, lightDir);
+	numVertexes = tess.numVertexes;
+	for (i = 0 ; i < numVertexes ; i++, v += 4, normal += 4) {
 
-		// we don't optimize for the d < 0 case since this tends to
-		// cause visual artifacts such as faceted "snapping"
-		reflected[0] = normal[0]*2*d - lightDir[0];
-		reflected[1] = normal[1]*2*d - lightDir[1];
-		reflected[2] = normal[2]*2*d - lightDir[2];
-
-		VectorSubtract (backEnd.or.viewOrigin, v, viewer);
-		ilength = Q_rsqrt( DotProduct( viewer, viewer ) );
-		l = DotProduct (reflected, viewer);
-		l *= ilength;
-
-		if (l < 0) {
-			b = 0;
-		} else {
-			l = l*l;
-			l = l*l;
-			b = l * 255;
-			if (b > 255) {
-				b = 255;
+		if (fx == 1)
+			incoming = sin(i+(tess.shaderTime * 12)) * DotProduct (normal, lightDir); // fluctuate!
+		else if (fx == 2)
+			incoming = sin((tess.shaderTime * 12)) *  DotProduct (normal, lightDir); // pulsate!
+		else if (fx == 3){
+			incoming = DotProduct (normal, lightDir) * 4.0;			
+			incoming = sin(incoming+tess.shaderTime * 16); // wave
 			}
-		}
+		else if (fx == 6)
+			incoming = sin((v[0]+v[1])+(tess.shaderTime * 12)) * DotProduct (normal, lightDir); // caustics!
+		else	// generic glow
+			{ 
+			incoming = DotProduct (normal, lightDir) * 0.8f;
+			}
+	
+		// clamp
+		if (incoming > 1) incoming = 1;
+		if (incoming < 0) incoming = 0;
 
-		*alphas = b;
+		// blend the new color over the current color
+		colors[i*4+0] = (colors[i*4+0] * (incoming)) + ((1-incoming) * directedLight[0]);
+		colors[i*4+1] = (colors[i*4+1] * (incoming)) + ((1-incoming) * directedLight[1]);
+		colors[i*4+2] = (colors[i*4+2] * (incoming)) + ((1-incoming) * directedLight[2]);
 	}
-
 }
+
+
+
 
 /*
 ** RB_CalcDiffuseColor
@@ -1549,22 +1578,18 @@ static void RB_CalcDiffuseColor_scalar( unsigned char *colors )
 	}
 }
 
-
+// leilei - for r_modelshader -1     fastest possible path
 static void RB_CalcDiffuseColor_flat( unsigned char *colors )
 {
-	int				i, j;
+	int				i;
 	float			*v, *normal;
 	trRefEntity_t	*ent;
-	int				ambientLightInt;
 	vec3_t			ambientLight;
-	vec3_t			lightDir;
 	vec3_t			directedLight;
 	int				numVertexes;
 	ent = backEnd.currentEntity;
-	ambientLightInt = ent->ambientLightInt;
 	VectorCopy( ent->ambientLight, ambientLight );
 	VectorCopy( ent->directedLight, directedLight );
-	VectorCopy( ent->lightDir, lightDir );
 
 	v = tess.xyz[0];
 	normal = tess.normal[0];
@@ -1573,25 +1598,19 @@ static void RB_CalcDiffuseColor_flat( unsigned char *colors )
 	directedLight[1] /= 4<<tr.overbrightBits;
 	directedLight[2] /= 4<<tr.overbrightBits;
 	numVertexes = tess.numVertexes;
+
+	int r = ri.ftol(ambientLight[0] + directedLight[0]);
+	int g = ri.ftol(ambientLight[0] + directedLight[0]);
+	int b = ri.ftol(ambientLight[0] + directedLight[0]);
+
+	if ( r > 255 ) 	r = 255;
+	if ( g > 255 ) 	g = 255;
+	if ( b > 255 ) 	b = 255;
+
 	for (i = 0 ; i < numVertexes ; i++, v += 4, normal += 4) {
-		j = ri.ftol(ambientLight[0] + directedLight[0]);
-		if ( j > 255 ) {
-			j = 255;
-		}
-		colors[i*4+0] = j;
-
-		j = ri.ftol(ambientLight[1] + directedLight[1]);
-		if ( j > 255 ) {
-			j = 255;
-		}
-		colors[i*4+1] = j;
-
-		j = ri.ftol(ambientLight[2] + directedLight[2]);
-		if ( j > 255 ) {
-			j = 255;
-		}
-		colors[i*4+2] = j;
-
+		colors[i*4+0] = r;
+		colors[i*4+1] = g;
+		colors[i*4+2] = b;
 		colors[i*4+3] = 255;
 	}
 }
@@ -1599,21 +1618,11 @@ static void RB_CalcDiffuseColor_flat( unsigned char *colors )
 // leilei - reveal normals to GLSL for light processing. HACK HACK HACK HACK HACK HACK
 void RB_CalcNormal( unsigned char *colors )
 {
-	int				i, j;
+	int				i;
 	float			*v;
 	float		*normal = ( float * ) tess.normal; 
-	float			incoming;
-	trRefEntity_t	*ent;
-	int				ambientLightInt;
-	vec3_t			ambientLight;
-	vec3_t			lightDir;
-	vec3_t			directedLight;
 	vec3_t			n, m;
 	int				numVertexes;
-	float		mult = r_shownormals->value - 1;
-	ent = backEnd.currentEntity;
-	ambientLightInt = ent->ambientLightInt;
-
 	v = tess.xyz[0];
 	//normal = tess.normal[0];
 
@@ -1640,9 +1649,217 @@ void RB_CalcNormal( unsigned char *colors )
 	}
 }
 
+/*
+
+	concept:
+
+		1. gather 5 lights - first the world light (includes dynamic light), then sun light (if sun enabled and looking at the sun) and then the nearby active flare lights
+		2. loop the lights to shade a specular to reflect from
+		3. add ambient light and clamp. 
+
+*/
 
 
-void RB_CalcFresnelColor( unsigned char *colors );
+
+#define 	MAXFRESLIGHTS 	5
+static void RB_CalcMaterialColor( unsigned char *colors, int maxl, int ambient, int diffuse, int specular, int emissive, int spechard, int alpha )
+{
+	int				i, j, l;
+	float			*v, *normal;
+	trRefEntity_t	*ent;
+	vec3_t			ambientLight;
+	int			numVertexes;
+
+	vec3_t			matAmb, matDif, matSpec, matEmis;
+	float			matHard = spechard / 128.0f;
+	int		specenabled = 0;
+
+	if (spechard == 128)
+		matHard = 1;
+
+	if (specular)
+		specenabled = 1;
+
+	// Parse material colors
+
+	matAmb[0] = ((ambient >> 16) & 0xFF);
+	matAmb[1] = ((ambient >> 8 ) & 0xFF);
+	matAmb[2] = (ambient & 0xFF);
+
+	matDif[0] = ((diffuse >> 16) & 0xFF);
+	matDif[1] = ((diffuse >> 8 ) & 0xFF);
+	matDif[2] = (diffuse & 0xFF);
+
+	matSpec[0] = ((specular >> 16) & 0xFF);
+	matSpec[1] = ((specular >> 8 ) & 0xFF);
+	matSpec[2] = (specular & 0xFF);
+
+	matEmis[0] = (emissive >> 16) & 0xFF;
+	matEmis[1] = (emissive >> 8 ) & 0xFF;
+	matEmis[2] = emissive & 0xFF;
+
+	VectorNormalize( matAmb );
+	VectorNormalize( matDif );
+	VectorNormalize( matSpec );
+	VectorNormalize( matEmis );
+
+	// Overbright clamp
+
+	matEmis[0] *= tr.identityLight;
+	matEmis[1] *= tr.identityLight;
+	matEmis[2] *= tr.identityLight;
+
+	// setup ent
+
+	ent = backEnd.currentEntity;
+	VectorCopy( ent->ambientLight, ambientLight );
+
+	int		liteOn[maxl];
+	vec3_t		liteOrg[maxl];
+	vec3_t		liteCol[maxl];
+	int		active = 1;
+	if (maxl > MAXFRESLIGHTS) maxl = MAXFRESLIGHTS;
+	// first light is always the world
+	liteOn[0] = 1;
+	VectorCopy( ent->directedLight, liteCol[0] );
+	VectorCopy( ent->lightDir, liteOrg[0] );
+
+	ambientLight[0] *= matAmb[0];
+	ambientLight[1] *= matAmb[1];
+	ambientLight[2] *= matAmb[2];
+
+	
+
+	if (maxl>1)
+	{
+		// add dynamic lights
+		{
+			dlight_t		*l;
+			l = backEnd.refdef.dlights;
+	
+			for (i=0 ; i<backEnd.refdef.num_dlights ; i++, l++) {
+				if (active>5)
+				continue;
+				VectorCopy( l->color, liteCol[active] );
+				VectorSubtract( l->origin, ent->e.lightingOrigin, liteOrg[active] );
+	
+				liteCol[active][0] *= 255;
+				liteCol[active][1] *= 255;
+				liteCol[active][2] *= 255;
+	
+				liteOn[active] = 1;
+				active++;
+	
+			}
+		}
+	
+		// add flares
+		{
+			// NOTE: This was a bad idea. I should gather light points from reading
+			// the surfaces instead and treat them similarly to flares
+		}
+	
+	}
+
+
+	// Set up our model
+	v = tess.xyz[0];
+	normal = tess.normal[0];
+
+
+	// todo: world entity case to use some sunlight
+
+	numVertexes = tess.numVertexes;
+
+
+	for (i = 0 ; i < numVertexes ; i++, v += 4, normal += 4) {
+		vec3_t difs;
+		vec3_t specs;
+
+		// clear
+		difs[0] 	= difs[1] 	= difs[2] = 0;
+		specs[0] 	= specs[1] 	= specs[2] = 0;
+
+		// go through lights and add them
+		for (l=0;l<active;l++)
+		{
+			vec3_t reflected, viewer;
+			float al;		
+			float b, c;
+			float ilength = Q_rsqrt( DotProduct( liteOrg[l], liteOrg[l] ) );
+			if (!liteOn[l])
+				continue;
+			// calculate the specular color
+			float d = DotProduct (normal, liteOrg[l]);
+			c = d; // get the diffuse
+
+			if (specenabled)
+			{
+				d *= ilength;
+				reflected[0] = normal[0]*2*d - liteOrg[l][0];
+				reflected[1] = normal[1]*2*d - liteOrg[l][1];
+				reflected[2] = normal[2]*2*d - liteOrg[l][2];
+	
+				VectorSubtract (backEnd.or.viewOrigin, v, viewer);
+				ilength = Q_rsqrt( DotProduct( viewer, viewer ) );
+				al = DotProduct (reflected, viewer);
+				al *= ilength;
+		
+				// TODO: Metallic surface property option?
+				//al *= (al);
+				
+				if (al < 0) {
+					b = 0;
+				} else {
+					if (matHard != 1){
+					al *= (al*matHard);
+					al *= (al*matHard);
+					}
+					b = al;
+					if (b > 1) {
+						b = 1;
+					}
+				}
+	
+	
+				specs[0] += b * liteCol[l][0];
+				specs[1] += b * liteCol[l][1];
+				specs[2] += b * liteCol[l][2];
+			}
+	
+			if (c<0) c=0;
+			if (c>255) c=255;
+
+			difs[0] += c * liteCol[l][0];
+			difs[1] += c * liteCol[l][1];
+			difs[2] += c * liteCol[l][2];
+			
+		}
+
+		// Add Ambient and CLAMP
+		j = ri.ftol(ambientLight[0] + (difs[0] * matDif[0]) + (specs[0] * matSpec[0]));
+		if ( j > 255 ) {
+			j = 255;
+		}
+		colors[i*4+0] = j;
+
+		j = ri.ftol(ambientLight[1] + (difs[1] * matDif[1]) + (specs[1] * matSpec[1]));
+		if ( j > 255 ) {
+			j = 255;
+		}
+		colors[i*4+1] = j;
+
+		j = ri.ftol(ambientLight[2] + (difs[2] * matDif[2]) + (specs[0] * matSpec[2]));
+		if ( j > 255 ) {
+			j = 255;
+		}
+		colors[i*4+2] = j;
+
+		colors[i*4+3] = alpha;
+	}
+}
+
+
 
 void RB_CalcDiffuseColor( unsigned char *colors )
 {
@@ -1656,89 +1873,37 @@ void RB_CalcDiffuseColor( unsigned char *colors )
 
 
 	if (tr.shadeMode == 1)
-		RB_CalcFresnelColor( colors );
+		RB_CalcMaterialColor( colors, 1, 0xFFFFFF, 0xFFFFFF, 0xFFFFFF, 0x000000, 128, 255 );
 	else if (tr.shadeMode == -1)	
 		RB_CalcDiffuseColor_flat( colors );
 	else
 		RB_CalcDiffuseColor_scalar( colors );
 
+	// leilei - glow property
+	if ((backEnd.currentEntity->e.glow >= 1337 && backEnd.currentEntity->e.glow <= 1340 )) // look for 1337-1340 as compatibility so we don't get malformed glows from old cgames
+	{
+		RB_GlowBlend( colors, backEnd.currentEntity->e.glowcol, (backEnd.currentEntity->e.glow - 1337) ); 
+	}
+
 
 }
 
-
-void RB_CalcDiffuseColor_Specular( unsigned char *colors )
+void RB_CalcMaterials( unsigned char *colors, int ambient, int diffuse, int specular, int emissive, int spechard, int alpha )
 {
-	// this sucked, so use this regular lightdiffuse
-	RB_CalcDiffuseColor_scalar( colors );
-}
+	// TODO: Low detail materials
+	RB_CalcMaterialColor( colors, 1, ambient, diffuse, specular, emissive, spechard, alpha );
 
-
-/*
-** RB_CalcUniformColor
-**
-** RiO; Uniform vertex color lighting for cel shading
-*/
-void RB_CalcUniformColor( unsigned char *colors )
-{
-
-	int				i;
-	trRefEntity_t	*ent;
-	vec3_t			ambientLight;
-	vec3_t			directedLight;
-	vec4_t			uniformLight;
-	int				numVertexes;
-	float			normalize;
-
-	ent = backEnd.currentEntity;
-
-	VectorCopy( ent->ambientLight, ambientLight );
-	VectorCopy( ent->directedLight, directedLight );
-
-	VectorAdd( ambientLight, ambientLight/*directedLight*/, uniformLight );
-
-	normalize = NormalizeColor( uniformLight, uniformLight );
-	if ( normalize > 255 ) normalize = 255;
-	VectorScale( uniformLight, normalize, uniformLight );
-	uniformLight[3] = 255;
-
-	numVertexes = tess.numVertexes;
-	for (i = 0 ; i < numVertexes ; i++ ) {
-		colors[i*4+0] = uniformLight[0];
-		colors[i*4+1] = uniformLight[1];
-		colors[i*4+2] = uniformLight[2];
-		colors[i*4+3] = uniformLight[3];
+	// leilei - glow property
+	if ((backEnd.currentEntity->e.glow >= 1337 && backEnd.currentEntity->e.glow <= 1340 )) // look for 1337-1340 as compatibility so we don't get malformed glows from old cgames
+	{
+		RB_GlowBlend( colors, backEnd.currentEntity->e.glowcol, (backEnd.currentEntity->e.glow - 1337) ); 
 	}
 }
 
-/*
-** RB_CalcDynamicColor
-**
-** MDave; Vertex color dynamic lighting for cel shading
-*/
-void RB_CalcDynamicColor( unsigned char *colors )
+
+void RB_CalcGlowBlend( unsigned char *colors, int glowcol, int fx )
 {
-	int				i;
-	trRefEntity_t	*ent;
-	vec4_t			dynamic;
-	int				numVertexes;
-	float			normalize;
-
-	ent = backEnd.currentEntity;
-
-	VectorCopy( ent->dynamicLight, dynamic );
-
-	normalize = NormalizeColor( dynamic, dynamic );
-	if ( normalize > 255 ) normalize = 255;
-	VectorScale( dynamic, normalize, dynamic );
-	dynamic[3] = 255;
-
-	numVertexes = tess.numVertexes;
-	for (i = 0 ; i < numVertexes ; i++ ) {
-		colors[i*4+0] = dynamic[0];
-		colors[i*4+1] = dynamic[1];
-		colors[i*4+2] = dynamic[2];
-		colors[i*4+3] = dynamic[3];
-	}
+	RB_GlowBlend( colors, glowcol, fx ); 
 }
 
 
@@ -1749,22 +1914,12 @@ void RB_CalcFlatAmbient( unsigned char *colors )
 {
 	int				i, j;
 	float			*v, *normal;
-	float			incoming;
 	trRefEntity_t	*ent;
-	int				ambientLightInt;
 	vec3_t			ambientLight;
-	vec3_t			lightDir;
-	vec3_t			directedLight;
 	int				numVertexes;
 	ent = backEnd.currentEntity;
-	ambientLightInt = ent->ambientLightInt;
+
 	VectorCopy( ent->ambientLight, ambientLight );
-	//VectorCopy( ent->directedLight, directedLight );
-
-
-	lightDir[0] = 0;
-	lightDir[1] = 0;
-	lightDir[2] = 1;
 
 	v = tess.xyz[0];
 	normal = tess.normal[0];
@@ -1797,20 +1952,14 @@ void RB_CalcFlatDirect( unsigned char *colors )
 {
 	int				i, j;
 	float			*v, *normal;
-	float			incoming;
 	trRefEntity_t	*ent;
-	int				ambientLightInt;
 	vec3_t			ambientLight;
-	vec3_t			lightDir;
 	vec3_t			directedLight;
 	int				numVertexes;
 	ent = backEnd.currentEntity;
-	ambientLightInt = ent->ambientLightInt;
 	VectorCopy( ent->ambientLight, ambientLight );
 	VectorCopy( ent->directedLight, directedLight );
 	
-
-
 	directedLight[0] -= ambientLight[0];
 	directedLight[1] -= ambientLight[1];
 	directedLight[2] -= ambientLight[2];
@@ -1818,10 +1967,6 @@ void RB_CalcFlatDirect( unsigned char *colors )
 	if (directedLight[0] < 0) directedLight[0] = 0;	
 	if (directedLight[1] < 0) directedLight[1] = 0;
 	if (directedLight[2] < 0) directedLight[2] = 0;
-
-	lightDir[0] = 0;
-	lightDir[1] = 0;
-	lightDir[2] = 1;
 
 	v = tess.xyz[0];
 	normal = tess.normal[0];
@@ -1849,235 +1994,17 @@ void RB_CalcFlatDirect( unsigned char *colors )
 	}
 }
 
-// The following specular stuff is also still ZEQ2Lite
-
-//
-// "Fake" Fresnel Diffuse
-//
-
-void RB_CalcFresnelColor( unsigned char *colors )
-{
-	int			i;
-	float		*v, *normal;
-	vec3_t		viewer,  reflected;
-	float		l, d;
-	int		b, am = 0;
-	int		minamb;
-	trRefEntity_t	*ent;
-	vec3_t		lightDir;
-	int			numVertexes;
-	vec3_t			directedLight;
-	float		lamt; // light amount for directlight
-
-	v = tess.xyz[0];
-	normal = tess.normal[0];
-	
-		int				ambientLightInt;
-		vec3_t			ambientLight;
-		ent = backEnd.currentEntity;
-		ambientLightInt = ent->ambientLightInt;
-		VectorCopy( ent->ambientLight, ambientLight );
-		VectorCopy( ent->directedLight, directedLight );
-	
-	numVertexes = tess.numVertexes;
-	for (i = 0 ; i < numVertexes ; i++, v += 4, normal += 4) {
-		float ilength;
-
-		VectorCopy( backEnd.currentEntity->lightDir, lightDir );
-
-		VectorNormalizeFast( lightDir );
-
-		// calculate the specular color
-		d = DotProduct (normal, lightDir);
-
-		// we don't optimize for the d < 0 case since this tends to
-		// cause visual artifacts such as faceted "snapping"
-		reflected[0] = normal[0]*2*d - lightDir[0];
-		reflected[1] = normal[1]*2*d - lightDir[1];
-		reflected[2] = normal[2]*2*d - lightDir[2];
-
-		minamb = ((ambientLight[0] + ambientLight[1] + ambientLight[2]) / 3);
-		lamt = ((directedLight[0] + directedLight[1] + directedLight[2]) / 3);		
-		minamb *= (tr.overbrightBits+1) * 1.5;
-		float lgtajst = 1;
-
-		lamt *= 4;
-
-		VectorSubtract (backEnd.or.viewOrigin, v, viewer);
-		ilength = Q_rsqrt( DotProduct( viewer, viewer ));
-		l = DotProduct (reflected, viewer);
-		l *= ilength;
-
-		if (l < 0) {
-			am = ((-l*128)*2);
-
-			if (am > 255) {
-				am = 255;
-			}
-			if (am < minamb) {
-				am = minamb;
-			}
-			b=0;
-		} else {
-			b = l * lamt;
-			if (b > 255) {
-				b = 255;
-			}
-			//b *= lamt;
-			//if (b>minamb)
-			//b-=minamb;
-			//if (b<0) b=0;
-			am=minamb;
-		}
-
-		{
-			float bah = (b / 255.0f);
-			float amb = (am / 255.0f);
-			int k, j;
-			k = ri.ftol(ambientLight[0]*amb);
-			j = ri.ftol(directedLight[0]*bah);
-			if (j<k) j=k;
-
-			if ( j > 255 ) {
-				j = 255;
-			}
-			colors[i*4+0] = j;
-	
-			k = ri.ftol(ambientLight[1]*amb);
-			j = ri.ftol(directedLight[1]*bah);
-			if (j<k) j=k;
-			if ( j > 255 ) {
-				j = 255;
-			}
-			colors[i*4+1] = j;
-	
-			k = ri.ftol(ambientLight[2]*amb);
-			j = ri.ftol(directedLight[2]*bah);
-			if (j<k) j=k;
-			if ( j > 255 ) {
-				j = 255;
-			}
-			colors[i*4+2] = j;
-		}
-	}
-}
-
-
-
-//
-//	Specular RGB for additive-only stages
-//
-
-void RB_CalcSpecularColor( unsigned char *colors, int usecolor )
-{
-int			i;
-	float		*v, *normal;
-	vec3_t		viewer,  reflected;
-	float		l, d;
-	int			b;
-	trRefEntity_t	*ent;
-	vec3_t		lightDir;
-	int			numVertexes;
-	vec3_t			directedLight;
-	float	highest;
-
-	v = tess.xyz[0];
-	normal = tess.normal[0];
-	if (usecolor)
-	{
-		int				ambientLightInt;
-		vec3_t			ambientLight;
-		vec3_t			lightDir;
-		int				numVertexes;
-		ent = backEnd.currentEntity;
-		ambientLightInt = ent->ambientLightInt;
-		VectorCopy( ent->ambientLight, ambientLight );
-		VectorCopy( ent->directedLight, directedLight );
-	
-		directedLight[0] -= ambientLight[0];
-		directedLight[1] -= ambientLight[1];
-		directedLight[2] -= ambientLight[2];
-	
-		if (directedLight[0] < 0) directedLight[0] = 0;	
-		if (directedLight[1] < 0) directedLight[1] = 0;
-		if (directedLight[2] < 0) directedLight[2] = 0;
-
-	}
-	highest = (LUMA(backEnd.currentEntity->directedLight[0], 
-		backEnd.currentEntity->directedLight[1],
-		backEnd.currentEntity->directedLight[2])) / 3;
-
-	numVertexes = tess.numVertexes;
-	for (i = 0 ; i < numVertexes ; i++, v += 4, normal += 4) {
-		float ilength;
-
-		VectorCopy( backEnd.currentEntity->lightDir, lightDir );
-
-		VectorNormalizeFast( lightDir );
-
-		// calculate the specular color
-		d = DotProduct (normal, lightDir);
-
-		// we don't optimize for the d < 0 case since this tends to
-		// cause visual artifacts such as faceted "snapping"
-		reflected[0] = normal[0]*2*d - lightDir[0];
-		reflected[1] = normal[1]*2*d - lightDir[1];
-		reflected[2] = normal[2]*2*d - lightDir[2];
-
-		VectorSubtract (backEnd.or.viewOrigin, v, viewer);
-		ilength = Q_rsqrt( DotProduct( viewer, viewer ) );
-		l = DotProduct (reflected, viewer);
-		l *= ilength;
-
-		if (l < 0) {
-			b = 0;
-		} else {
-			l = l*l;
-			l = l*l;
-			//b = (l * 255) * (highest);
-			b = (l * 16) * (highest);
-
-			if (b > 255) {
-				b = 255;
-			}
-		}
-		// instead of the alpha, let's drop it on the colors
-		if (usecolor)	
-		{
-			float bah = (b / 255.0f);
-		int j;
-			j = ri.ftol(directedLight[0]);
-			if ( j > 255 ) {
-				j = 255;
-			}
-			colors[i*4+0] = j*bah;
-	
-			j = ri.ftol(directedLight[1]);
-			if ( j > 255 ) {
-				j = 255;
-			}
-			colors[i*4+1] = j*bah;
-	
-			j = ri.ftol(directedLight[2]);
-			if ( j > 255 ) {
-				j = 255;
-			}
-			colors[i*4+2] = j*bah;
-		}
-		else
-		{
-			colors[i*4+0] = (b);
-			colors[i*4+1] = (b);
-			colors[i*4+2] = (b);
-		}
-	}
-}
 
 void RB_CalcSpecular( unsigned char *colors )
 {
-	RB_CalcSpecularColor( colors, 0 );
+	RB_CalcMaterials( colors, 0x000000, 0x000000, 0xFFFFFF, 0x000000, 128, 255 );
 }
 
+
+void RB_CalcSpecularColor( unsigned char *colors, int usecolor )
+{
+	RB_CalcMaterials( colors, 0x000000, 0x000000, 0xFFFFFF, 0x000000, 128, 255 );
+}
 
 
 
@@ -2091,14 +2018,8 @@ void RB_CalcDetailFade( unsigned char *colors)
 {
 	int			i;
 	float		*v, *normal;
-	vec3_t		viewer,  reflected;
-	float		l, d;
 	int			b;
-	trRefEntity_t	*ent;
-	vec3_t		lightDir;
-	int			numVertexes;
-	vec3_t			directedLight;
-
+	int		numVertexes;
 	v = tess.xyz[0];
 	normal = tess.normal[0];
 
@@ -2152,20 +2073,15 @@ vec3_t eyemax = { 12, 12, 8 };		// clamps
 ** RB_CalcEyes
 */
 
-
-
 void RB_CalcEyes( float *st, qboolean theothereye) 
 {
 	int			i;
 	float		*v, *normal;
-	vec3_t		viewer, reflected, eyepos, eyelook, stare;
-	float		d, l, erp;
+	vec3_t		viewer, reflected, eyepos, stare;
+	float		d;
 	int	idk;
+	vec3_t		stareat;
 
-	vec3_t		stareat, staree;
-	float dilation = 2;
-
-	VectorCopy(lightOrigin, staree);
 	VectorCopy(backEnd.or.viewOrigin, stareat);
 
 	// transform the direction to local space
@@ -2190,8 +2106,6 @@ void RB_CalcEyes( float *st, qboolean theothereye)
 
 	for (i = 0 ; i < tess.numVertexes ; i++, v += 4, normal += 4, st += 2 ) 
 	{
-		
-		float norm1, norm2;
 
 		// Base eye position
 		VectorSubtract (backEnd.or.viewOrigin, v, viewer);
@@ -2209,8 +2123,6 @@ void RB_CalcEyes( float *st, qboolean theothereye)
 
 		VectorSubtract (stareat, v, stare);
 		VectorNormalizeFast (stare);
-
-		erp = DotProduct (normal, stare);
 
 		// Limit the eye's turning so it doesn't have dead eyes
 		for (idk=0;idk<3;idk++){
@@ -2232,4 +2144,5 @@ void RB_CalcEyes( float *st, qboolean theothereye)
 	}
 
 }
+
 
