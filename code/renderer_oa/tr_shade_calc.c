@@ -1849,7 +1849,7 @@ static void RB_CalcMaterialColor( unsigned char *colors, int maxl, int ambient, 
 		}
 		colors[i*4+1] = j;
 
-		j = ri.ftol(ambientLight[2] + (difs[2] * matDif[2]) + (specs[0] * matSpec[2]));
+		j = ri.ftol(ambientLight[2] + (difs[2] * matDif[2]) + (specs[2] * matSpec[2]));
 		if ( j > 255 ) {
 			j = 255;
 		}
