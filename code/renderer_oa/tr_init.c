@@ -213,6 +213,8 @@ cvar_t	*r_mockvr;		// Leilei - for debugging PVR only!
 cvar_t	*r_parseStageSimple;	// Leilei - for debugging PVR only!
 cvar_t	*r_leifx;		// Leilei - leifx nostalgia filter
 cvar_t	*r_modelshader;		// Leilei
+cvar_t	*r_maxmodellights;	// Leilei
+cvar_t	*r_dynamicvertexlight;	// Leilei
 cvar_t	*r_particles;		// Leilei - particle effects motif
 
 cvar_t	*r_legacycard;		// leilei - selection of shader to mimic notable old video cards
@@ -1308,7 +1310,9 @@ void R_Register( void )
 	r_legacycard = ri.Cvar_Get( "r_legacyCard", "0" , CVAR_LATCH | CVAR_ARCHIVE);
 
 	r_leifx = ri.Cvar_Get( "r_leifx", "0" , CVAR_ARCHIVE | CVAR_LATCH);
-	r_modelshader = ri.Cvar_Get( "r_modelshader", "0" , CVAR_ARCHIVE | CVAR_LATCH);		// leilei - load and use special shaders for lightDiffuse models
+	r_modelshader = ri.Cvar_Get( "r_modelshader", "0" , CVAR_ARCHIVE | CVAR_LATCH );		// leilei - load and use special shaders for lightDiffuse models
+	r_maxmodellights = ri.Cvar_Get( "r_maxmodellights", "1" , CVAR_ARCHIVE | CVAR_LATCH );		// leilei - load and use special shaders for lightDiffuse models
+	r_dynamicvertexlight = ri.Cvar_Get( "r_dynamicvertexlight", "0" , CVAR_ARCHIVE | CVAR_LATCH );		// leilei - allow dynamic lights on vertex lighting
 	r_detailTextureScale = ri.Cvar_Get( "r_detailtextureScale", "0", CVAR_ARCHIVE | CVAR_LATCH ); // leilei - adjust scale of detail textures
 	r_detailTextureLayers = ri.Cvar_Get( "r_detailtextureLayers", "0", CVAR_ARCHIVE | CVAR_LATCH ); // leilei - add more detail layers
 	r_specular = ri.Cvar_Get( "r_specular", "1", CVAR_ARCHIVE | CVAR_LATCH );	// leilei - model specular
@@ -1670,6 +1674,9 @@ void R_Init( void )
 		ri.Printf (PRINT_ALL, "glGetError() = 0x%x\n", err);
 
 	tr.shadeMode = r_modelshader->integer;
+	tr.litesources = r_maxmodellights->integer;
+	if (tr.litesources < 1) tr.litesources = 1;
+	if (tr.litesources > 5) tr.litesources = 5;
 
 	// print info
 	GfxInfo_f();

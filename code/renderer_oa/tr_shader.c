@@ -5116,6 +5116,9 @@ static void VertexLightingCollapse( void ) {
 		if ( shader.lightmapIndex == LIGHTMAP_NONE ) {
 			stages[0].rgbGen = CGEN_LIGHTING_DIFFUSE;
 		} else {
+			if (r_dynamicvertexlight->integer && r_vertexLight->integer)
+			stages[0].rgbGen = CGEN_VERTEX_LIT;
+			else
 			stages[0].rgbGen = CGEN_EXACT_VERTEX;
 		}
 		stages[0].alphaGen = AGEN_SKIP;		
@@ -5824,6 +5827,9 @@ shader_t *R_FindShaderReal( const char *name, int lightmapIndex, qboolean mipRaw
 			// explicit colors at vertexes
 			stages[0].bundle[0].image[0] = image;
 			stages[0].active = qtrue;
+			if (r_dynamicvertexlight->integer && r_vertexLight->integer)
+			stages[0].rgbGen = CGEN_VERTEX_LIT;
+			else
 			stages[0].rgbGen = CGEN_EXACT_VERTEX;
 			stages[0].alphaGen = AGEN_SKIP;
 			stages[0].stateBits = GLS_DEFAULT;
@@ -5886,6 +5892,9 @@ shader_t *R_FindShaderReal( const char *name, int lightmapIndex, qboolean mipRaw
 		// explicit colors at vertexes
 		stages[0].bundle[0].image[0] = image;
 		stages[0].active = qtrue;
+		if (r_dynamicvertexlight->integer && r_vertexLight->integer)
+		stages[0].rgbGen = CGEN_VERTEX_LIT;
+		else
 		stages[0].rgbGen = CGEN_EXACT_VERTEX;
 		stages[0].alphaGen = AGEN_SKIP;
 		stages[0].stateBits = GLS_DEFAULT;
@@ -6118,6 +6127,9 @@ qhandle_t RE_RegisterShaderFromImage(const char *name, int lightmapIndex, image_
 		// explicit colors at vertexes
 		stages[0].bundle[0].image[0] = image;
 		stages[0].active = qtrue;
+		if (r_dynamicvertexlight->integer && r_vertexLight->integer)
+		stages[0].rgbGen = CGEN_VERTEX_LIT;
+		else
 		stages[0].rgbGen = CGEN_EXACT_VERTEX;
 		stages[0].alphaGen = AGEN_SKIP;
 		stages[0].stateBits = GLS_DEFAULT;

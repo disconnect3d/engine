@@ -328,16 +328,8 @@ void S_DefaultSound( sfx_t *sfx ) {
 	int		i, w;
 
 	sfx->soundLength = 512;
-//	sfx->soundLength = 2048;	// leilei - need it this long but it crashes :(
 	sfx->soundData = SND_malloc();
 	sfx->soundData->next = NULL;
-
-
-//	for ( i = 0 ; i < sfx->soundLength ; i++ ) {
-//		//sfx->soundData->sndChunk[i] = i;
-//		sfx->soundData->sndChunk[i] = i;
-//
-//	}
 
 	// leilei - make a sawtooth 
 	for ( i = 0 ; i < sfx->soundLength ; i+=sfx->soundLength ) {
@@ -617,7 +609,7 @@ static void S_Base_StartSoundEx( vec3_t origin, int entityNum, int entchannel, s
 	}
 
 	// leilei - check if this channel is being used, and kill that too
-	if (s_interrupts->integer == 2)
+	else if (s_interrupts->integer == 2)
 	{
 		for ( i = 0; i < MAX_CHANNELS ; i++, ch++ ) {		
 			if (ch->entnum == entityNum && ch->entchannel == entchannel && ch->thesfx && (entchannel != CHAN_AUTO)) 
@@ -627,6 +619,18 @@ static void S_Base_StartSoundEx( vec3_t origin, int entityNum, int entchannel, s
 		}
 	}
 
+
+	// this may be faster
+	else if (s_interrupts->integer == 3)
+	{
+		for ( i = 0; i < MAX_CHANNELS ; i++, ch++ ) {		
+			if (ch->entnum == entityNum && ch->entchannel == entchannel && ch->startSample && (entchannel != CHAN_AUTO)) 
+				{
+					if (ch->thesfx)
+					S_ChannelFree(ch);
+				}
+		}
+	}
 
 
 	inplay = 0;
@@ -1466,9 +1470,9 @@ static void S_OpenBackgroundStream( const char *filename ) {
 		return;
 	}
 
-	if(s_backgroundStream->info.channels != 2 || s_backgroundStream->info.rate != 22050) {
-		Com_Printf(S_COLOR_YELLOW "WARNING: music file %s is not 22k stereo\n", filename );
-	}
+//	if(s_backgroundStream->info.channels != 2 || s_backgroundStream->info.rate != 22050) {
+//		Com_Printf(S_COLOR_YELLOW "WARNING: music file %s is not 22k stereo\n", filename );
+//	}
 }
 
 

@@ -36,6 +36,7 @@ cvar_t *s_backend;
 cvar_t *s_muteWhenMinimized;
 cvar_t *s_muteWhenUnfocused;
 cvar_t *s_compression;
+cvar_t *s_xmp_startPattern;
 
 static soundInterface_t si;
 
@@ -493,6 +494,7 @@ void S_Init( void )
 	s_defaultSound = Cvar_Get( "s_defaultSound", "3", CVAR_ARCHIVE );
 	s_interrupts = Cvar_Get( "s_interrupts", "0", CVAR_ARCHIVE );
 	s_compression = Cvar_Get( "s_compression", "0", CVAR_ARCHIVE );
+	s_xmp_startPattern = Cvar_Get( "s_xmp_startPattern", "0", CVAR_CHEAT ); // leilei - starting pattern for song
 
 	cv = Cvar_Get( "s_initsound", "1", 0 );
 	if( !cv->integer ) {

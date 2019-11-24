@@ -354,6 +354,7 @@ void R_SetupEntityLighting( const trRefdef_t *refdef, trRefEntity_t *ent ) {
 	//
 	// modify the light by dynamic lights
 	//
+	if (tr.litesources < 2 && (tr.shadeMode != 2  || tr.shadeMode != 1) ){
 	d = VectorLength( ent->directedLight );
 	VectorScale( ent->lightDir, d, lightDir );
 
@@ -372,6 +373,7 @@ void R_SetupEntityLighting( const trRefdef_t *refdef, trRefEntity_t *ent ) {
 		VectorMA( ent->dynamicLight, d, dl->color, ent->dynamicLight );
 		ent->lightDistance = d;
 		VectorMA( lightDir, d, dir, lightDir );
+	}
 	}
 
 	// clamp ambient

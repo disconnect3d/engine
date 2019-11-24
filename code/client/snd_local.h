@@ -106,6 +106,7 @@ typedef struct
 	sfx_t		*thesfx;		// sfx structure
 	qboolean	doppler;
 	qboolean	fullVolume;
+	int		pitch;		// leilei - sound pitch
 } channel_t;
 
 
@@ -200,6 +201,7 @@ extern cvar_t *s_muted;
 extern cvar_t *s_doppler;
 extern cvar_t *s_defaultSound;
 extern cvar_t *s_interrupts;
+extern cvar_t *s_xmp_startPattern;
 
 extern cvar_t *s_testsound;
 

@@ -186,11 +186,6 @@ void RB_CalcDeformVertexes( deformStage_t *ds )
 				ds->deformationWave.frequency );
 
 			VectorScale( normal, scale, offset );
-	//		normal[ 0 ] += ds->deformationWave.amplitude * scale;
-		//	normal[ 0 ] = xyz[0] + offset[0];
-		//	normal[ 1 ] = xyz[1] + offset[1];
-		//	normal[ 2 ] = xyz[2] + offset[2];
-	//		normal[ 2 ] += ds->deformationWave.amplitude * scale;
 			
 			xyz[0] += offset[0];
 			xyz[1] += offset[1];
@@ -234,39 +229,13 @@ void RB_CalcDeformNormals( deformStage_t *ds ) {
 }
 
 
-void RB_CalcDeformNormalsEvenMore( deformStage_t *ds ) {
-	int i;
-	float	scale;
-	float	*xyz = ( float * ) tess.xyz;
-	float	*normal = ( float * ) tess.normal;
-
-	for ( i = 0; i < tess.numVertexes; i++, xyz += 4, normal += 4 ) {
-		scale = 5.98f;
-		scale = R_NoiseGet4f( xyz[0] * scale, xyz[1] * scale, xyz[2] * scale,
-			tess.shaderTime * ds->deformationWave.frequency );
-		normal[ 0 ] += ds->deformationWave.amplitude * scale;
-
-		scale = 5.98f;
-		scale = R_NoiseGet4f( 100 + xyz[0] * scale, xyz[1] * scale, xyz[2] * scale,
-			tess.shaderTime * ds->deformationWave.frequency );
-		normal[ 1 ] += ds->deformationWave.amplitude * scale;
-
-		scale = 5.98f;
-		scale = R_NoiseGet4f( 200 + xyz[0] * scale, xyz[1] * scale, xyz[2] * scale,
-			tess.shaderTime * ds->deformationWave.frequency );
-		normal[ 2 ] += ds->deformationWave.amplitude * scale;
-
-		VectorNormalizeFast( normal );
-	}
-}
-
 /*
 ========================
 RB_CalcBulgeVertexes
 
 ========================
 */
-void OldRB_CalcBulgeVertexes( deformStage_t *ds ) {
+void RB_CalcBulgeVertexes( deformStage_t *ds ) {
 	int i;
 	const float *st = ( const float * ) tess.texCoords[0];
 	float		*xyz = ( float * ) tess.xyz;
@@ -288,46 +257,6 @@ void OldRB_CalcBulgeVertexes( deformStage_t *ds ) {
 		xyz[2] += normal[2] * scale;
 	}
 }
-
-
-// leilei - adapted a bit from the jk2 source, for performance
-
-void RB_CalcBulgeVertexes( deformStage_t *ds ) {
-	int i;
-	float		*xyz = ( float * ) tess.xyz;
-	float		*normal = ( float * ) tess.normal;
-
-	if ( ds->bulgeSpeed == 0.0f && ds->bulgeWidth == 0.0f )
-	{
-		// We don't have a speed and width, so just use height to expand uniformly
-		for ( i = 0; i < tess.numVertexes; i++, xyz += 4, normal += 4 ) 
-		{
-			xyz[0] += normal[0] * ds->bulgeHeight;
-			xyz[1] += normal[1] * ds->bulgeHeight;
-			xyz[2] += normal[2] * ds->bulgeHeight;
-		}	
-	}
-	else
-	{
-		const float *st = ( const float * ) tess.texCoords[0];
-		float		now;
-	
-		now = backEnd.refdef.time * ds->bulgeSpeed * 0.001f;
-	for ( i = 0; i < tess.numVertexes; i++, xyz += 4, st += 4, normal += 4 ) {
-		int		off;
-		float scale;
-
-		off = (float)( FUNCTABLE_SIZE / (M_PI*2) ) * ( st[0] * ds->bulgeWidth + now );
-
-		scale = tr.sinTable[ off & FUNCTABLE_MASK ] * ds->bulgeHeight;
-			
-		xyz[0] += normal[0] * scale;
-		xyz[1] += normal[1] * scale;
-		xyz[2] += normal[2] * scale;
-	}
-	}
-}
-
 
 
 /*
@@ -469,51 +398,53 @@ static void AutospriteDeform( void ) {
 	if ( tess.numIndexes != ( tess.numVertexes >> 2 ) * 6 ) {
 		ri.Printf( PRINT_WARNING, "Autosprite shader %s had odd index count\n", tess.shader->name );
 	}
-
-	oldVerts = tess.numVertexes;
-	tess.numVertexes = 0;
-	tess.numIndexes = 0;
-
-	if ( backEnd.currentEntity != &tr.worldEntity ) {
-		GlobalVectorToLocal( backEnd.viewParms.or.axis[1], leftDir );
-		GlobalVectorToLocal( backEnd.viewParms.or.axis[2], upDir );
-	} else {
-		VectorCopy( backEnd.viewParms.or.axis[1], leftDir );
-		VectorCopy( backEnd.viewParms.or.axis[2], upDir );
-	}
-
-	for ( i = 0 ; i < oldVerts ; i+=4 ) {
-		// find the midpoint
-		xyz = tess.xyz[i];
-
-		mid[0] = 0.25f * (xyz[0] + xyz[4] + xyz[8] + xyz[12]);
-		mid[1] = 0.25f * (xyz[1] + xyz[5] + xyz[9] + xyz[13]);
-		mid[2] = 0.25f * (xyz[2] + xyz[6] + xyz[10] + xyz[14]);
-
-		VectorSubtract( xyz, mid, delta );
-		radius = VectorLength( delta ) * 0.707f;		// / sqrt(2)
-
-		VectorScale( leftDir, radius, left );
-		VectorScale( upDir, radius, up );
-
-		if ( backEnd.viewParms.isMirror ) {
-			VectorSubtract( vec3_origin, left, left );
-		}
-
-	  // compensate for scale in the axes if necessary
-  	if ( backEnd.currentEntity->e.nonNormalizedAxes ) {
-      float axisLength;
-		  axisLength = VectorLength( backEnd.currentEntity->e.axis[0] );
-  		if ( !axisLength ) {
-	  		axisLength = 0;
-  		} else {
-	  		axisLength = 1.0f / axisLength;
-  		}
-      VectorScale(left, axisLength, left);
-      VectorScale(up, axisLength, up);
-    }
-
-		RB_AddQuadStamp( mid, left, up, tess.vertexColors[i] );
+	
+	{
+			oldVerts = tess.numVertexes;
+			tess.numVertexes = 0;
+			tess.numIndexes = 0;
+		
+			if ( backEnd.currentEntity != &tr.worldEntity ) {
+				GlobalVectorToLocal( backEnd.viewParms.or.axis[1], leftDir );
+				GlobalVectorToLocal( backEnd.viewParms.or.axis[2], upDir );
+			} else {
+				VectorCopy( backEnd.viewParms.or.axis[1], leftDir );
+				VectorCopy( backEnd.viewParms.or.axis[2], upDir );
+			}
+		
+			for ( i = 0 ; i < oldVerts ; i+=4 ) {
+				// find the midpoint
+				xyz = tess.xyz[i];
+		
+				mid[0] = 0.25f * (xyz[0] + xyz[4] + xyz[8] + xyz[12]);
+				mid[1] = 0.25f * (xyz[1] + xyz[5] + xyz[9] + xyz[13]);
+				mid[2] = 0.25f * (xyz[2] + xyz[6] + xyz[10] + xyz[14]);
+		
+				VectorSubtract( xyz, mid, delta );
+				radius = VectorLength( delta ) * 0.707f;		// / sqrt(2)
+		
+				VectorScale( leftDir, radius, left );
+				VectorScale( upDir, radius, up );
+		
+				if ( backEnd.viewParms.isMirror ) {
+					VectorSubtract( vec3_origin, left, left );
+				}
+		
+			  // compensate for scale in the axes if necessary
+		  	if ( backEnd.currentEntity->e.nonNormalizedAxes ) {
+		      float axisLength;
+				  axisLength = VectorLength( backEnd.currentEntity->e.axis[0] );
+		  		if ( !axisLength ) {
+			  		axisLength = 0;
+		  		} else {
+			  		axisLength = 1.0f / axisLength;
+		  		}
+		      VectorScale(left, axisLength, left);
+		      VectorScale(up, axisLength, up);
+		    }
+		
+				RB_AddQuadStamp( mid, left, up, tess.vertexColors[i] );
+			}
 	}
 }
 
@@ -1415,6 +1346,16 @@ static void RB_GlowBlend( unsigned char *colors, int glowcol, int fx )
 	directedLight[1] = (glowcol >> 8 ) & 0xFF;
 	directedLight[2] = glowcol & 0xFF;
 	
+	// if we don't have overbrights, we need to beef up the colors
+	if (tr.identityLight == 1){
+	int f;
+		for (f=0;f<3;f++)
+		{
+			directedLight[f] *=2;
+			if (directedLight[f]>255)directedLight[f]=255;
+		}
+	}	
+	
 	VectorCopy( backEnd.or.viewOrigin, lightDir );
 
 	v = tess.xyz[0];
@@ -1433,7 +1374,28 @@ static void RB_GlowBlend( unsigned char *colors, int glowcol, int fx )
 			incoming = sin(incoming+tess.shaderTime * 16); // wave
 			}
 		else if (fx == 6)
-			incoming = sin((v[0]+v[1])+(tess.shaderTime * 12)) * DotProduct (normal, lightDir); // caustics!
+		{
+			float eh, off;	
+			vec3_t the;
+	
+			eh = (v[0] + v[1] + v[2]) * 3;
+			off = sin(eh + tess.shaderTime * 5);
+
+			VectorScale( normal, off, the);
+			
+			incoming = VectorNormalize(the);
+			if (colors[i*4+3] < 128) incoming = 0;
+
+			// clamp
+			if (incoming > 1) incoming = 1;
+			if (incoming < 0) incoming = 0;
+	
+			// blend the new color over the current color
+			colors[i*4+0] = (colors[i*4+0] * (1-incoming)) + ((incoming) * directedLight[0]);
+			colors[i*4+1] = (colors[i*4+1] * (1-incoming)) + ((incoming) * directedLight[1]);
+			colors[i*4+2] = (colors[i*4+2] * (1-incoming)) + ((incoming) * directedLight[2]);
+			return;
+		}
 		else	// generic glow
 			{ 
 			incoming = DotProduct (normal, lightDir) * 0.8f;
@@ -1661,7 +1623,7 @@ void RB_CalcNormal( unsigned char *colors )
 
 
 
-#define 	MAXFRESLIGHTS 	5
+#define 	MAXFRESLIGHTS 	512
 static void RB_CalcMaterialColor( unsigned char *colors, int maxl, int ambient, int diffuse, int specular, int emissive, int spechard, int alpha )
 {
 	int				i, j, l;
@@ -1669,10 +1631,12 @@ static void RB_CalcMaterialColor( unsigned char *colors, int maxl, int ambient, 
 	trRefEntity_t	*ent;
 	vec3_t			ambientLight;
 	int			numVertexes;
+	vec3_t			lorigin;
 
 	vec3_t			matAmb, matDif, matSpec, matEmis;
 	float			matHard = spechard / 128.0f;
 	int		specenabled = 0;
+
 
 	if (spechard == 128)
 		matHard = 1;
@@ -1712,21 +1676,30 @@ static void RB_CalcMaterialColor( unsigned char *colors, int maxl, int ambient, 
 	// setup ent
 
 	ent = backEnd.currentEntity;
+
+	if ( ent->e.renderfx & RF_LIGHTING_ORIGIN ) 
+		VectorCopy( ent->e.lightingOrigin, lorigin );
+	else
+		VectorCopy( ent->e.origin, lorigin );
+
+
 	VectorCopy( ent->ambientLight, ambientLight );
 
 	int		liteOn[maxl];
 	vec3_t		liteOrg[maxl];
 	vec3_t		liteCol[maxl];
 	int		active = 1;
+
 	if (maxl > MAXFRESLIGHTS) maxl = MAXFRESLIGHTS;
+
 	// first light is always the world
 	liteOn[0] = 1;
 	VectorCopy( ent->directedLight, liteCol[0] );
 	VectorCopy( ent->lightDir, liteOrg[0] );
 
-	ambientLight[0] *= matAmb[0];
-	ambientLight[1] *= matAmb[1];
-	ambientLight[2] *= matAmb[2];
+	ambientLight[0] *= matAmb[0]*2;
+	ambientLight[1] *= matAmb[1]*2;
+	ambientLight[2] *= matAmb[2]*2;
 
 	
 
@@ -1735,28 +1708,82 @@ static void RB_CalcMaterialColor( unsigned char *colors, int maxl, int ambient, 
 		// add dynamic lights
 		{
 			dlight_t		*l;
-			l = backEnd.refdef.dlights;
-	
+
 			for (i=0 ; i<backEnd.refdef.num_dlights ; i++, l++) {
-				if (active>5)
+
+				if (active>maxl)
 				continue;
+
+				l = &backEnd.refdef.dlights[i];
+
 				VectorCopy( l->color, liteCol[active] );
-				VectorSubtract( l->origin, ent->e.lightingOrigin, liteOrg[active] );
-	
-				liteCol[active][0] *= 255;
-				liteCol[active][1] *= 255;
-				liteCol[active][2] *= 255;
-	
+
+				VectorSubtract( l->origin, lorigin, liteOrg[active] );
+
+				// attenuation
+				float d = VectorNormalize( liteOrg[active] );
+				float power = 16 * ( l->radius );
+				power = power / ( d * d );
+				if (power < 0) power = 0;
+				if (power > 1) power = 1;	// needed to prevent powerup light overflow, as quad/flagcarriers players should not glow themselves
+
+				// transform
+				liteOrg[active][0] = DotProduct( liteOrg[active], ent->e.axis[0] );
+				liteOrg[active][1] = DotProduct( liteOrg[active], ent->e.axis[1] );
+				liteOrg[active][2] = DotProduct( liteOrg[active], ent->e.axis[2] );
+
+				liteCol[active][0] *= (255 * power);
+				liteCol[active][1] *= (255 * power);
+				liteCol[active][2] *= (255 * power);
+
 				liteOn[active] = 1;
 				active++;
 	
 			}
 		}
 	
-		// add flares
+		// add flares, but only if there's a lot of light sources specified
+		if (maxl>5)
 		{
 			// NOTE: This was a bad idea. I should gather light points from reading
-			// the surfaces instead and treat them similarly to flares
+			// the surfaces instead and treat them similarly to flares.
+			// the main issue here is that it flickers too much.
+/*
+			flare_t *ff;
+			float d, power;
+			vec3_t der;
+			for ( ff = r_activeFlares ; ff && active<maxl ; ff = ff->next ) {
+
+					// attenuation
+					power = 4096;
+					VectorSubtract( ff->origin, lorigin, der );
+					d = VectorNormalize( der );
+					power = power / ( d );		
+								
+					if (power>64)
+					{
+					if (active>maxl)
+					continue;
+					VectorCopy( ff->color, liteCol[active] );
+					VectorCopy( der, liteOrg[active] );
+					d = VectorNormalize( liteOrg[active] );
+
+
+					liteCol[active][0] *= (1 * power);
+					liteCol[active][1] *= (1 * power);
+					liteCol[active][2] *= (1 * power);
+
+					// transform
+					liteOrg[active][0] = DotProduct( liteOrg[active], ent->e.axis[0] );
+					liteOrg[active][1] = DotProduct( liteOrg[active], ent->e.axis[1] );
+					liteOrg[active][2] = DotProduct( liteOrg[active], ent->e.axis[2] );
+
+					liteOn[active] = 2;
+					active++;
+					}
+	
+			}
+*/
 		}
 	
 	}
@@ -1765,9 +1792,6 @@ static void RB_CalcMaterialColor( unsigned char *colors, int maxl, int ambient, 
 	// Set up our model
 	v = tess.xyz[0];
 	normal = tess.normal[0];
-
-
-	// todo: world entity case to use some sunlight
 
 	numVertexes = tess.numVertexes;
 
@@ -1779,6 +1803,9 @@ static void RB_CalcMaterialColor( unsigned char *colors, int maxl, int ambient, 
 		// clear
 		difs[0] 	= difs[1] 	= difs[2] = 0;
 		specs[0] 	= specs[1] 	= specs[2] = 0;
+
+		// HACK - Fix the world light
+		VectorCopy( ent->lightDir, liteOrg[0] );
 
 		// go through lights and add them
 		for (l=0;l<active;l++)
@@ -1821,7 +1848,6 @@ static void RB_CalcMaterialColor( unsigned char *colors, int maxl, int ambient, 
 					}
 				}
 	
-	
 				specs[0] += b * liteCol[l][0];
 				specs[1] += b * liteCol[l][1];
 				specs[2] += b * liteCol[l][2];
@@ -1829,10 +1855,11 @@ static void RB_CalcMaterialColor( unsigned char *colors, int maxl, int ambient, 
 	
 			if (c<0) c=0;
 			if (c>255) c=255;
-
+			if (liteOn[l] != 2){
 			difs[0] += c * liteCol[l][0];
 			difs[1] += c * liteCol[l][1];
 			difs[2] += c * liteCol[l][2];
+			}
 			
 		}
 
@@ -1861,6 +1888,8 @@ static void RB_CalcMaterialColor( unsigned char *colors, int maxl, int ambient, 
 
 
 
+
+
 void RB_CalcDiffuseColor( unsigned char *colors )
 {
 #if idppc_altivec
@@ -1871,9 +1900,10 @@ void RB_CalcDiffuseColor( unsigned char *colors )
 	}
 #endif
 
-
-	if (tr.shadeMode == 1)
-		RB_CalcMaterialColor( colors, 1, 0xFFFFFF, 0xFFFFFF, 0xFFFFFF, 0x000000, 128, 255 );
+	if (tr.shadeMode == 1)	// no diffuse only spec (U-ish)
+		RB_CalcMaterialColor( colors, tr.litesources, 0xFFFFFF, 0x000000, 0xFFFFFF, 0x000000, 128, 255 );
+	else if (tr.shadeMode == 2)	// half diffuse half spec
+		RB_CalcMaterialColor( colors, tr.litesources, 0xFFFFFF, 0x808080, 0x808080, 0x000000, 128, 255 );
 	else if (tr.shadeMode == -1)	
 		RB_CalcDiffuseColor_flat( colors );
 	else
@@ -1888,10 +1918,11 @@ void RB_CalcDiffuseColor( unsigned char *colors )
 
 }
 
+
 void RB_CalcMaterials( unsigned char *colors, int ambient, int diffuse, int specular, int emissive, int spechard, int alpha )
 {
 	// TODO: Low detail materials
-	RB_CalcMaterialColor( colors, 1, ambient, diffuse, specular, emissive, spechard, alpha );
+	RB_CalcMaterialColor( colors, tr.litesources, ambient, diffuse, specular, emissive, spechard, alpha );
 
 	// leilei - glow property
 	if ((backEnd.currentEntity->e.glow >= 1337 && backEnd.currentEntity->e.glow <= 1340 )) // look for 1337-1340 as compatibility so we don't get malformed glows from old cgames
@@ -1904,6 +1935,86 @@ void RB_CalcMaterials( unsigned char *colors, int ambient, int diffuse, int spec
 void RB_CalcGlowBlend( unsigned char *colors, int glowcol, int fx )
 {
 	RB_GlowBlend( colors, glowcol, fx ); 
+}
+
+
+
+/*
+** RB_VertLights
+**
+** leilei - for maps, try to light up vertex lighting with dynamic lights
+*/
+
+
+static void RB_VertLightsPerVert( unsigned char *colors )
+{
+	int				i, f;
+	float			*v, *normal;
+	int				numVertexes;
+
+	vec3_t cl;
+	vec3_t cv;
+
+	v = tess.xyz[0];
+	normal = tess.normal[0];
+
+	numVertexes = tess.numVertexes;
+	for (i = 0 ; i < numVertexes ; i++, v += 4, normal += 4) {
+		// get the world colors
+		cl[0] = colors[i*4+0];
+		cl[1] = colors[i*4+1];
+		cl[2] = colors[i*4+2];
+
+		for (f=0 ; f<backEnd.refdef.num_dlights ; f++) 
+		{
+			dlight_t		*l;
+			l = &backEnd.refdef.dlights[f];
+	
+	
+				if (l->radius >= 1) // if light is good, mark the map
+				{
+						// calc the light against the world verts
+						VectorSubtract( l->origin, v, cv );
+						float power = 4096 * ( l->radius );
+						//VectorNormalizeFast( cv );
+						//float d = cv[0];
+						float d = VectorNormalize( cv );
+						//float d = Q_rsqrt( DotProduct( cv, cv ) );
+						//d *= d;
+						power = power / ( d * d );
+						if (power < 0) power = 0;
+					
+						// add the color of the light
+						cl[0] += (l->color[0] * power);
+						cl[1] += (l->color[1] * power);
+						cl[2] += (l->color[2] * power);
+					
+						// clamp stuff
+						if (cl[0] < 0) cl[0] = 0;
+						if (cl[1] < 0) cl[1] = 0;
+						if (cl[2] < 0) cl[2] = 0;
+				
+						if (cl[0] > 255) cl[0] = 255;
+						if (cl[1] > 255) cl[1] = 255;
+						if (cl[2] > 255) cl[2] = 255;
+				
+
+					
+				}
+		}
+
+		// give the world our new modulated color
+		colors[i*4+0] = cl[0];
+		colors[i*4+1] = cl[1];
+		colors[i*4+2] = cl[2];
+
+	}
+}
+
+
+void RB_CalcVertLights( unsigned char *colors )
+{
+	RB_VertLightsPerVert( colors ); 
 }
 
 

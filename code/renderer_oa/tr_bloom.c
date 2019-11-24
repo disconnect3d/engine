@@ -861,7 +861,6 @@ static void R_Postprocess_InitTextures( void )
 {
 #ifdef GLSL_POSTPROCESSING
 	byte	*data;
-	int intdiv = 1;
 
 	force32upload = 1;
 	// find closer power of 2 to screen size
@@ -888,9 +887,6 @@ static void R_Postprocess_InitTextures( void )
 
 	postproc.effect.readW = postproc.work.width / (float)postproc.effect.width;
 	postproc.effect.readH = postproc.work.height / (float)postproc.effect.height;
-
-//	postproc.screen.readH /= intdiv; // interlacey
-
 
 	// disable blooms if we can't handle a texture of that size
 	if( 	postproc.screen.width > glConfig.maxTextureSize ||

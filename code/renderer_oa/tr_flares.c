@@ -83,16 +83,19 @@ typedef struct flare_s {
 	int		ftype;			// leilei - flare types
 	// 0 - off
 	// 1 - nromal flare
-	// 2 - hexagonal polygons (tcpp)
-	// 3 - glow polygons	(tcpp)
+	// 2 - hexagonal polygons 	(tcpp)
+	// 3 - glow polygons		(tcpp)
 	// 4 - hex and glow polygons	(tcpp)
 	// 5 - lens reflections like it's 1997
 	// 6 - fully modulated lens reflections
 	// 7 - unmodulated lens reflections
 	// 8 - anamorphic like it's 2009
+	// 9 - U
 	struct shader_s		*theshader;	// leilei - custom flare shaders
 	int		type;			// 0 - map, 1 - dlight, 2 - sun
 	float		delay;			// update delay time
+	vec3_t		rcolor;			// leilei - unaltered color
+	int		nocheck;		// leilei - don't do normal check
 } flare_t;
 
 #define		MAX_FLARES		256 // was 128
@@ -112,7 +115,6 @@ R_SetFlareCoeff
 */
 static void R_SetFlareCoeff( void )
 {
-
 	if(r_flareCoeff->value == 0.0f)
 		flareCoeff = atof(FLARE_STDCOEFF);
 	else
@@ -169,11 +171,13 @@ void RB_AddFlare(srfFlare_t *surface, int fogNum, vec3_t point, vec3_t color, ve
 
 	// fade the intensity of the flare down as the
 	// light surface turns away from the viewer
+
 	if(normal && (normal[0] || normal[1] || normal[2]) ) {
 		VectorSubtract( backEnd.viewParms.or.origin, point, local );
 		VectorNormalizeFast(local);
 		d = DotProduct(local, normal);
-
+		if (efftype == 9 || type == 3)	
+			d = 1.0;
 		// If the viewer is behind the flare don't add it.
 		if(d < 0)
 			return;
@@ -237,6 +241,7 @@ void RB_AddFlare(srfFlare_t *surface, int fogNum, vec3_t point, vec3_t color, ve
 	f->ftype = efftype;
 	VectorCopy(point, f->origin);
 	VectorCopy( color, f->color );
+	VectorCopy( color, f->rcolor );
 
 
 	if ( (r_flaresDlightFade->integer) && (type == 1) ) {	// leilei - dynamic light flares fading instantly
@@ -575,6 +580,203 @@ static void RB_TestFlareTraceOnly( flare_t *f )
 
 }
 
+// Trace only, but also fades strictly differently, also cutting off at a distance.
+static void RB_TestFlareU( flare_t *f )
+{
+	qboolean		visible;
+	float			fade;
+
+	backEnd.pc.c_flareTests++;
+
+	if ( (backEnd.refdef.rdflags & RDF_NOWORLDMODEL)) 	return;		// don't ever test these kinds of flares in the UI
+
+	// read from a traceline
+	trace_t  yeah;
+	CM_Trace( &yeah, f->origin, backEnd.or.viewOrigin, NULL, NULL, 0, f->origin, 1, 0, NULL );
+	if ((yeah.fraction < 1) || (-f->eyeZ > 640)) {
+		visible = 0;
+	}
+	else {
+		visible = 1;
+	}
+
+	if ( visible ) {
+		if ( !f->visible ) {
+			f->visible = qtrue;
+			f->fadeTime = backEnd.refdef.time - 1;
+
+		}
+		{
+			fade = ( ( backEnd.refdef.time - f->fadeTime ) / 2000.0f ) * 5;
+		}
+	}
+	else {
+		if ( f->visible ) {
+			f->visible = qfalse;
+			f->fadeTime = backEnd.refdef.time - 1;//+ 250; // Fade later
+		}
+		fade = 1.5f - ( ( backEnd.refdef.time - f->fadeTime ) / 2000.0f ) * 5;
+	}
+
+	if ( fade < 0 ) {
+		fade = 0;
+	}
+	if ( fade > 1 ) {
+		fade = 1;
+	}
+
+	f->drawIntensity = fade;
+
+}
+
+
+
+
+
+/*
+==================
+RB_RenderFlareU
+
+leilei - shorter, calcs differently, tries to maintain 128x128 visible pixels on 640x480
+		explanatory comments stripped, read RB_RenderFlare below this for them
+==================
+*/
+
+void RB_RenderFlareU( flare_t *f )
+{
+	float			size;
+	vec3_t			color;
+	int				iColor[3];
+	float distance, intensity, factor;
+	byte fogFactors[3] = {255, 255, 255};
+	int ind=0;
+	int alphcal;
+	backEnd.pc.c_flareRenders++;
+
+	flaredsize = backEnd.viewParms.viewportHeight;
+	float flaredsize2 = backEnd.viewParms.viewportHeight;
+
+	distance = 1.0f; // a constant 
+
+	// calculate the flare size..
+	size = flaredsize * ( 128 / 960.0f );
+	//intensity = r_leidebug->value;
+	intensity = (f->drawIntensity) * 255;
+	//VectorScale(f->color, f->drawIntensity * intensity, color);
+
+
+
+	iColor[0] = intensity;
+	iColor[1] = intensity;
+	iColor[2] = intensity;
+
+	// These don't fog
+	tess.numVertexes = 1;
+	VectorCopy(f->origin, tess.xyz[0]);
+
+	VectorCopy(f->color, color);
+
+	// Saturate
+	/*
+	float sat = (color[0] * 0.333f) + (color[1] * 0.333f) + (color[2] * 0.333f);
+
+	color[0] = sat + (color[0] - sat) * 2;
+	color[1] = sat + (color[1] - sat) * 2;
+	color[2] = sat + (color[2] - sat) * 2;
+	*/
+
+	VectorNormalize (color);
+
+	if (color[0] > 1.0) color[0] = 1.0;
+	if (color[1] > 1.0) color[1] = 1.0;
+	if (color[2] > 1.0) color[2] = 1.0;
+
+	iColor[0] *= color[0];
+	iColor[1] *= color[1];	
+	iColor[2] *= color[2];
+
+
+
+//	VectorNormalize (iColor);
+
+
+
+	//iColor[0] *= 255;
+	iColor[3] = 255;	
+		
+		for (int i=0;i<3;i++){
+
+			if (iColor[i] > 255) iColor[i] = 255;
+
+		}
+
+//	iColor[0] *=intensity;
+//	iColor[1] *=intensity;
+//	iColor[2] *=intensity;
+
+		int index;
+		for(index = 0; index <f->theshader->numUnfoggedPasses; index++) {
+		f->theshader->stages[index]->adjustColorsForFog = ACFF_NONE;
+		//f->theshader->stages[index]->stateBits &= GLS_DEPTHTEST_DISABLE;
+	}
+	
+
+		RB_BeginSurface( f->theshader, f->fogNum );
+
+	// FIXME: use quadstamp?
+	tess.xyz[tess.numVertexes][0] = f->windowX - size;
+	tess.xyz[tess.numVertexes][1] = f->windowY - size;
+	tess.texCoords[tess.numVertexes][0][0] = 0;
+	tess.texCoords[tess.numVertexes][0][1] = 0;
+	tess.vertexColors[tess.numVertexes][0] = iColor[0];
+	tess.vertexColors[tess.numVertexes][1] = iColor[1];
+	tess.vertexColors[tess.numVertexes][2] = iColor[2];
+	tess.vertexColors[tess.numVertexes][3] = alphcal;
+	tess.numVertexes++;
+
+	tess.xyz[tess.numVertexes][0] = f->windowX - size;
+	tess.xyz[tess.numVertexes][1] = f->windowY + size;
+	tess.texCoords[tess.numVertexes][0][0] = 0;
+	tess.texCoords[tess.numVertexes][0][1] = 1;
+	tess.vertexColors[tess.numVertexes][0] = iColor[0];
+	tess.vertexColors[tess.numVertexes][1] = iColor[1];
+	tess.vertexColors[tess.numVertexes][2] = iColor[2];
+	tess.vertexColors[tess.numVertexes][3] = alphcal;
+	tess.numVertexes++;
+
+	tess.xyz[tess.numVertexes][0] = f->windowX + size;
+	tess.xyz[tess.numVertexes][1] = f->windowY + size;
+	tess.texCoords[tess.numVertexes][0][0] = 1;
+	tess.texCoords[tess.numVertexes][0][1] = 1;
+	tess.vertexColors[tess.numVertexes][0] = iColor[0];
+	tess.vertexColors[tess.numVertexes][1] = iColor[1];
+	tess.vertexColors[tess.numVertexes][2] = iColor[2];
+	tess.vertexColors[tess.numVertexes][3] = alphcal;
+	tess.numVertexes++;
+
+	tess.xyz[tess.numVertexes][0] = f->windowX + size;
+	tess.xyz[tess.numVertexes][1] = f->windowY - size;
+	tess.texCoords[tess.numVertexes][0][0] = 1;
+	tess.texCoords[tess.numVertexes][0][1] = 0;
+	tess.vertexColors[tess.numVertexes][0] = iColor[0];
+	tess.vertexColors[tess.numVertexes][1] = iColor[1];
+	tess.vertexColors[tess.numVertexes][2] = iColor[2];
+	tess.vertexColors[tess.numVertexes][3] = alphcal;
+	tess.numVertexes++;
+
+	tess.indexes[tess.numIndexes++] = 0;
+	tess.indexes[tess.numIndexes++] = 1;
+	tess.indexes[tess.numIndexes++] = 2;
+	tess.indexes[tess.numIndexes++] = 0;
+	tess.indexes[tess.numIndexes++] = 2;
+	tess.indexes[tess.numIndexes++] = 3;
+
+	ind+=4;
+
+	RB_EndSurface();
+
+
+}
 
 
 /*
@@ -1240,6 +1442,7 @@ void RB_RenderFlares (void)
 		RB_AddDlightFlares();
 
 	// perform z buffer readback on each flare in this view
+
 	draw = qfalse;
 	prev = &r_activeFlares;
 	while ( ( f = *prev ) != NULL ) {
@@ -1256,11 +1459,14 @@ void RB_RenderFlares (void)
 		if ( f->frameSceneNum == backEnd.viewParms.frameSceneNum
 		        && f->inPortal == backEnd.viewParms.isPortal ) {
 
+			if (f->ftype == 9)
+				RB_TestFlareU( f );
 #ifdef GL_VERSION_ES_CM_1_0		// GLES1 - leilei - the simple flares allowed only. no pixel reads, no problem
-			if (r_flareQuality->integer)			// lower flare quality - no readpixels, trace
+
+			else if (r_flareQuality->integer)			// lower flare quality - no readpixels, trace
 				RB_TestFlareTraceOnly( f );
 #else
-			if (r_flareQuality->integer > 4)		// highest flare quality - only frequent readpixels, no trace
+			else if (r_flareQuality->integer > 4)		// highest flare quality - only frequent readpixels, no trace
 				RB_TestFlare( f, 0 );
 			else if (r_flareQuality->integer == 4)		// high flare quality - frequent readpixels, trace
 				RB_TestFlare( f, 1 );
@@ -1270,6 +1476,7 @@ void RB_RenderFlares (void)
 				RB_TestFlareFast( f, 1 );
 			else if (r_flareQuality->integer == 1)		// lower flare quality - no readpixels, trace
 				RB_TestFlareTraceOnly( f );
+
 			else
 				RB_TestFlareFast( f, 1 );		// lowest is actually a different surface flare defined elsewhere
 #endif
@@ -1310,6 +1517,9 @@ void RB_RenderFlares (void)
 		if ( f->frameSceneNum == backEnd.viewParms.frameSceneNum
 		        && f->inPortal == backEnd.viewParms.isPortal
 		        && f->drawIntensity ) {
+			if (f->ftype == 9)
+			RB_RenderFlareU( f );
+			else
 			RB_RenderFlare( f );
 		}
 	}

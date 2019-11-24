@@ -115,7 +115,7 @@ byte BestColor (int r, int g, int b, int start, int stop)
 unsigned char paltable[1024]; 
 unsigned char paltablergb[768]; 
 
-void R_SetTexturePalette( unsigned palette[256])
+void R_SetTexturePalette( int palette[256])
 {
 #ifndef GL_VERSION_ES_CM_1_0
 	int i;
@@ -366,7 +366,7 @@ void GL_TextureMode( const char *string ) {
 
 	// hack to prevent trilinear from being set on voodoo,
 	// because their driver freaks...
-	if ( i == 5 && glConfig.hardwareType == GLHW_3DFX_2D3D || (r_legacycard->integer == 4 && r_legacycard->integer == 5) ) {
+	if ( (i == 5 && glConfig.hardwareType == GLHW_3DFX_2D3D) || (r_legacycard->integer == 4 && r_legacycard->integer == 5) ) {
 		ri.Printf( PRINT_ALL, "Refusing to set trilinear on a voodoo.\n" );
 		i = 3;
 	}
@@ -601,7 +601,6 @@ void R_ImageListMapOnly_f( void ) {
 		char localName[ MAX_QPATH ];
 		char *sizeSuffix;
 		int estSize;
-		int displaySize;
 
 		estSize = image->uploadHeight * image->uploadWidth;
 
@@ -611,11 +610,8 @@ void R_ImageListMapOnly_f( void ) {
 			estSize += estSize / 2;
 
 		sizeSuffix = "b ";
-		displaySize = estSize;
 
-	//if ( !strncmp( image->imgName, "textures", 8 ) ) {
 		if (image->maptexture){
-
 		COM_StripExtension( image->imgName, localName, MAX_QPATH );
 		ri.Printf(PRINT_ALL, "%s pak1-map-mapname.pk3 %s.*\n", zipcommand, localName);
 		}
@@ -681,150 +677,6 @@ static void ResampleTexture( unsigned *in, int inwidth, int inheight, unsigned *
 }
 
 
-
-//
-// Darkplaces texture resampling with lerping
-// from Twilight/Darkplaces, code by LordHavoc (I AM ASSUMING)
-//
-
-static void Image_Resample32LerpLine (const unsigned char *in, unsigned char *out, int inwidth, int outwidth)
-{
-	int		j, xi, oldx = 0, f, fstep, endx, lerp;
-	fstep = (int) (inwidth*65536.0f/outwidth);
-
-
-	endx = (inwidth-1);
-	for (j = 0,f = 0;j < outwidth;j++, f += fstep)
-	{
-		xi = f >> 16;
-		if (xi != oldx)
-		{
-			in += (xi - oldx) * 4;
-			oldx = xi;
-		}
-		if (xi < endx)
-		{
-			lerp = f & 0xFFFF;
-			*out++ = (unsigned char) ((((in[4] - in[0]) * lerp) >> 16) + in[0]);
-			*out++ = (unsigned char) ((((in[5] - in[1]) * lerp) >> 16) + in[1]);
-			*out++ = (unsigned char) ((((in[6] - in[2]) * lerp) >> 16) + in[2]);
-			*out++ = (unsigned char) ((((in[7] - in[3]) * lerp) >> 16) + in[3]);
-		}
-		else // last pixel of the line has no pixel to lerp to
-		{
-			*out++ = in[0];
-			*out++ = in[1];
-			*out++ = in[2];
-			*out++ = in[3];
-		}
-	}
-}
-
-#define LERPBYTE(i) r = resamplerow1[i];out[i] = (unsigned char) ((((resamplerow2[i] - r) * lerp) >> 16) + r)
-static void Image_Resample32Lerp(const void *indata, int inwidth, int inheight, void *outdata, int outwidth, int outheight)
-{
-	int i, j, r, yi, oldy, f, fstep, lerp, endy = (inheight - 1), inwidth4 = inwidth*4, outwidth4 = outwidth*4;
-	unsigned char *out;
-	const unsigned char *inrow;
-	unsigned char *resamplerow1;
-	unsigned char *resamplerow2;
-	out = (unsigned char *)outdata;
-	fstep = (int) (inheight*65536.0f/outheight);
-
-	
-	resamplerow1 = ri.Hunk_AllocateTempMemory(outwidth*4*2);
-	resamplerow2 = resamplerow1 + outwidth*4;
-
-	inrow = (const unsigned char *)indata;
-	oldy = 0;
-	Image_Resample32LerpLine (inrow, resamplerow1, inwidth, outwidth);
-	Image_Resample32LerpLine (inrow + inwidth4, resamplerow2, inwidth, outwidth);
-	for (i = 0, f = 0;i < outheight;i++,f += fstep)
-	{
-		yi = f >> 16;
-		if (yi < endy)
-		{
-			lerp = f & 0xFFFF;
-			if (yi != oldy)
-			{
-				inrow = (unsigned char *)indata + inwidth4*yi;
-				if (yi == oldy+1)
-					memcpy(resamplerow1, resamplerow2, outwidth4);
-				else
-					Image_Resample32LerpLine (inrow, resamplerow1, inwidth, outwidth);
-				Image_Resample32LerpLine (inrow + inwidth4, resamplerow2, inwidth, outwidth);
-				oldy = yi;
-			}
-			j = outwidth - 4;
-			while(j >= 0)
-			{
-				LERPBYTE( 0);
-				LERPBYTE( 1);
-				LERPBYTE( 2);
-				LERPBYTE( 3);
-				LERPBYTE( 4);
-				LERPBYTE( 5);
-				LERPBYTE( 6);
-				LERPBYTE( 7);
-				LERPBYTE( 8);
-				LERPBYTE( 9);
-				LERPBYTE(10);
-				LERPBYTE(11);
-				LERPBYTE(12);
-				LERPBYTE(13);
-				LERPBYTE(14);
-				LERPBYTE(15);
-				out += 16;
-				resamplerow1 += 16;
-				resamplerow2 += 16;
-				j -= 4;
-			}
-			if (j & 2)
-			{
-				LERPBYTE( 0);
-				LERPBYTE( 1);
-				LERPBYTE( 2);
-				LERPBYTE( 3);
-				LERPBYTE( 4);
-				LERPBYTE( 5);
-				LERPBYTE( 6);
-				LERPBYTE( 7);
-				out += 8;
-				resamplerow1 += 8;
-				resamplerow2 += 8;
-			}
-			if (j & 1)
-			{
-				LERPBYTE( 0);
-				LERPBYTE( 1);
-				LERPBYTE( 2);
-				LERPBYTE( 3);
-				out += 4;
-				resamplerow1 += 4;
-				resamplerow2 += 4;
-			}
-			resamplerow1 -= outwidth4;
-			resamplerow2 -= outwidth4;
-		}
-		else
-		{
-			if (yi != oldy)
-			{
-				inrow = (unsigned char *)indata + inwidth4*yi;
-				if (yi == oldy+1)
-					memcpy(resamplerow1, resamplerow2, outwidth4);
-				else
-					Image_Resample32LerpLine (inrow, resamplerow1, inwidth, outwidth);
-				oldy = yi;
-			}
-			memcpy(out, resamplerow1, outwidth4);
-		}
-	}
-
-		ri.Hunk_FreeTempMemory( resamplerow1 );
-	resamplerow1 = NULL;
-	resamplerow2 = NULL;
-}
 
 
 
@@ -1108,8 +960,7 @@ Upload32
 ===============
 */
 extern qboolean charSet;
-int hqresample = 0;		// leilei - high quality texture resampling
-				// Currently 0 as there is an alignment issue I haven't fixed.
+
 int	isicon;			// leilei  - for determining if it's an icon.
 
 static void Upload32( unsigned *data, 
@@ -1181,9 +1032,6 @@ static void Upload32( unsigned *data,
 
 		if ( scaled_width != width || scaled_height != height ) {
 			resampledBuffer = ri.Hunk_AllocateTempMemory( scaled_width * scaled_height * 4 );
-			if (hqresample)
-			Image_Resample32Lerp(data, width, height, resampledBuffer, scaled_width, scaled_height - 1);
-			else
 			ResampleTexture (data, width, height, resampledBuffer, scaled_width, scaled_height);
 			data = resampledBuffer;
 			width = scaled_width;
@@ -1309,7 +1157,6 @@ static void Upload32( unsigned *data,
 				{
 					int r, g, b;
 					vec3_t rgb;
-					float amplify;
 					byte alfa = LUMA(scan[i*4], scan[i*4 + 1], scan[i*4 + 2]);
 					//byte alfa = (scan[i*4]+ scan[i*4 + 1]+ scan[i*4 + 2]) / 3;
 
@@ -2595,6 +2442,36 @@ static void R_CreateDlightImage( void ) {
 }
 
 
+static void R_CreateDlightImageEx( int size ) {
+	int		x,y;
+	byte	data[size][size][4];
+	int		b;
+
+	// make a centered inverse-square falloff blob for dynamic lighting
+	for (x=0 ; x<size ; x++) {
+		for (y=0 ; y<size ; y++) {
+			float	d;
+
+			d = ( size/2 - 0.5f - x ) * ( size/2 - 0.5f - x ) +
+				( size/2 - 0.5f - y ) * ( size/2 - 0.5f - y );
+			b = ((4000/16) * (size*2)) / d;
+			if (b > 255) {
+				b = 255;
+			} else if ( b < 75 ) {
+				b = 0;
+			}
+			data[y][x][0] = b;
+			data[y][x][1] = b;
+			data[y][x][2] = b;
+			data[y][x][3] = b;			
+		}
+	}
+	tr.dlightImage = R_CreateImage("*dlight", (byte *)data, size, size, IMGTYPE_COLORALPHA, IMGFLAG_CLAMPTOEDGE, 0 );
+//	tr.dlightImage = R_CreateImage("*dlight", (byte *)data, DLIGHT_SIZE, DLIGHT_SIZE, IMGTYPE_COLORALPHA, IMGFLAG_CLAMPTOEDGE, 0 );
+
+}
+
+
 /*
 =================
 R_InitFogTable
@@ -2770,6 +2647,7 @@ void R_CreateBuiltinImages( void ) {
 
 
 	R_CreateDlightImage();
+	//R_CreateDlightImageEx( 128 );
 
 	R_CreateFogImage();
 	//tr.fogImage = R_FindImageFile( "gfx/engine/fog.tga", 0, IMGFLAG_CLAMPTOEDGE )

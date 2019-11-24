@@ -79,8 +79,6 @@ typedef struct {
 	vec3_t		dynamicLight;
 	float		lightDistance;
 
-	// leilei - eyes
-	vec3_t		eyepos[2];			// looking from
 } trRefEntity_t;
 
 
@@ -184,7 +182,7 @@ typedef enum {
 	CGEN_LIGHTING_FLAT_DIRECT,
 	CGEN_FOG,				// standard fog
 	CGEN_CONST,				// fixed color
-	CGEN_VERTEX_LIT,			// leilei - tess.vertexColors * tr.identityLight * ambientlight*directlight
+	CGEN_VERTEX_LIT,			// leilei - vertex with dynamic lights on top (for maps)
 	CGEN_LIGHTING_DIFFUSE_SPECULAR,		// leilei - LIGHTING_DIFFUSE, capped by specular exponent
 	CGEN_LIGHTING_SPECULAR,			// leilei - specular only
 	CGEN_LIGHTING_SPECULAR_COLOR,		// leilei - specular only, but with direct color
@@ -1239,6 +1237,7 @@ typedef struct {
 	
 	int					leiShaded;	
 	int					shadeMode;
+	int					litesources;
 
 } trGlobals_t;
 
@@ -1386,6 +1385,8 @@ extern cvar_t	*r_parseStageSimple;	// Leilei - handling textures into alphas
 extern cvar_t	*r_leifx;	// Leilei - leifx nostalgia filter (DEPRECATED)
 extern cvar_t	*r_legacycard;	// Leilei - mocking old cards
 extern cvar_t	*r_modelshader;	// Leilei - new model shading
+extern cvar_t	*r_maxmodellights;	// Leilei - new model shading light sources
+extern cvar_t	*r_dynamicvertexlight;	// Leilei - dynamic lights on vertex
 extern cvar_t	*r_mockvr;	// Leilei - 
 
 extern cvar_t	*r_retroAA;	// Leilei - old console anti aliasing
@@ -1563,7 +1564,7 @@ typedef struct shaderCommands_s
 	vec4_t		normal[SHADER_MAX_VERTEXES] QALIGN(16);
 	vec2_t		texCoords[SHADER_MAX_VERTEXES][2] QALIGN(16);
 	color4ub_t	vertexColors[SHADER_MAX_VERTEXES] QALIGN(16);
-	int			vertexDlightBits[SHADER_MAX_VERTEXES] QALIGN(16);
+	int		vertexDlightBits[SHADER_MAX_VERTEXES] QALIGN(16);
 
 	stageVars_t	svars QALIGN(16);
 
@@ -1583,9 +1584,6 @@ typedef struct shaderCommands_s
 	void		(*currentStageIteratorFunc)( void );
 	shaderStage_t	**xstages;
 
-	// lfx stuf
-	float		lfxTime;
-	float		lfxTimeNext;
 } shaderCommands_t;
 
 extern	shaderCommands_t	tess;
@@ -2112,6 +2110,7 @@ void	RB_CalcSpecularColor( unsigned char *colors, int usecolor ); // leilei - sp
 void	RB_CalcDetailFade( unsigned char *colors ); // leilei - detail hack
 void 	RB_CalcGlowBlend( unsigned char *colors, int glowcol, int fx ); // leilei - glow blend
 void    RB_CalcMaterials( unsigned char *colors, int ambient, int diffuse, int specular, int emissive, int spechard, int alpha );
+void	RB_CalcVertLights( unsigned char *colors );
 
 /*
 =============================================================
