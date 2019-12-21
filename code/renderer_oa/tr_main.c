@@ -990,9 +990,25 @@ qboolean R_MirrorViewBySurface (drawSurf_t *drawSurf, int entityNum) {
 	R_MirrorVector (oldParms.or.axis[2], &surface, &camera, newParms.or.axis[2]);
 
 	// OPTIMIZE: restrict the viewport on the mirrored view
+	// leilei - texreflect hack
+	if (r_texreflect->integer)
+	{
+
+	newParms.viewportX = 0;
+	newParms.viewportY = 0;
+	newParms.viewportWidth = 128;
+	newParms.viewportHeight = 128;
 
 	// render the mirror view
 	R_RenderView (&newParms);
+
+	R_IssuePendingRenderCommands();
+	R_WaterBloom();
+	}
+	else
+	{
+		R_RenderView (&newParms);
+	}
 
 	tr.viewParms = oldParms;
 

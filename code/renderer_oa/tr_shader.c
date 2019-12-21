@@ -1491,6 +1491,14 @@ static qboolean ParseStage( shaderStage_t *stage, char **text )
 				stage->bundle[0].image[0] = tr.whiteImage;
 				continue;
 			}
+			if ( !Q_stricmp( token, "$reflect" ) )
+			{
+				stage->bundle[0].image[0] = tr.reflectImage;
+				stage->isReflect = qtrue;
+				stage->bundle[0].tcGen = TCGEN_VIEWSPACE; // automatically set the right mode
+				continue;
+			}
+ 
 			else if ( !Q_stricmp( token, "$lightmap" ) )
 			{
 				stage->bundle[0].isLightmap = qtrue;
@@ -2764,6 +2772,19 @@ static qboolean ParseStage( shaderStage_t *stage, char **text )
 			} else if ( !Q_stricmp( token, "filter" ) ) {
 				blendSrcBits = GLS_SRCBLEND_DST_COLOR;
 				blendDstBits = GLS_DSTBLEND_ZERO;
+				if (stage->bundle[0].isLightmap){
+				if (r_lightmapBlend->integer == 1){
+					blendSrcBits = GLS_SRCBLEND_DST_COLOR; // 98 GlideDrv way
+					blendDstBits = GLS_DSTBLEND_SRC_COLOR;
+				}
+				/*} else if (r_lightmapBlendHack->integer == 2){
+					blendSrcBits = GLS_SRCBLEND_ZERO;	// GLQuake way
+					blendDstBits = GLS_DSTBLEND_ONE_MINUS_SRC_COLOR;
+				} else if (r_lightmapBlendHack->integer == 3){
+					blendSrcBits = GLS_SRCBLEND_SRC_ALPHA;  // other GLQuake way
+					blendDstBits = GLS_DSTBLEND_ONE_MINUS_SRC_ALPHA;
+					}*/
+				}
 			} else if ( !Q_stricmp( token, "blend" ) ) {
 				blendSrcBits = GLS_SRCBLEND_SRC_ALPHA;
 				blendDstBits = GLS_DSTBLEND_ONE_MINUS_SRC_ALPHA;
@@ -2794,6 +2815,10 @@ static qboolean ParseStage( shaderStage_t *stage, char **text )
 				{
 					blendSrcBits = GLS_SRCBLEND_ZERO;
 					blendDstBits = GLS_DSTBLEND_ONE_MINUS_SRC_COLOR;
+					if (r_detailTextureSub->integer == 2){
+						blendSrcBits = GLS_SRCBLEND_DST_COLOR;
+						blendDstBits = GLS_DSTBLEND_ZERO;
+					}
 				}
 			}
 
@@ -3101,6 +3126,10 @@ static qboolean ParseStage( shaderStage_t *stage, char **text )
 			{
 				stage->bundle[0].tcGen = TCGEN_ENVIRONMENT_MAPPED_WATER;	// leilei - water's envmaps
 			}
+			else if ( !Q_stricmp( token, "viewspace" ) )
+			{
+				stage->bundle[0].tcGen = TCGEN_VIEWSPACE;	// leilei - for texreflect
+			}
 			else if ( !Q_stricmp( token, "lightmap" ) )
 			{
 				stage->bundle[0].tcGen = TCGEN_LIGHTMAP;
@@ -3166,6 +3195,11 @@ static qboolean ParseStage( shaderStage_t *stage, char **text )
 				{	// FIXME: I crash Q3DM0,DM5,DM6,DM11,DM12,DM18,TOURNEY6
 					blendSrcBits = GLS_SRCBLEND_ZERO;
 					blendDstBits = GLS_DSTBLEND_ONE_MINUS_SRC_COLOR;
+
+					if (r_detailTextureSub->integer == 2){
+						blendSrcBits = GLS_SRCBLEND_DST_COLOR;
+						blendDstBits = GLS_DSTBLEND_ZERO;
+					}
 				}
 			}	
 
@@ -5213,7 +5247,7 @@ static shader_t *FinishShader( void ) {
 		//
 		// ditch this stage if it's detail and detail textures are disabled
 		//
-		if ( pStage->isDetail && !r_detailTextures->integer )
+		if ( (pStage->isDetail && !r_detailTextures->integer) || (pStage->isSpecular && !r_specular->integer)  || (pStage->isReflect && !r_texreflect->integer))
 		{
 			int index;
 			
@@ -5236,31 +5270,6 @@ static shader_t *FinishShader( void ) {
 			continue;
 		}
 
-		//
-		// ditch this stage if it's specular and specular textures are disabled
-		//
-		if ( pStage->isSpecular && !r_specular->integer )
-		{
-			int index;
-			
-			for(index = stage + 1; index < MAX_SHADER_STAGES; index++)
-			{
-				if(!stages[index].active)
-					break;
-			}
-			
-			if(index < MAX_SHADER_STAGES)
-				memmove(pStage, pStage + 1, sizeof(*pStage) * (index - stage));
-			else
-			{
-				if(stage + 1 < MAX_SHADER_STAGES)
-					memmove(pStage, pStage + 1, sizeof(*pStage) * (index - stage - 1));
-				
-				Com_Memset(&stages[index - 1], 0, sizeof(*stages));
-			}
-			
-			continue;
-		}
 
 		//
 		// default texture coordinate generation
@@ -5754,8 +5763,11 @@ shader_t *R_FindShaderReal( const char *name, int lightmapIndex, qboolean mipRaw
 							 	stages[thisstage].bundle[0].image[0] = R_FindImageFile( "gfx/fx/detail/d_generic.tga", IMGFLAG_MIPMAP , IMGFLAG_MIPMAP);
 								stages[thisstage].active = qtrue;
 								stages[thisstage].rgbGen = CGEN_IDENTITY;
-								if (r_detailTextureSub->integer){
+								if (r_detailTextureSub->integer == 1){
 								stages[thisstage].stateBits |= GLS_SRCBLEND_ZERO | GLS_DSTBLEND_ONE_MINUS_SRC_COLOR | GLS_DEPTHFUNC_EQUAL;
+								}
+								else if (r_detailTextureSub->integer == 2){
+								stages[thisstage].stateBits |= GLS_SRCBLEND_DST_COLOR | GLS_DSTBLEND_ZERO | GLS_DEPTHFUNC_EQUAL;
 								}
 								else
 								stages[thisstage].stateBits |= GLS_SRCBLEND_DST_COLOR | GLS_DSTBLEND_SRC_COLOR | GLS_DEPTHFUNC_EQUAL;
@@ -5954,6 +5966,9 @@ shader_t *R_FindShaderReal( const char *name, int lightmapIndex, qboolean mipRaw
 				if (r_detailTextureSub->integer){
 				stages[2+f].stateBits |= GLS_SRCBLEND_ZERO | GLS_DSTBLEND_ONE_MINUS_SRC_COLOR;
 				}
+				else if (r_detailTextureSub->integer == 2){
+				stages[2+f].stateBits |= GLS_SRCBLEND_DST_COLOR | GLS_DSTBLEND_ZERO | GLS_DEPTHFUNC_EQUAL;
+				}
 				else
 				stages[2+f].stateBits |= GLS_SRCBLEND_DST_COLOR | GLS_DSTBLEND_SRC_COLOR;
 
@@ -5984,7 +5999,15 @@ shader_t *R_FindShaderReal( const char *name, int lightmapIndex, qboolean mipRaw
 		stages[1].bundle[0].image[0] = image;
 		stages[1].active = qtrue;
 		stages[1].rgbGen = CGEN_IDENTITY;
+		if (r_lightmapBlend->integer == 1)
+			stages[1].stateBits |= GLS_SRCBLEND_DST_COLOR | GLS_DSTBLEND_SRC_COLOR;
+		/*else if (r_lightmapBlendHack->integer == 2)
+			stages[1].stateBits = GLS_SRCBLEND_ZERO | GLS_DSTBLEND_ONE_MINUS_SRC_COLOR;
+		else if (r_lightmapBlendHack->integer == 3)
+			stages[1].stateBits |= GLS_DSTBLEND_ONE_MINUS_SRC_ALPHA |  GLS_SRCBLEND_SRC_ALPHA;*/
+		else
 		stages[1].stateBits |= GLS_SRCBLEND_DST_COLOR | GLS_DSTBLEND_ZERO;
+
 		}
 	}
 
@@ -6165,6 +6188,13 @@ qhandle_t RE_RegisterShaderFromImage(const char *name, int lightmapIndex, image_
 		stages[1].bundle[0].image[0] = image;
 		stages[1].active = qtrue;
 		stages[1].rgbGen = CGEN_IDENTITY;
+		if (r_lightmapBlend->integer == 1)
+			stages[1].stateBits |= GLS_SRCBLEND_DST_COLOR | GLS_DSTBLEND_SRC_COLOR;
+		/*else if (r_lightmapBlendHack->integer == 2)
+			stages[1].stateBits = GLS_SRCBLEND_ZERO | GLS_DSTBLEND_ONE_MINUS_SRC_COLOR;
+		else if (r_lightmapBlendHack->integer == 3)
+			stages[1].stateBits |= GLS_DSTBLEND_ONE_MINUS_SRC_ALPHA |  GLS_SRCBLEND_SRC_ALPHA;*/
+		else
 		stages[1].stateBits |= GLS_SRCBLEND_DST_COLOR | GLS_DSTBLEND_ZERO;
 	}
 

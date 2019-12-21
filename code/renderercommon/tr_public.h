@@ -71,6 +71,8 @@ typedef struct {
 
 	void	(*LFX_ParticleEffect)( int effect, const vec3_t origin, const vec3_t velocity ); // leilei - particles
 
+	void	(*GetViewPosition)( vec3_t point ); 
+
 	void	(*SetColor)( const float *rgba );	// NULL = 1,1,1,1
 	void	(*DrawStretchPic) ( float x, float y, float w, float h, 
 		float s1, float t1, float s2, float t2, qhandle_t hShader );	// 0 = white

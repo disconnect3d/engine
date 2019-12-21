@@ -376,10 +376,15 @@ static void R_Bloom_Cascaded( void )
 	float intensity2;
 
 	qglColor4f( 1.0f, 1.0f, 1.0f, 1.0f );
+
 	//Take the backup texture and downscale it
 	GL_Bind( bloom.screen.texture );
 	GL_State( GLS_DEPTHTEST_DISABLE | GLS_SRCBLEND_ONE | GLS_DSTBLEND_ZERO );
 	R_Bloom_Quad( bloom.work.width, bloom.work.height, 0, 0, bloom.screen.readW, bloom.screen.readH );
+//	qglCopyTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, 0, 0, bloom.work.width, bloom.work.height );
+
+
+
 	//Copy downscaled framebuffer into a texture
 	GL_Bind( bloom.effect.texture );
 	qglCopyTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, 0, 0, bloom.work.width, bloom.work.height );
@@ -467,6 +472,54 @@ static void R_Bloom_Cascaded( void )
 	qglCopyTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, 0, 0, bloom.work.width, bloom.work.height );
 
 }
+
+// using EXPENSIVE readpixels here
+void R_WaterBloom( void )
+{
+	int scale;
+	byte		*buffer;
+	byte		*source, *allsource;
+	byte		*src, *dst;
+	int			x, y;
+	int			r, g, b;
+	float		xScale, yScale;
+	int			xx, yy;
+	//watfer = ri.Hunk_AllocateTempMemory(128 * 128*3 + 18);
+
+	//qglReadPixels(0, 0, glConfig.vidWidth, glConfig.vidHeight, GL_RGB, GL_UNSIGNED_BYTE, allsource);
+
+	//qglColor4f( 1.0f, 1.0f, 1.0f, 1.0f );
+	force32upload = 1;
+	
+	// leilei - water reflections
+/*
+	//Take the backup texture and downscale it
+	GL_Bind( bloom.screen.texture );
+	//GL_State( GLS_DEPTHTEST_DISABLE | GLS_SRCBLEND_ONE | GLS_DSTBLEND_ZERO );
+	GL_State( GLS_DEPTHTEST_DISABLE | GLS_SRCBLEND_ONE | GLS_DSTBLEND_ZERO );
+
+	R_Bloom_Quad( bloom.work.width, bloom.work.height, 0, 0, bloom.screen.readW, bloom.screen.readH );
+	qglCopyTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, 0, 0, glConfig.vidWidth, glConfig.vidHeight );
+	//Copy downscaled framebuffer into a texture
+
+	GL_Bind( tr.reflectImage );
+	GL_State(  GLS_SRCBLEND_ONE | GLS_DSTBLEND_ZERO );
+///	GL_State( GLS_DEPTHTEST_DISABLE | GLS_SRCBLEND_ONE | GLS_DSTBLEND_ZERO );
+
+	R_Bloom_Quad( 128, 128, 0, 0, bloom.screen.readW, bloom.screen.readH );
+	qglCopyTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, 0, 0, 128, 128 );
+
+	*/
+
+	GL_Bind( tr.reflectImage );
+//	GL_State(  GLS_SRCBLEND_ONE | GLS_DSTBLEND_ZERO );
+	GL_State( GLS_DEPTHTEST_DISABLE | GLS_SRCBLEND_ONE | GLS_DSTBLEND_ZERO );
+
+//	R_Bloom_Quad( 128, 128, 0, 0, bloom.screen.readW, bloom.screen.readH );
+	qglCopyTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, 0, 0, 128, 128 );
+
+}
+
 
 /*
 =================
@@ -760,6 +813,7 @@ R_BloomScreen
 */
 void R_BloomScreen( void )
 {
+
 	if (!bloominited)
 		return;
 	if( !r_bloom->integer )
@@ -1153,15 +1207,15 @@ void R_BrightItUp (int dst, int src, float intensity)
 void R_BrightScreen( void )
 {
 	int mode = 0;	// 0 = none; 1 = blend; 2 = shader
-	if( !r_alternateBrightness->integer)
+	if( !tr.brightnessMethod)
 		return;
 	if ( backEnd.doneAltBrightness)
 		return;
 
-	if (r_alternateBrightness->integer == 1)
+	if (tr.brightnessMethod == 1)
 		mode = 1;	// force use blend
 #ifdef GLSL_POSTPROCESSING
-	if (r_alternateBrightness->integer == 2) {
+	if (tr.brightnessMethod == 2) {
 		// Automatically determine from capabilities
 		if ( vertexShaders ) {
 			mode = 2;

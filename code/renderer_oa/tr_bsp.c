@@ -108,23 +108,115 @@ static	void R_ColorShiftLightingBytes( byte in[4], byte out[4] ) {
 	r = in[0] << shift;
 	g = in[1] << shift;
 	b = in[2] << shift;
+	if (r_lightmapColorNorm->integer)	 // leilei - made this an option for trying normal clamp
+	{	
+		// normalize by color instead of saturating to white
+		if ( ( r | g | b ) > 255 ) {
+			int		max;
 	
-	// normalize by color instead of saturating to white
-	if ( ( r | g | b ) > 255 ) {
-		int		max;
-
-		max = r > g ? r : g;
-		max = max > b ? max : b;
-		r = r * 255 / max;
-		g = g * 255 / max;
-		b = b * 255 / max;
+			max = r > g ? r : g;
+			max = max > b ? max : b;
+			r = r * 255 / max;
+			g = g * 255 / max;
+			b = b * 255 / max;
+		}
 	}
+	else
+	{
+		if ( r > 255 ) r = 255;
+		if ( g > 255 ) g = 255;
+		if ( b > 255 ) b = 255;
+	}
+
 
 	out[0] = r;
 	out[1] = g;
 	out[2] = b;
 	out[3] = in[3];
 }
+
+// leilei - modified version for lightmaps only
+
+static	void R_ColorShiftLightingBytesLM( byte in[4], byte out[4] ) {
+	int		shift, r, g, b;
+
+	// shift the color data based on overbright range
+	shift = r_mapOverBrightBits->integer - tr.overbrightBits;
+
+	if (r_lightmapBlend->integer == 1) shift -= 1; // leilei - do one less shift if we're doing 'modulated' blend
+
+	// shift the data based on overbright range
+	r = in[0] << shift;
+	g = in[1] << shift;
+	b = in[2] << shift;
+	if (r_lightmapColorNorm->integer)
+	{	
+		// normalize by color instead of saturating to white
+		if ( ( r | g | b ) > 255 ) {
+			int		max;
+	
+			max = r > g ? r : g;
+			max = max > b ? max : b;
+			r = r * 255 / max;
+			g = g * 255 / max;
+			b = b * 255 / max;
+		}
+	}
+	else
+	{
+		if ( r > 255 ) r = 255;
+		if ( g > 255 ) g = 255;
+		if ( b > 255 ) b = 255;
+	}
+/*
+	if (r_lightmapBlend->integer == 2) // leilei - subtractive blend needs an invert
+	{
+		int invr, invg, invb = 0;
+		r= 255-r;
+		g= 255-g;
+		b= 255-b;
+	//	invg += r/2;
+	//	invb += r/2;
+	//	invr += g/2;
+	//	invb += g/2;
+	//	invb += b/2;
+	//	invr += b/2;
+	//	if (invr > 255) invr = 255;
+	//	if (invg > 255) invg = 255;
+	//	if (invb > 255) invb = 255;
+	//	r = invr;
+	//	g = invg;
+	//	b = invb;
+
+	}
+	else if (r_lightmapBlendHack->integer == 3) // alpha blend
+	{
+		int alph;
+		vec3_t norm;
+		norm[0] = r/255; norm[1] = g/255; norm[2] = b/255;
+		VectorNormalize(norm);
+		r = norm[0] * 255;
+		g = norm[1] * 255;
+		b = norm[2] * 255;
+//		r *= 0.298;
+//		g *= 0.588;
+//		b *= 0.109;
+		out[3] = r;// alpha channel
+
+		
+		out[0] = r;
+		out[1] = g;
+		out[2] = b;
+
+		return;
+	}
+*/
+	out[0] = r;
+	out[1] = g;
+	out[2] = b;
+	out[3] = in[3];
+}
+
 
 /*
 ===============
@@ -199,7 +291,7 @@ static	void R_LoadLightmaps( lump_t *l ) {
 			}
 		} else {
 			for ( j = 0 ; j < LIGHTMAP_SIZE * LIGHTMAP_SIZE; j++ ) {
-				R_ColorShiftLightingBytes( &buf_p[j*3], &image[j*4] );
+				R_ColorShiftLightingBytesLM( &buf_p[j*3], &image[j*4] );
 				image[j*4+3] = 255;
 			}
 		}
@@ -498,7 +590,6 @@ static void ParseTriSurf( dsurface_t *ds, drawVert_t *verts, msurface_t *surf, i
 			tri->verts[i].st[j] = LittleFloat( verts[i].st[j] );
 			tri->verts[i].lightmap[j] = LittleFloat( verts[i].lightmap[j] );
 		}
-
 		R_ColorShiftLightingBytes( verts[i].color, tri->verts[i].color );
 	}
 

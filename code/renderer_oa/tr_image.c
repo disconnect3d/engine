@@ -1267,14 +1267,42 @@ static void Upload32( unsigned *data,
 	}
 
 	
-	if (detailhack && r_detailTextureSub->integer)	// invert for subtractive
+	if (detailhack && r_detailTextureSub->integer == 1)	// invert for subtractive
 	{
 			
 		for ( i = 0; i < c; i++ )
 			{
 				int eh;
 				for (eh=0;eh<3;eh++){
-					scan[i*4 + eh] = ((scan[i*4 + eh] * -1) + 255) * 1.0;
+					//scan[i*4 + eh] = (((scan[i*4 + eh] * -1) + 255) * 1.0);
+					scan[i*4 + eh] >>= 1;
+					scan[i*4 + eh] = 255-scan[i*4 + eh];
+					}
+			}
+	}
+	else if (detailhack && r_detailTextureSub->integer == 2) // shift for filter
+	{
+			
+		for ( i = 0; i < c; i++ )
+			{
+				int eh;
+				for (eh=0;eh<3;eh++){
+					scan[i*4 + eh] *= 1.4;
+					if (scan[i*4+eh] > 255) scan[i*4+eh] = 255;
+					}
+			}
+	}
+	else if (detailhack && r_lightmapBlend->integer == 1) // readjust for multitextured modulate
+	{
+			
+		for ( i = 0; i < c; i++ )
+			{
+				int eh;
+				for (eh=0;eh<3;eh++){
+					scan[i*4 + eh] *= 0.25f;
+					scan[i*4 + eh] += 96;
+					if (scan[i*4+eh] > 255) scan[i*4+eh] = 255;
+					//if (scan[i*4+eh] < 192) scan[i*4+eh] = 192;
 					}
 			}
 	}
@@ -2196,6 +2224,12 @@ void R_LoadImage( const char *name, byte **pic, int *width, int *height )
 			break;
 		}
 	}
+
+	// leilei - check for a fractal file
+	{
+
+
+	}
 }
 
 
@@ -2652,10 +2686,17 @@ void R_CreateBuiltinImages( void ) {
 	R_CreateFogImage();
 	//tr.fogImage = R_FindImageFile( "gfx/engine/fog.tga", 0, IMGFLAG_CLAMPTOEDGE )
 	//tr.dlightImage = R_FindImageFile( "gfx/engine/dlight.tga", 0, IMGFLAG_CLAMPTOEDGE );
+
+	// leilei - water reflection
+	if (r_texreflect->integer)
+	{
+	byte	refData[128][128][4];
+	tr.reflectImage = R_CreateImage("*reflection", (byte *)refData, 128, 128, IMGTYPE_COLORALPHA, IMGFLAG_NONE, 0);
+
+	}
 }
 
 
-extern cvar_t *r_alternateBrightness;
 /*
 ===============
 R_SetColorMappings
@@ -2669,16 +2710,18 @@ void R_SetColorMappings( void ) {
 
 	// setup the overbright lighting
 	tr.overbrightBits = r_overBrightBits->integer;
-	if ( !glConfig.deviceSupportsGamma && !r_alternateBrightness->integer) {
-		tr.overbrightBits = 0;		// need hardware gamma for overbright
+	if (!r_alternateBrightness->integer)
+		{
+		if ( !glConfig.deviceSupportsGamma ) {
+			tr.overbrightBits = 0;		// need hardware gamma for overbright
+		}
+	
+		// never overbright in windowed mode
+		if ( !glConfig.isFullscreen )
+		{
+			tr.overbrightBits = 0;
+		}
 	}
-
-	// never overbright in windowed mode
-	if ( !glConfig.isFullscreen && !r_alternateBrightness->integer)
-	{
-		tr.overbrightBits = 0;
-	}
-
 	// allow 2 overbright bits in 24 bit, but only 1 in 16 bit
 	if ( glConfig.colorBits > 16 ) {
 		if ( tr.overbrightBits > 2 ) {
@@ -2710,7 +2753,7 @@ void R_SetColorMappings( void ) {
 	g = r_gamma->value;
 
 	if (r_alternateBrightness->integer != 1)	// leilei - don't do the shift to the brightness when we do alternate. This allows
-	shift = tr.overbrightBits;		// hardware gamma to work (if available) since we can't do alternate gamma via blends
+	shift = tr.overbrightBits;	// hardware gamma to work (if available) since we can't do alternate gamma via blends
 	else shift = 0;	// don't
 
 	for ( i = 0; i < 256; i++ ) {
@@ -2737,7 +2780,7 @@ void R_SetColorMappings( void ) {
 		s_intensitytable[i] = j;
 	}
 
-	if ( glConfig.deviceSupportsGamma && r_alternateBrightness->integer != 2)
+	if ( glConfig.deviceSupportsGamma && tr.brightnessMethod != 2)
 	{
 		GLimp_SetGamma( s_gammatable, s_gammatable, s_gammatable );
 	}

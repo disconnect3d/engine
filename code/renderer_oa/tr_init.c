@@ -35,6 +35,8 @@ char 		depthimage;
 
 glstate_t	glState;
 
+int brightnessMethod; // leilei - do it here before tr starts, so we can initialize brightness better
+
 static void GfxInfo_f( void );
 
 extern int voodootype;
@@ -201,6 +203,8 @@ cvar_t	*r_flareQuality;	// testing quality of the flares.
 cvar_t	*r_flareSun;		// type of flare to use for the sun
 cvar_t	*r_flareDelay;		// time delay for medium quality flare testing
 cvar_t	*r_flaresMotionBlur;	// Stretch blur
+cvar_t	*r_lightmapBlend;
+cvar_t	*r_lightmapColorNorm;
 
 cvar_t	*r_flaresDlight;
 cvar_t	*r_flaresDlightShrink;
@@ -216,6 +220,8 @@ cvar_t	*r_modelshader;		// Leilei
 cvar_t	*r_maxmodellights;	// Leilei
 cvar_t	*r_dynamicvertexlight;	// Leilei
 cvar_t	*r_particles;		// Leilei - particle effects motif
+cvar_t	*r_texreflect;		// Leilei - 
+cvar_t	*r_mdrPhysics;		// Leilei - mdr physics
 
 cvar_t	*r_legacycard;		// leilei - selection of shader to mimic notable old video cards
 
@@ -231,6 +237,9 @@ cvar_t	*r_slowness_cpu;		// Leilei
 cvar_t	*r_slowness_gpu;		// Leilei
 
 cvar_t	*r_textureDither;	// leilei - Dithered texture
+
+cvar_t	*r_lerpModels;	// leilei - lerp option
+cvar_t	*r_fastMDR;	// leilei - MDR hack
 
 // leilei - fallback shader hack
 
@@ -538,7 +547,7 @@ void RB_TakeScreenshot(int x, int y, int width, int height, char *fileName)
 	memcount = linelen * height;
 
 	// gamma correct
-	if ( glConfig.deviceSupportsGamma && !r_alternateBrightness->integer) {
+	if ( glConfig.deviceSupportsGamma && !tr.brightnessMethod) {
 		R_GammaCorrect(allbuf + offset, memcount);
 	}
 
@@ -1245,6 +1254,8 @@ void R_Register( void )
 	r_nocurves = ri.Cvar_Get ("r_nocurves", "0", CVAR_CHEAT );
 	r_drawworld = ri.Cvar_Get ("r_drawworld", "1", CVAR_CHEAT );
 	r_lightmap = ri.Cvar_Get ("r_lightmap", "0", 0 );
+	r_lightmapBlend = ri.Cvar_Get ("r_lightmapBlend", "0", CVAR_ARCHIVE | CVAR_LATCH );
+	r_lightmapColorNorm = ri.Cvar_Get ("r_lightmapColorNorm", "1", CVAR_ARCHIVE | CVAR_LATCH );
 	r_portalOnly = ri.Cvar_Get ("r_portalOnly", "0", CVAR_CHEAT );
 
 
@@ -1324,6 +1335,8 @@ void R_Register( void )
 	r_palletize = ri.Cvar_Get( "r_palletize", "0" , CVAR_ARCHIVE | CVAR_LATCH);
 	r_leidebug = ri.Cvar_Get( "r_leidebug", "0" , CVAR_CHEAT);
 	r_particles = ri.Cvar_Get( "r_particles", "1" , CVAR_ARCHIVE | CVAR_LATCH);
+	r_texreflect = ri.Cvar_Get( "r_texreflect", "0" , CVAR_ARCHIVE | CVAR_LATCH);
+	r_mdrPhysics = ri.Cvar_Get( "r_mdrPhysics", "1" , CVAR_ARCHIVE);
 	r_leidebugeye = ri.Cvar_Get( "r_leidebugeye", "0" , CVAR_CHEAT);
 	r_slowness = ri.Cvar_Get( "r_slowness", "0" , CVAR_ARCHIVE);	// it's 0 because you want it to be the fastest possible by default.
 	r_slowness_cpu = ri.Cvar_Get( "r_slowness_cpu", "300" , CVAR_ARCHIVE);	// it's 0 because you want it to be the fastest possible by default.
@@ -1335,6 +1348,9 @@ void R_Register( void )
 	r_lightmapBits = ri.Cvar_Get ("r_lightmapBits", "0", CVAR_ARCHIVE | CVAR_LATCH );	// leilei - lightmap color bits
 
 	r_textureDither = ri.Cvar_Get ("r_textureDither", "0", CVAR_ARCHIVE | CVAR_LATCH );	// leilei - dithered textures
+
+	r_lerpModels = ri.Cvar_Get ("r_lerpModels", "1", CVAR_ARCHIVE );	// leilei - optional model lerping
+	r_fastMDR = ri.Cvar_Get ("r_fastMDR", "0", CVAR_ARCHIVE );	// leilei - lower precision MDR rendering
 
 	// make sure all the commands added here are also
 	// removed in R_Shutdown
@@ -1638,8 +1654,6 @@ void R_Init( void )
 	
 	R_PostprocessingInit();
 	
-	R_AltBrightnessInit();	// leilei	- alternate brightness
-	
 	max_polys = r_maxpolys->integer;
 	if (max_polys < MAX_POLYS)
 		max_polys = MAX_POLYS;
@@ -1672,9 +1686,11 @@ void R_Init( void )
 	err = qglGetError();
 	if ( err != GL_NO_ERROR )
 		ri.Printf (PRINT_ALL, "glGetError() = 0x%x\n", err);
-
 	tr.shadeMode = r_modelshader->integer;
 	tr.litesources = r_maxmodellights->integer;
+	tr.brightnessMethod = r_alternateBrightness->integer;
+	R_AltBrightnessInit();	// leilei	- alternate brightness
+
 	if (tr.litesources < 1) tr.litesources = 1;
 	if (tr.litesources > 5) tr.litesources = 5;
 
@@ -1791,6 +1807,7 @@ refexport_t *GetRefAPI ( int apiVersion, refimport_t *rimp )
 	re.AddRefEntityToScene = RE_AddRefEntityToScene;
 	re.AddPolyToScene = RE_AddPolyToScene;
 	re.LFX_ParticleEffect = LFX_ParticleEffect;
+	re.GetViewPosition = RE_GetViewPosition;
 	re.LightForPoint = R_LightForPoint;
 	re.AddLightToScene = RE_AddLightToScene;
 	re.AddAdditiveLightToScene = RE_AddAdditiveLightToScene;

@@ -85,33 +85,33 @@ typedef enum {
 
 typedef struct {
 	refEntityType_t	reType;
-	int			renderfx;
+	int		renderfx;
 
-	qhandle_t	hModel;				// opaque type outside refresh
+	qhandle_t	hModel;			// opaque type outside refresh
 
 	// most recent data
 	vec3_t		lightingOrigin;		// so multi-part models can be lit identically (RF_LIGHTING_ORIGIN)
 	float		shadowPlane;		// projection shadows go here, stencils go slightly lower
 
-	vec3_t		axis[3];			// rotation vectors
+	vec3_t		axis[3];		// rotation vectors
 	qboolean	nonNormalizedAxes;	// axis are not normalized, i.e. they have scale
-	float		origin[3];			// also used as MODEL_BEAM's "from"
-	int			frame;				// also used as MODEL_BEAM's diameter
+	float		origin[3];		// also used as MODEL_BEAM's "from"
+	int		frame;			// also used as MODEL_BEAM's diameter
 
 	// previous data for frame interpolation
 	float		oldorigin[3];		// also used as MODEL_BEAM's "to"
-	int			oldframe;
-	float		backlerp;			// 0.0 = current, 1.0 = old
+	int		oldframe;
+	float		backlerp;		// 0.0 = current, 1.0 = old
 
 	// texturing
-	int			skinNum;			// inline skin index
-	qhandle_t	customSkin;			// NULL for default skin
+	int		skinNum;		// inline skin index
+	qhandle_t	customSkin;		// NULL for default skin
 	qhandle_t	customShader;		// use one image for the entire thing
 
 	// misc
 	byte		shaderRGBA[4];		// colors used by rgbgen entity shaders
 	float		shaderTexCoord[2];	// texture coordinates used by tcMod entity modifiers
-	float		shaderTime;			// subtracted from refdef time to control effect start times
+	float		shaderTime;		// subtracted from refdef time to control effect start times
 
 	// extra sprite information
 	float		radius;

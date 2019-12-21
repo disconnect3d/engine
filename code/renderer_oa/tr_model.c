@@ -24,7 +24,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "tr_local.h"
 
 #define	LL(x) x=LittleLong(x)
-
+static int isMDP; // leilei - for MDRs with deformed bone properties
 static qboolean R_LoadMD3(model_t *mod, int lod, void *buffer, const char *name );
 static qboolean R_LoadMDR(model_t *mod, void *buffer, int filesize, const char *name );
 extern int ismaptexture; // leilei - for listing map textures
@@ -129,7 +129,7 @@ qhandle_t R_RegisterMDR(const char *name, model_t *mod)
 		mod->type = MOD_BAD;
 		return 0;
 	}
-	
+	isMDP = 0;
 	ident = LittleLong(*(unsigned *)buf.u);
 	if(ident == MDR_IDENT)
 		loaded = R_LoadMDR(mod, buf.u, filesize, name);
@@ -145,6 +145,158 @@ qhandle_t R_RegisterMDR(const char *name, model_t *mod)
 	
 	return mod->index;
 }
+
+
+/*
+====================
+R_RegisterMDP
+
+leilei - MDR with additional defined properties for secondary physics
+====================
+*/
+qhandle_t R_RegisterMDP(const char *name, model_t *mod)
+{
+	union {
+		unsigned *u;
+		void *v;
+	} buf;
+	int	ident;
+	qboolean loaded = qfalse;
+	int filesize;
+	isMDP = 1;	
+	filesize = ri.FS_ReadFile(name, (void **) &buf.v);
+	if(!buf.u)
+	{
+		mod->type = MOD_BAD;
+		return 0;
+	}
+			// leilei - find a config....
+			{
+				int stop = 0;
+				char cfgName[ MAX_QPATH ];
+				char *text_p;
+				int len;
+				int i;
+				char *token;
+				char text[16384];
+				fileHandle_t f;
+
+				// Find our Physics definition file
+				COM_StripExtension( name, cfgName, MAX_QPATH );
+				sprintf(cfgName,"%s.phy",cfgName);
+		
+				len = FS_FOpenFileRead(cfgName, &f, qtrue);
+				if (len <= 0) {
+					ri.Printf(PRINT_WARNING,"R_RegisterMDP: Couldn't find the %s file, will continue without physics\n", cfgName);	
+					stop=1;
+				}
+				if (len >= sizeof ( text) - 1) {
+					//ri.Printf(PRINT_WARNING,"R_RegisterMDP: Physics file %s is too long\n", cfgName);
+					FS_FCloseFile (f);
+					stop=1;
+				}
+				if (!stop){
+					FS_Read(text, len, f);
+					text[len] = 0;
+					FS_FCloseFile(f);
+				
+					// parse the text
+					text_p = text;
+			
+							ri.Printf(PRINT_WARNING,"MDP - this is model index %i", mod->index);	
+							ri.Printf(PRINT_WARNING,"R_RegisterMDP: Physics reading.....\n");
+					int thep = 0;
+				
+					isMDP = 1;	// yep, there's physics here
+
+					while (1) {
+			
+						token = COM_Parse(&text_p);
+						if ( !token[0] ) {
+							break;
+						}
+						//token = COM_Parse(&text_p);
+						if (!Q_stricmp(token, "suggestive")){ // allow user to turn off the physics after this mark
+							if (r_suggestiveThemes->integer < 1) break;
+							
+							else
+							{
+								token = COM_Parse(&text_p);
+							}
+						}
+						if (!Q_stricmp(token, "spring")) { 
+							token = COM_Parse(&text_p);
+							ri.Printf(PRINT_WARNING,"R_RegisterMDP: Physic %i: FOUND SPRING!!!\n",thep);
+							mod->phys.p[thep].type= MDP_SPRING;
+						
+							
+							//token = COM_Parse(&text_p);
+							ri.Printf(PRINT_WARNING,"Spring parameters: %i bonenumber", atoi(token));
+							mod->phys.p[thep].targbone=atoi(token);
+								// default parms
+							mod->phys.p[thep].spring = 0.30f;
+							mod->phys.p[thep].limitl[0] = 0.3f;
+							mod->phys.p[thep].limitl[1] = 0.3f;
+							mod->phys.p[thep].limitl[2] = 0.9f;
+							mod->phys.p[thep].limitr[0] = 0.15f;
+							mod->phys.p[thep].limitr[1] = 0.15f;
+							mod->phys.p[thep].limitr[2] = 0.15f;
+		
+							token = COM_Parse(&text_p);
+							ri.Printf(PRINT_WARNING,"%f springiness\n", atof(token));
+							mod->phys.p[thep].spring=atof(token);
+							mod->phys.p[thep].limitl[0] *= mod->phys.p[thep].spring;
+							mod->phys.p[thep].limitl[1] *= mod->phys.p[thep].spring;
+							mod->phys.p[thep].limitl[2] *= mod->phys.p[thep].spring;
+
+
+							/*
+							token = COM_Parse(&text_p);
+							ri.Printf(PRINT_WARNING,"rot limit: %f", atof(token));
+							mod->phys.p[thep].limitr[0]=atof(token);
+							token = COM_Parse(&text_p);
+							ri.Printf(PRINT_WARNING," %f", atof(token));
+							mod->phys.p[thep].limitr[1]=atof(token);
+							token = COM_Parse(&text_p);
+							ri.Printf(PRINT_WARNING," %f\n", atof(token));
+							mod->phys.p[thep].limitr[2]=atof(token);
+							*/
+							
+							
+			
+							thep++;
+							continue;
+							
+						}
+						break;
+					}
+				}
+		
+			
+		}
+
+
+	ident = LittleLong(*(unsigned *)buf.u);
+	if(ident == MDR_IDENT)
+		{
+			// Check if there's a physics config
+			loaded = R_LoadMDR(mod, buf.u, filesize, name);			
+		}
+
+	ri.FS_FreeFile (buf.v);
+	
+	if(!loaded)
+	{
+		ri.Printf(PRINT_WARNING,"R_RegisterMDP: couldn't load mdr file %s\n", name);
+		mod->type = MOD_BAD;
+		return 0;
+	}
+
+
+
+	return mod->index;
+}
+
 
 /*
 ====================
@@ -193,8 +345,9 @@ typedef struct
 // when there are multiple models of different formats available
 static modelExtToLoaderMap_t modelLoaders[ ] =
 {
-	{ "iqm", R_RegisterIQM },
-	{ "mdr", R_RegisterMDR },
+	//{ "iqm", R_RegisterIQM },	// leilei - iqm sucks
+//	{ "mdp", R_RegisterMDP },
+	{ "mdr", R_RegisterMDP },
 	{ "md3", R_RegisterMD3 }
 };
 static int numModelLoaders = ARRAY_LEN(modelLoaders);
@@ -383,7 +536,7 @@ qhandle_t RE_RegisterModel( const char *name ) {
 				// TODO: Free the previous _safe qhandle 
 		return eh;
 		}
-	else if (r_suggestiveThemes->integer > 1){		// lewd models, won't ship, but adding support anyway so normal 
+	else if (r_suggestiveThemes->integer == 69){		// lewd models, won't ship, but adding support anyway so normal 
 								// models aren't replaced with lewd
 		qhandle_t  eh;
 		char	narm[ MAX_QPATH ];
@@ -763,6 +916,8 @@ static qboolean R_LoadMDR( model_t *mod, void *buffer, int filesize, const char 
 			// first do some copying stuff
 			
 			surf->ident = SF_MDR;
+			if (isMDP)
+			surf->ident = SF_MDP;
 			Q_strncpyz(surf->name, cursurf->name, sizeof(surf->name));
 			Q_strncpyz(surf->shader, cursurf->shader, sizeof(surf->shader));
 			
@@ -898,7 +1053,7 @@ static qboolean R_LoadMDR( model_t *mod, void *buffer, int filesize, const char 
 	{
 		tag->boneIndex = LittleLong(curtag->boneIndex);
 		Q_strncpyz(tag->name, curtag->name, sizeof(tag->name));
-		
+
 		tag++;
 		curtag++;
 	}
@@ -971,7 +1126,13 @@ void R_Modellist_f( void ) {
 				lods++;
 			}
 		}
-		ri.Printf( PRINT_ALL, "%8i : (%i) %s\n",mod->dataSize, lods, mod->name );
+		//ri.Printf( PRINT_ALL, "%8i : (%i) %s\n",mod->dataSize, lods, mod->name );
+		ri.Printf( PRINT_ALL, "%i %8i : (%i) %s", i, mod->dataSize, lods, mod->name );
+		if (mod->phys.p->type)
+			ri.Printf( PRINT_ALL, " PHYSICS");
+
+			ri.Printf( PRINT_ALL, "\n" );
+
 		total += mod->dataSize;
 	}
 	ri.Printf( PRINT_ALL, "%8i : Total models\n", total );
@@ -1103,6 +1264,19 @@ int R_LerpTag( orientation_t *tag, qhandle_t handle, int startFrame, int endFram
 	
 	frontLerp = frac;
 	backLerp = 1.0f - frac;
+	if (!r_lerpModels->integer){ backLerp = 0.5; frontLerp = 0.5; 
+		for ( i = 0 ; i < 3 ; i++ ) {
+			tag->origin[i] = end->origin[i];
+			tag->axis[0][i] = end->axis[0][i];
+			tag->axis[1][i] = end->axis[1][i];
+			tag->axis[2][i] = end->axis[2][i];
+		}
+	VectorNormalize( tag->axis[0] );
+	VectorNormalize( tag->axis[1] );
+	VectorNormalize( tag->axis[2] );
+	return qtrue;
+
+	}
 
 	for ( i = 0 ; i < 3 ; i++ ) {
 		tag->origin[i] = start->origin[i] * backLerp +  end->origin[i] * frontLerp;

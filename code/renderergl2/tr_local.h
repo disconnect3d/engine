@@ -1279,6 +1279,7 @@ typedef struct model_s {
 	void	*modelData;			// only if type == (MOD_MDR | MOD_IQM)
 
 	int			 numLods;
+	int		mdln;
 } model_t;
 
 

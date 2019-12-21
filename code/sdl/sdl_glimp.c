@@ -36,6 +36,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "sdl_icon.h"
 
 extern cvar_t	*r_alternateBrightness;		
+extern int brightnessMethod;
 /* Just hack it for now. */
 #ifdef MACOS_X
 #include <OpenGL/OpenGL.h>
@@ -483,7 +484,7 @@ static int GLimp_SetMode(int mode, qboolean fullscreen, qboolean noborder)
 	if( r_tvMode->integer > -1){
 
 
-	if ( !R_GetModeInfo( &glConfig.vidWidth, &glConfig.vidHeight, &glConfig.windowAspect, r_tvMode->integer ) )
+	if ( !R_GetModeInfo( &glConfig.vidWidth, &glConfig.vidHeight, &glConfig.windowAspect, r_mode->integer ) )
 	{
 		glConfig.vidWidth = 640;		// if we can't do a mode then do this mode
 		glConfig.vidHeight = 480;
@@ -798,8 +799,9 @@ void GLimp_Init( void )
 
 	r_alternateBrightness = ri.Cvar_Get( "r_alternateBrightness", "2", CVAR_ARCHIVE | CVAR_LATCH);
 
-	r_glDriver = ri.Cvar_Get( "r_glDriver", "opengl32", CVAR_ROM );	// leilei - allow load of other gl drivers
+	r_glDriver = ri.Cvar_Get( "r_glDriver", "opengl32", CVAR_ARCHIVE | CVAR_LATCH );	// leilei - allow load of other gl drivers
 
+	
 	if( ri.Cvar_VariableIntegerValue( "com_abnormalExit" ) )
 	{
 		ri.Cvar_Set( "r_mode", va( "%d", R_MODE_FALLBACK ) );
@@ -809,6 +811,14 @@ void GLimp_Init( void )
 	}
 
 	ri.Sys_SetEnv( "SDL_VIDEO_CENTERED", r_centerWindow->integer ? "1" : "" );
+
+	// test - 3dfx filter blast
+//	ri.Sys_SetEnv( "SST_VIDEO_FILTER_THRESHOLD", "0xFFFFFF" );
+//	ri.Sys_SetEnv( "SSTV2_VIDEO_FILTER_THRESHOLD", "0xFFFFFF" );
+	//ri.Sys_SetEnv( "SSTV2_VIDEO_24BPP", "1" );
+	//ri.Sys_SetEnv( "SST_VIDEO_24BPP", "1" );
+
+	ri.Sys_SetEnv( "SDL_VIDEO_GL_DRIVER", r_glDriver->string );
 
 	ri.Sys_GLimpInit( );
 
@@ -871,6 +881,7 @@ success:
 	if ( 1 == r_ignorehwgamma->integer)
 		glConfig.deviceSupportsGamma = 0;
 */
+	brightnessMethod = r_alternateBrightness->integer; // leilei - sanitize
 	// leilei - hacky workaround to not mess with color profiles when we got shader gamma
 	if ( r_ignorehwgamma->integer || r_alternateBrightness->integer == 2)
 	{

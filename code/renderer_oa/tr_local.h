@@ -62,6 +62,52 @@ typedef struct dlight_s {
 
 image_t	*notfbotex;
 
+// leilei - crazy MDR physics bones
+#define MAX_MDR_PHYSICS 32
+
+#define MDP_SPRING 	1
+#define MDP_JIGGLE 	2	
+#define MDP_HAIR   	3
+#define MDP_SCALESET	4
+#define MDP_LINK	5 // points targbone to targbone2
+#define MDP_INHERIT	6 // takes origin/angle change from targbone to targbone2
+#define MDP_DEBUG  	7
+
+typedef struct mdrPhysics_s {
+	int 		targbone;	// Bone to target
+	int 		type;		// type of physic
+	float 		spring;
+	vec3_t		limitl; 	// length limit for spring
+	vec3_t		limitr;		// rotateable limit for spring
+	int		scaleset;	// which set of scale to use
+	vec3_t		scale1;		// For scaleset
+	vec3_t		scale2;		// For scaleset
+	int 		suggestive; 	// user disableable
+} mdrPhysics_t;
+	
+// For Model_t's to track their properties of each physic and the bone they modify
+typedef struct mdrPhys_s {
+	mdrPhysics_t	p[MAX_MDR_PHYSICS];
+	int		maxphs;
+	int		modelindex;
+	//model_t		*mod;
+	int		mdln;
+	int		inited;
+} mdrPhys_t;
+
+// For RefEntity_t's to track their bones that are being moved
+typedef struct mdrPhysLocal_s
+{
+	vec3_t	oldorg[MDR_MAX_BONES];
+	vec3_t 	neworg[MDR_MAX_BONES];
+	vec3_t	oldmorg[MDR_MAX_BONES];
+	vec3_t 	newmorg[MDR_MAX_BONES];
+	vec3_t	vel[MDR_MAX_BONES];
+	int	time[MDR_MAX_BONES];			// when to iterate physics
+	int	modindex;			// hack to verify if it's the same model getting physics?
+} mdrPhysLocal_t;
+
+
 
 // a trRefEntity_t has all the information passed in by
 // the client game, as well as some locally derived info
@@ -79,6 +125,12 @@ typedef struct {
 	vec3_t		dynamicLight;
 	float		lightDistance;
 
+	// leilei - local mdr physics for this ent
+	vec3_t		bonfs;
+	vec3_t		olorg;
+	vec3_t		nuorg;
+	mdrPhys_t	*phy;
+	mdrPhysLocal_t	pl;
 } trRefEntity_t;
 
 
@@ -197,6 +249,7 @@ typedef enum {
 	TCGEN_TEXTURE,
 	TCGEN_ENVIRONMENT_MAPPED,
 	TCGEN_ENVIRONMENT_MAPPED_WATER,		// leilei - fake water reflection
+	TCGEN_VIEWSPACE,			// leilei - less fake water reflection
 	TCGEN_EYE_LEFT,				// eyes
 	TCGEN_EYE_RIGHT,			// eyes
 	TCGEN_FOG,
@@ -315,19 +368,19 @@ typedef struct {
 #define	MAX_IMAGE_ANIMATIONS	8
 
 typedef struct {
-	image_t			*image[MAX_IMAGE_ANIMATIONS];
-	int				numImageAnimations;
-	float			imageAnimationSpeed;
+	image_t		*image[MAX_IMAGE_ANIMATIONS];
+	int		numImageAnimations;
+	float		imageAnimationSpeed;
 
 	texCoordGen_t	tcGen;
-	vec3_t			tcGenVectors[2];
+	vec3_t		tcGenVectors[2];
 
-	int				numTexMods;
+	int		numTexMods;
 	texModInfo_t	*texMods;
 
-	int				videoMapHandle;
-	qboolean		isLightmap;
-	qboolean		isVideoMap;
+	int		videoMapHandle;
+	qboolean	isLightmap;
+	qboolean	isVideoMap;
 
 	// leilei - alphahack
 	
@@ -365,6 +418,7 @@ typedef struct {
 	int			imgWidth;
 	int			imgHeight;		//leilei for glsl shaders
 	qboolean		isSpecular;		// leilei - for specular layers
+	qboolean		isReflect;		// leilei - for tex reflect
 
 	colorMod_t		rgbMod;
 	int			rgbModCol;
@@ -488,15 +542,15 @@ typedef struct shader_s {
 // trRefdef_t holds everything that comes in refdef_t,
 // as well as the locally generated scene information
 typedef struct {
-	int			x, y, width, height;
+	int		x, y, width, height;
 	float		fov_x, fov_y;
 	vec3_t		vieworg;
 	vec3_t		viewaxis[3];		// transformation matrix
 
 	stereoFrame_t	stereoFrame;
 
-	int			time;				// time in milliseconds for shader effects and other time dependent rendering issues
-	int			rdflags;			// RDF_NOWORLDMODEL, etc
+	int		time;				// time in milliseconds for shader effects and other time dependent rendering issues
+	int		rdflags;			// RDF_NOWORLDMODEL, etc
 
 	// 1 bits will prevent the associated area from rendering at all
 	byte		areamask[MAX_MAP_AREA_BYTES];
@@ -532,13 +586,13 @@ typedef struct {
 
 typedef struct skin_s {
 	char		name[MAX_QPATH];		// game path, including extension
-	int			numSurfaces;
+	int		numSurfaces;
 	skinSurface_t	*surfaces[MD3_MAX_SURFACES];
 } skin_t;
 
 
 typedef struct {
-	int			originalBrushNumber;
+	int		originalBrushNumber;
 	vec3_t		bounds[2];
 
 	unsigned	colorInt;				// in packed byte format
@@ -556,10 +610,10 @@ typedef struct {
 	vec3_t		pvsOrigin;			// may be different than or.origin for portals
 	qboolean	isPortal;			// true if this view is through a portal
 	qboolean	isMirror;			// the portal is a mirror, invert the face culling
-	int			frameSceneNum;		// copied from tr.frameSceneNum
-	int			frameCount;			// copied from tr.frameCount
+	int		frameSceneNum;		// copied from tr.frameSceneNum
+	int		frameCount;			// copied from tr.frameCount
 	cplane_t	portalPlane;		// clip anything behind this if mirroring
-	int			viewportX, viewportY, viewportWidth, viewportHeight;
+	int		viewportX, viewportY, viewportWidth, viewportHeight;
 	float		fovX, fovY;
 	float		projectionMatrix[16];
 	cplane_t	frustum[4];
@@ -587,6 +641,7 @@ typedef enum {
 	SF_POLY,
 	SF_MD3,
 	SF_MDR,
+	SF_MDP,
 	SF_IQM,
 	SF_FLARE,
 	SF_ENTITY,				// beams, rails, lightning, etc that can be determined by entity
@@ -610,50 +665,50 @@ typedef struct drawSurf_s {
 // as soon as it is called
 typedef struct srfPoly_s {
 	surfaceType_t	surfaceType;
-	qhandle_t		hShader;
-	int				fogIndex;
-	int				numVerts;
-	polyVert_t		*verts;
+	qhandle_t	hShader;
+	int		fogIndex;
+	int		numVerts;
+	polyVert_t	*verts;
 } srfPoly_t;
 
 typedef struct srfDisplayList_s {
 	surfaceType_t	surfaceType;
-	int				listNum;
+	int		listNum;
 } srfDisplayList_t;
 
 
 typedef struct srfFlare_s {
 	surfaceType_t	surfaceType;
-	vec3_t			origin;
-	vec3_t			normal;
-	vec3_t			color;
-	shader_t		*shadder;	// leilei - for custom flares
+	vec3_t		origin;
+	vec3_t		normal;
+	vec3_t		color;
+	shader_t	*shadder;	// leilei - for custom flares
 } srfFlare_t;
 
 typedef struct srfGridMesh_s {
 	surfaceType_t	surfaceType;
 
 	// dynamic lighting information
-	int				dlightBits;
+	int		dlightBits;
 
 	// culling information
-	vec3_t			meshBounds[2];
-	vec3_t			localOrigin;
-	float			meshRadius;
+	vec3_t		meshBounds[2];
+	vec3_t		localOrigin;
+	float		meshRadius;
 
 	// lod information, which may be different
 	// than the culling information to allow for
 	// groups of curves that LOD as a unit
-	vec3_t			lodOrigin;
-	float			lodRadius;
-	int				lodFixed;
-	int				lodStitched;
+	vec3_t		lodOrigin;
+	float		lodRadius;
+	int		lodFixed;
+	int		lodStitched;
 
 	// vertexes
-	int				width, height;
-	float			*widthLodError;
-	float			*heightLodError;
-	drawVert_t		verts[1];		// variable sized
+	int		width, height;
+	float		*widthLodError;
+	float		*heightLodError;
+	drawVert_t	verts[1];		// variable sized
 } srfGridMesh_t;
 
 
@@ -664,12 +719,12 @@ typedef struct {
 	cplane_t	plane;
 
 	// dynamic lighting information
-	int			dlightBits;
+	int		dlightBits;
 
 	// triangle definitions (no normals at points)
-	int			numPoints;
-	int			numIndices;
-	int			ofsIndices;
+	int		numPoints;
+	int		numIndices;
+	int		ofsIndices;
 	float		points[1][VERTEXSIZE];	// variable sized
 										// there is a variable length list of indices here also
 } srfSurfaceFace_t;
@@ -680,7 +735,7 @@ typedef struct {
 	surfaceType_t	surfaceType;
 
 	// dynamic lighting information
-	int				dlightBits;
+	int			dlightBits;
 
 	// culling information (FIXME: use this!)
 	vec3_t			bounds[2];
@@ -688,10 +743,10 @@ typedef struct {
 	float			radius;
 
 	// triangle definitions
-	int				numIndexes;
-	int				*indexes;
+	int			numIndexes;
+	int			*indexes;
 
-	int				numVerts;
+	int			numVerts;
 	drawVert_t		*verts;
 } srfTriangles_t;
 
@@ -760,9 +815,9 @@ BRUSH MODELS
 #define	SIDE_ON		2
 
 typedef struct msurface_s {
-	int					viewCount;		// if == tr.viewCount, already added
+	int			viewCount;		// if == tr.viewCount, already added
 	struct shader_s		*shader;
-	int					fogIndex;
+	int			fogIndex;
 
 	surfaceType_t		*data;			// any of srf*_t
 } msurface_t;
@@ -772,8 +827,8 @@ typedef struct msurface_s {
 #define	CONTENTS_NODE		-1
 typedef struct mnode_s {
 	// common with leaf and node
-	int			contents;		// -1 for nodes, to differentiate from leafs
-	int			visframe;		// node needs to be traversed if current
+	int		contents;		// -1 for nodes, to differentiate from leafs
+	int		visframe;		// node needs to be traversed if current
 	vec3_t		mins, maxs;		// for bounding box culling
 	struct mnode_s	*parent;
 
@@ -782,58 +837,58 @@ typedef struct mnode_s {
 	struct mnode_s	*children[2];	
 
 	// leaf specific
-	int			cluster;
-	int			area;
+	int		cluster;
+	int		area;
 
 	msurface_t	**firstmarksurface;
-	int			nummarksurfaces;
+	int		nummarksurfaces;
 } mnode_t;
 
 typedef struct {
 	vec3_t		bounds[2];		// for culling
 	msurface_t	*firstSurface;
-	int			numSurfaces;
+	int		numSurfaces;
 } bmodel_t;
 
 typedef struct {
 	char		name[MAX_QPATH];		// ie: maps/tim_dm2.bsp
 	char		baseName[MAX_QPATH];	// ie: tim_dm2
 
-	int			dataSize;
+	int		dataSize;
 
-	int			numShaders;
+	int		numShaders;
 	dshader_t	*shaders;
 
 	bmodel_t	*bmodels;
 
-	int			numplanes;
+	int		numplanes;
 	cplane_t	*planes;
 
-	int			numnodes;		// includes leafs
-	int			numDecisionNodes;
+	int		numnodes;		// includes leafs
+	int		numDecisionNodes;
 	mnode_t		*nodes;
 
-	int			numsurfaces;
+	int		numsurfaces;
 	msurface_t	*surfaces;
 
-	int			nummarksurfaces;
+	int		nummarksurfaces;
 	msurface_t	**marksurfaces;
 
-	int			numfogs;
+	int		numfogs;
 	fog_t		*fogs;
 
 	vec3_t		lightGridOrigin;
 	vec3_t		lightGridSize;
 	vec3_t		lightGridInverseSize;
-	int			lightGridBounds[3];
+	int		lightGridBounds[3];
 
 
 	byte		*lightGridData;
 
 
 
-	int			numClusters;
-	int			clusterBytes;
+	int		numClusters;
+	int		clusterBytes;
 	const byte	*vis;			// may be passed in by CM_LoadMap to save space
 
 	byte		*novis;			// clusterBytes of 0xff
@@ -961,9 +1016,12 @@ typedef struct model_s {
 	int			dataSize;	// just for listing purposes
 	bmodel_t	*bmodel;		// only if type == MOD_BRUSH
 	md3Header_t	*md3[MD3_MAX_LODS];	// only if type == MOD_MESH
-	void	*modelData;			// only if type == (MOD_MDR | MOD_IQM )
+	void	*modelData;			// only if type == ( MOD_MDR | MOD_IQM )
 
 	int			 numLods;
+	mdrPhys_t		phys;		// leilei - MDR model physics
+	int			mdln;
+	int			hasphysics;	// leilei - mdr physics
 } model_t;
 
 
@@ -1238,6 +1296,10 @@ typedef struct {
 	int					leiShaded;	
 	int					shadeMode;
 	int					litesources;
+	int					brightnessMethod;
+
+	// leilei - reflect/refract buffer for 2000-ish pre-pixelshader water reflections
+	image_t					*reflectImage;			
 
 } trGlobals_t;
 
@@ -1397,11 +1459,15 @@ extern cvar_t	*r_palletize;	// Leilei - palettes
 extern cvar_t	*r_leidebug;	// Leilei - debug only!
 extern cvar_t	*r_leidebugeye;	// Leilei - debug only!
 extern cvar_t	*r_particles;	// Leilei - particles!
+extern cvar_t	*r_texreflect;	// Leilei - texture reflection?
+extern cvar_t	*r_mdrPhysics;	// Leilei - MDR Physics
 
 extern	cvar_t	*r_iconmip;	// leilei - icon mip - picmip for 2d icons
 extern	cvar_t	*r_iconBits;	// leilei - icon color depth for 2d icons
 
 extern	cvar_t	*r_lightmapBits;	// leilei - lightmap color depth
+extern	cvar_t	*r_lightmapBlend;	// leilei - alt lightmap blending 
+extern	cvar_t	*r_lightmapColorNorm;	// leilei - lightmap color normalize
 
 extern  cvar_t	*r_detailTextureScale;		// leilei - scale tweak the detail textures, 0 doesn't tweak at all.
 extern  cvar_t	*r_detailTextureLayers;		// leilei - add in more smaller detail texture layers, expensive!
@@ -1409,6 +1475,9 @@ extern  cvar_t	*r_detailTextureTMU;		// leilei - debug - hack to try to force de
 extern  cvar_t	*r_detailTextureSub;		// leilei - experiment - force subtractive detail
 
 extern  cvar_t	*r_textureDither;		// leilei - apply dithering for lower texture bits
+
+extern  cvar_t	*r_lerpModels;		// leilei - optional Lerping
+extern  cvar_t	*r_fastMDR;		// leilei - MDR precision
 
 //====================================================================
 
@@ -2047,6 +2116,7 @@ ANIMATED MODELS
 
 void R_MDRAddAnimSurfaces( trRefEntity_t *ent );
 void RB_MDRSurfaceAnim( mdrSurface_t *surface );
+void RB_ClientDeformedMDRSurfaceAnim( mdrSurface_t *surface );
 qboolean R_LoadIQM (model_t *mod, void *buffer, int filesize, const char *name );
 void R_AddIQMSurfaces( trRefEntity_t *ent );
 void RB_IQMSurfaceAnim( surfaceType_t *surface );
@@ -2273,6 +2343,7 @@ void R_BloomInit( void );
 void R_WaterInit( void );
 void R_BloomScreen( void );
 void R_WaterScreen( void );
+void R_WaterBloom( void );
 void R_PaletteScreen( void );
 // Postprocessing
 void R_PostprocessScreen( void );
@@ -2301,6 +2372,9 @@ void R_QarticleExplosion(const vec3_t org);
 void R_LFX_Blood (const vec3_t org, const vec3_t dir, float pressure) ;
 void LFX_ShaderInit(void);
 void LFX_ParticleEffect (int effect, const vec3_t org, const vec3_t dir);
+void RE_GetViewPosition(vec3_t point);
+
+
 
 #endif //TR_LOCAL_H
 

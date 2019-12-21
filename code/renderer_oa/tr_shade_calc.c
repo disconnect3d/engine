@@ -963,7 +963,7 @@ void RB_CalcEnvironmentTexCoords( float *st )
 	mode 2 = weapon shine
 	mode 3 = all models shine
 	mode 4? = sun shine (water)?
-
+	mode 5 - view space (i.e. buffer reflections/refractions)
 */
 void RB_CalcEnvironmentTexCoordsEx( float *st, int xx, int yy, int mode ) 
 {
@@ -990,9 +990,8 @@ void RB_CalcEnvironmentTexCoordsEx( float *st, int xx, int yy, int mode )
 	
 				d = DotProduct (normal, viewer);
 		
-				reflected[0] = normal[0]*2*d - viewer[0];
-				reflected[1] = normal[1]*2*d - viewer[1];
-				reflected[2] = normal[2]*2*d - viewer[2];
+				reflected[xx] = normal[xx]*2*d - viewer[xx];
+				reflected[yy] = normal[yy]*2*d - viewer[yy];
 		
 				st[0] = reflected[xx] * 0.5;
 				st[1] = reflected[yy] * 0.5;
@@ -1007,15 +1006,65 @@ void RB_CalcEnvironmentTexCoordsEx( float *st, int xx, int yy, int mode )
 		
 				d = DotProduct (normal, viewer);
 		
-				reflected[0] = normal[0]*2*d - viewer[0];
-				reflected[1] = normal[1]*2*d - viewer[1];
-				reflected[2] = normal[2]*2*d - viewer[2];
+				reflected[xx] = normal[xx]*2*d - viewer[xx];
+				reflected[yy] = normal[yy]*2*d - viewer[yy];
 		
 				st[0] = reflected[xx] * 0.5;
 				st[1] = reflected[yy] * 0.5;
 			}
 		}
 	}
+	else	if (mode == 5) // view space
+	{
+		{
+			for (i = 0 ; i < tess.numVertexes ; i++, v += 4, normal += 4, st += 2 ) 
+			{
+				int k;
+				vec3_t deflected;
+				vec4_t deflecteder;
+				VectorSubtract (backEnd.or.viewOrigin, v, viewer);
+				VectorNormalizeFast (viewer);
+		
+				//d = DotProduct (normal, viewer);
+		
+			//	reflected[0] = normal[0]*2*d - viewer[0];
+			//	reflected[1] = normal[1]*2*d - viewer[1];
+			//	reflected[2] = normal[2]*2*d - viewer[2];
+
+			//	reflected[0] = v[0] + (normal[0]*r_leidebug->value);
+			//	reflected[1] = v[1] + (normal[1]*r_leidebug->value);
+			//	reflected[2] = v[2] + (normal[2]*r_leidebug->value);
+
+
+				R_TransformModelToClip(v, backEnd.or.modelMatrix, backEnd.viewParms.projectionMatrix, deflected, deflecteder );
+				//R_TransformModelToClip(v, glState.currentModelViewMatrix,glState.currentProjectionMatrix, deflected, deflecteder );
+
+
+			//	deflecteder[0] /= tr.refdef.width;
+			//	deflecteder[1] /= tr.refdef.height;
+				VectorNormalizeFast(deflecteder);
+//				for (k=0;k<3;k++){
+//	
+//				if (deflecteder[i] < 0) deflecteder[i] = 0; // clamp
+//				if (deflecteder[i] > 1) deflecteder[i] = 1; // clamp
+//
+			//	}
+
+			//	deflected[0] = DotProduct( reflected, deflecteder );
+			//	deflected[1] = DotProduct( reflected, backEnd.viewParms.projectionMatrix[1] );
+			//	deflected[2] = DotProduct( reflected, backEnd.viewParms.projectionMatrix[2] );
+
+			//	st[0] = deflecteder[0];
+			//	st[1] = deflecteder[1];
+		
+			//	st[0] = deflecteder[0];
+			//	st[1] = deflecteder[1];
+				st[0] = 0.5 + deflecteder[0] * 0.5;
+				st[1] = 0.5 + deflecteder[1] * 0.5;
+			}
+		}
+	}
+
 	else
 	{
 		if ((backEnd.currentEntity->e.renderfx & RF_FIRST_PERSON && mode == 2) || ( ( backEnd.currentEntity != &tr.worldEntity ) && mode == 3)) // local light sine
@@ -1027,9 +1076,8 @@ void RB_CalcEnvironmentTexCoordsEx( float *st, int xx, int yy, int mode )
 	
 				d = DotProduct (normal, viewer);
 		
-				reflected[0] = normal[0]*2*d - viewer[0];
-				reflected[1] = normal[1]*2*d - viewer[1];
-				reflected[2] = normal[2]*2*d - viewer[2];
+				reflected[xx] = normal[xx]*2*d - viewer[xx];
+				reflected[yy] = normal[yy]*2*d - viewer[yy];
 		
 				st[0] = 0.5 + reflected[xx] * 0.5;
 				st[1] = 0.5 - reflected[yy] * 0.5;
@@ -1042,9 +1090,8 @@ void RB_CalcEnvironmentTexCoordsEx( float *st, int xx, int yy, int mode )
 	
 			d = DotProduct (normal, viewer);
 	
-			//reflected[0] = normal[0]*2*d - viewer[0]; // leilei - apparently unused!!!
-			reflected[1] = normal[1]*2*d - viewer[1];
-			reflected[2] = normal[2]*2*d - viewer[2];
+			reflected[xx] = normal[xx]*2*d - viewer[xx];
+			reflected[yy] = normal[yy]*2*d - viewer[yy];
 	
 			st[0] = 0.5 + reflected[xx] * 0.5;
 			st[1] = 0.5 - reflected[yy] * 0.5;

@@ -42,6 +42,16 @@ R_MDRCullModel
 =============
 */
 
+typedef struct
+{
+	vec3_t	lastpos[MDR_MAX_BONES];
+	vec3_t	curpos[MDR_MAX_BONES];
+
+	trRefEntity_t  *them;
+} defmdr_t;
+
+defmdr_t	themdp[MAX_MODELS];
+
 static int R_MDRCullModel( mdrHeader_t *header, trRefEntity_t *ent ) {
 	vec3_t		bounds[2];
 	mdrFrame_t	*oldFrame, *newFrame;
@@ -177,6 +187,7 @@ R_MDRAddAnimSurfaces
 */
 
 // much stuff in there is just copied from R_AddMd3Surfaces in tr_mesh.c
+int TheRealMDL; // leilei HACK - tr.currentModel->index returns an incorrect index at this point, so we must set this from tr_main.
 
 void R_MDRAddAnimSurfaces( trRefEntity_t *ent ) {
 	mdrHeader_t		*header;
@@ -193,6 +204,7 @@ void R_MDRAddAnimSurfaces( trRefEntity_t *ent ) {
 	header = (mdrHeader_t *) tr.currentModel->modelData;
 	
 	personalModel = (ent->e.renderfx & RF_THIRD_PERSON) && !tr.viewParms.isPortal;
+
 	
 	if ( ent->e.renderfx & RF_WRAP_FRAMES )
 	{
@@ -216,6 +228,8 @@ void R_MDRAddAnimSurfaces( trRefEntity_t *ent ) {
 		ent->e.frame = 0;
 		ent->e.oldframe = 0;
 	}
+
+	TheRealMDL = tr.currentModel->index;
 
 	//
 	// cull the entire model if merged bounding box of both frames
@@ -301,13 +315,52 @@ void R_MDRAddAnimSurfaces( trRefEntity_t *ent ) {
 
 		surface = (mdrSurface_t *)( (byte *)surface + surface->ofsEnd );
 	}
+
 }
+
+void NormalizeDelts( float d1, float d2, float d3, float d4, float d5, float d6 ) {
+	float	max;
+	
+	max = d1;
+	if ( d2 > max ) {
+		max = d2;
+	}
+	if ( d3 > max ) {
+		max = d3;
+	}
+	if ( d4 > max ) {
+		max = d4;
+	}
+	if ( d5 > max ) {
+		max = d5;
+	}
+	if ( d6 > max ) {
+		max = d6;
+	}
+
+//	if ( !max ) {
+//		//VectorClear( out );
+//	} else {
+	if (max)
+	{
+		d1 /= max;
+		d2 /= max;
+		d3 /= max;
+		d4 /= max;
+		d5 /= max;
+		d6 /= max;
+	}
+}
+
+
 
 /*
 ==============
 RB_MDRSurfaceAnim
 ==============
 */
+
+
 void RB_MDRSurfaceAnim( mdrSurface_t *surface )
 {
 	int				i, j, k;
@@ -337,6 +390,8 @@ void RB_MDRSurfaceAnim( mdrSurface_t *surface )
 		frontlerp	= 1.0f - backlerp;
 	}
 
+	if (!r_lerpModels->integer) backlerp = 0;
+
 	header = (mdrHeader_t *)((byte *)surface + surface->ofsHeader);
 
 	frameSize = (size_t)( &((mdrFrame_t *)0)->bones[ header->numBones ] );
@@ -363,11 +418,13 @@ void RB_MDRSurfaceAnim( mdrSurface_t *surface )
 	//
 	// lerp all the needed bones
 	//
+
 	if ( !backlerp ) 
 	{
 		// no lerping needed
 		bonePtr = frame->bones;
 	} 
+	
 	else 
 	{
 		bonePtr = bones;
@@ -394,7 +451,7 @@ void RB_MDRSurfaceAnim( mdrSurface_t *surface )
 		for ( k = 0 ; k < v->numWeights ; k++, w++ ) 
 		{
 			bone = bonePtr + w->boneIndex;
-			
+
 			tempVert[0] += w->boneWeight * ( DotProduct( bone->matrix[0], w->offset ) + bone->matrix[0][3] );
 			tempVert[1] += w->boneWeight * ( DotProduct( bone->matrix[1], w->offset ) + bone->matrix[1][3] );
 			tempVert[2] += w->boneWeight * ( DotProduct( bone->matrix[2], w->offset ) + bone->matrix[2][3] );
@@ -417,6 +474,8 @@ void RB_MDRSurfaceAnim( mdrSurface_t *surface )
 
 		v = (mdrVertex_t *)&v->weights[v->numWeights];
 	}
+
+
 
 	tess.numVertexes += surface->numVerts;
 }
@@ -518,4 +577,290 @@ void MC_UnCompress(float mat[3][4],const unsigned char * comp)
 	val=(int)((unsigned short *)(comp))[11];
 	val-=1<<(MC_BITS_VECT-1);
 	mat[2][2]=((float)(val))*MC_SCALE_VECT;
+}
+
+/*
+==============
+RB_ClientDeformedMDRSurfaceAnim
+
+leilei - This is for supporting the eventual creation of player customization on special 'generic' player models
+ 	 where sliders determine the body types.
+
+	tl;dr: jiggle bones and body sliders.
+==============
+*/
+
+vec3_t oldorg;
+vec3_t neworg;
+vec3_t oofs;
+int thme;
+int thmend;
+
+void RB_MDRP_Spring ( mdrBone_t bone, mdrPhysics_t phys, int bindex, vec3_t ofs, vec3_t ofs3, vec3_t ofs4, vec3_t bm1, vec3_t bm2, vec3_t bm3 )
+{
+	vec3_t lfrom, lto, mold, mnew, bold,bnew;
+	vec3_t up, right, fwd;
+	int i;
+	mdrPhysLocal_t		*pl;
+	// Get our position
+	VectorCopy(ofs, lfrom);	
+
+	// Take in some of our animation's changes, exaggerate a bit
+	lto[0] = DotProduct( ofs, bm1 ) * 5;
+	lto[1] = DotProduct( ofs, bm2 ) * 5;
+	lto[2] = DotProduct( ofs, bm3 ) * 5;
+
+	// Transform from the world
+	lfrom[0] = DotProduct( lto, backEnd.currentEntity->e.axis[0] );
+	lfrom[1] = DotProduct( lto, backEnd.currentEntity->e.axis[1] );
+	lfrom[2] = DotProduct( lto, backEnd.currentEntity->e.axis[2] );
+	VectorAdd(lfrom,backEnd.currentEntity->e.origin, lfrom);
+
+	pl = &backEnd.currentEntity->pl;
+
+	if (tr.refdef.time > (pl->time[bindex] + 100))
+	{
+		// it's either been too long since the last physics rendering, or the framerate is too low
+		// so reset the stuff
+		VectorCopy(lfrom, bold);	
+		VectorCopy(lfrom, bnew);	
+		VectorClear(pl->vel[bindex]);
+		pl->time[bindex] = tr.refdef.time + 16.667f; // 60fps
+		return;
+	}
+
+	else if (tr.refdef.time > pl->time[bindex])
+	{
+		int k;
+		VectorCopy(pl->neworg[bindex], bnew);	
+		VectorCopy(pl->oldorg[bindex], bold);	
+		for(k=0;k<3;k++)
+			{	
+				float res = 0;
+				bnew[k] = (bnew[k] + bnew[k] + bold[k] + bnew[k]) / 4;
+				bold[k] = (bold[k] + lfrom[k] + lfrom[k] + bold[k]) / (4+res);
+				bold[k] += (pl->vel[bindex][k] * -phys.spring); // and a bit of spring
+				bold[k] += (pl->vel[bindex][k] * (-phys.spring * 0.5f)); // and a bit of spring
+				pl->vel[bindex][k]= (bnew[k] - bold[k]) * phys.limitl[k];
+			}
+		VectorCopy(bnew, pl->neworg[bindex]);	
+		VectorCopy(bold, pl->oldorg[bindex]);			
+		pl->time[bindex] = tr.refdef.time + 16.667f; // 60fps
+	}
+
+	ofs3[0] = DotProduct( pl->vel[bindex], backEnd.currentEntity->e.axis[0] );
+	ofs3[1] = DotProduct( pl->vel[bindex], backEnd.currentEntity->e.axis[1] );
+	ofs3[2] = DotProduct( pl->vel[bindex], backEnd.currentEntity->e.axis[2] );
+
+	for(i=0;i<3;i++)
+	{
+		ofs3[i] *=  (phys.spring);
+		ofs4[i] = ofs3[i] * phys.limitr[i];
+		ofs3[i] *= (phys.limitl[i]);
+		if (ofs3[i] > (phys.limitl[i]*4)) pl->vel[bindex][i] -= (pl->vel[bindex][i]*0.8); // there's a limit
+	}
+
+
+}
+
+void RB_ClientDeformedMDRSurfaceAnim( mdrSurface_t *surface )
+{
+	int				i, j, k;
+	float			frontlerp, backlerp;
+	int				*triangles;
+	int				indexes;
+	int				baseIndex, baseVertex;
+	int				numVerts;
+	int				skipPhys = 0;
+	mdrVertex_t		*v;
+	mdrHeader_t		*header;
+	mdrFrame_t		*frame;
+	mdrFrame_t		*oldFrame;
+	mdrBone_t		bones[MDR_MAX_BONES], *bonePtr, *bone;
+	mdrPhys_t		*phys;
+	trRefEntity_t		*ent;
+	model_t			*mdl;
+	mdl = R_GetModelByHandle( backEnd.currentEntity->e.hModel );
+	TheRealMDL = mdl->index;
+
+	int			frameSize;
+	int			phnum = TheRealMDL;
+
+
+	if (skipPhys || !r_mdrPhysics->integer)
+	{
+		RB_MDRSurfaceAnim( surface );
+		return;
+	}
+
+	//ri.Printf( PRINT_DEVELOPER, "DEFORMED! %i aka %s.......OR IS IT %i aka %s ?!??\n", tr.currentModel->index, tr.currentModel->name, TheRealMDL, tr.models[TheRealMDL]->name);
+	//ri.Printf(PRINT_WARNING,"MDP Rendered model index is %i\n", tr.currentModel->index);
+	// don't lerp if lerping off, or this is the only frame, or the last frame...
+	//
+	if (backEnd.currentEntity->e.oldframe == backEnd.currentEntity->e.frame) 
+	{
+		backlerp	= 0;	// if backlerp is 0, lerping is off and frontlerp is never used
+		frontlerp	= 1;
+	} 
+	else  
+	{
+		backlerp	= backEnd.currentEntity->e.backlerp;
+		frontlerp	= 1.0f - backlerp;
+	}
+	if (!r_lerpModels->integer) backlerp = 0;
+
+
+	header = (mdrHeader_t *)((byte *)surface + surface->ofsHeader);
+
+	frameSize = (size_t)( &((mdrFrame_t *)0)->bones[ header->numBones ] );
+
+	frame = (mdrFrame_t *)((byte *)header + header->ofsFrames +
+		backEnd.currentEntity->e.frame * frameSize );
+	oldFrame = (mdrFrame_t *)((byte *)header + header->ofsFrames +
+		backEnd.currentEntity->e.oldframe * frameSize );
+
+	RB_CheckOverflow( surface->numVerts, surface->numTriangles );
+
+	triangles	= (int *) ((byte *)surface + surface->ofsTriangles);
+	indexes		= surface->numTriangles * 3;
+	baseIndex	= tess.numIndexes;
+	baseVertex	= tess.numVertexes;
+	
+	// Set up all triangles.
+	for (j = 0 ; j < indexes ; j++) 
+	{
+		tess.indexes[baseIndex + j] = baseVertex + triangles[j];
+	}
+	tess.numIndexes += indexes;
+
+	//
+	// lerp all the needed bones
+	//
+	if ( !backlerp )  
+	{
+		// no lerping needed
+		bonePtr = frame->bones;
+	} 
+	
+	else 
+	{
+		bonePtr = bones;
+		
+		for ( i = 0 ; i < header->numBones*12 ; i++ ) 
+		{
+			((float *)bonePtr)[i] = frontlerp * ((float *)frame->bones)[i] + backlerp * ((float *)oldFrame->bones)[i];
+		}
+
+	}
+
+	//
+	// deform the vertexes by the lerped bones
+	//
+	numVerts = surface->numVerts;
+	v = (mdrVertex_t *) ((byte *)surface + surface->ofsVerts);
+	for ( j = 0; j < numVerts; j++ ) 
+	{
+
+		vec3_t	tempVert, tempNormal;
+		mdrWeight_t	*w;
+
+		VectorClear( tempVert );
+		VectorClear( tempNormal );
+		w = v->weights;
+
+		for ( k = 0 ; k < v->numWeights ; k++, w++ ) 
+		{
+			vec3_t bmx[3];
+			int p = 0;
+			// Set up the bones
+			bone = bonePtr + w->boneIndex;	
+		
+			vec3_t ofs, ofs2, ofs3, ofs4, bm1, bm2, bm3;
+
+			// Leilei - Iterate physics
+
+			float tscale = 0.9f;
+			float tblend;
+			int bonetopick = 0;
+
+			tblend = 1.0;	
+			VectorCopy(bone->matrix[0], bmx[0]);
+			VectorCopy(bone->matrix[1], bmx[1]);
+			VectorCopy(bone->matrix[2], bmx[2]);
+
+			VectorCopy(w->offset, ofs);	// Local offset to modify
+			VectorCopy(w->offset, ofs2);	// Final offset to push to the rendering
+			if (tblend > 1) tblend = 1.0f;
+			if (tblend < 0) tblend = 0.0f;
+
+ 			float wt21 = w->boneWeight;
+			float wt22 = w->boneWeight;
+			float wt23 = w->boneWeight;
+
+			// Go through the known physics properties for the model
+			for(p=0;p<MAX_MDR_PHYSICS;p++)
+				{
+					// See if our current bone matches with anything 
+					if (mdl->phys.p[p].targbone == w->boneIndex)
+					{	
+						if (mdl->phys.p[p].type == MDP_SPRING)
+						{
+
+							RB_MDRP_Spring ( *bone, mdl->phys.p[p], w->boneIndex, ofs, ofs3, ofs4, bmx[0], bmx[1], bmx[2] );
+							bmx[2][2] += (ofs4[2]); // rotate
+
+							ofs2[0] += ofs3[0];
+							ofs2[1] += ofs3[1];
+							ofs2[2] += ofs3[2];
+
+						}
+					}
+				}
+			
+/*			// DEBUG- specify a bone to figure where it is
+			if ((w->boneIndex == r_leidebug->integer) && (r_leidebug->integer > 0)) bonetopick = 666;
+
+			if (bonetopick == 666)
+			{
+				// Resizer
+				
+				wt21 = wt21 * (1.0 * (1+(1.8 * tscale)));
+				wt22 = wt22 * (1.0 * (1+(1.3 * tscale)));
+				wt23 = wt23 * (1.0 * (1+(1.6 * tscale)));
+			
+				ofs2[0] += ((-0.3 * (tscale)) );
+				ofs2[1] += ((-0.7 * (tscale * bonetopick)));
+				ofs2[2] += ((-1.9 * tscale));
+			}
+*/
+
+
+			tempVert[0] += wt21 * ( DotProduct( bmx[0], ofs2 ) + bone->matrix[0][3] );
+			tempVert[1] += wt22 * ( DotProduct( bmx[1], ofs2 ) + bone->matrix[1][3] );
+			tempVert[2] += wt23 * ( DotProduct( bmx[2], ofs2 ) + bone->matrix[2][3] );
+			
+			tempNormal[0] += wt21 * DotProduct( bmx[0], v->normal );
+			tempNormal[1] += wt22 * DotProduct( bmx[1], v->normal );
+			tempNormal[2] += wt23 * DotProduct( bmx[2], v->normal );
+
+		}
+
+		tess.xyz[baseVertex + j][0] = tempVert[0];
+		tess.xyz[baseVertex + j][1] = tempVert[1];
+		tess.xyz[baseVertex + j][2] = tempVert[2];
+
+		tess.normal[baseVertex + j][0] = tempNormal[0];
+		tess.normal[baseVertex + j][1] = tempNormal[1];
+		tess.normal[baseVertex + j][2] = tempNormal[2];
+
+		tess.texCoords[baseVertex + j][0][0] = v->texCoords[0];
+		tess.texCoords[baseVertex + j][0][1] = v->texCoords[1];
+
+
+		v = (mdrVertex_t *)&v->weights[v->numWeights];
+	}
+
+
+
+	tess.numVertexes += surface->numVerts;
 }
