@@ -1818,7 +1818,34 @@ static qboolean ParseStage( shaderStage_t *stage, char **text )
 		}
 //
 		
+		//
+		// flipmap <name>
+		//
+		else if ( !Q_stricmp( token, "flipmap" ) )
+		{
+			imgType_t type = IMGTYPE_COLORALPHA;
+			imgFlags_t flags = IMGFLAG_MIRRORED;
 
+			token = COM_ParseExt( text, qfalse );
+			if ( !token[0] )
+			{
+				ri.Printf( PRINT_WARNING, "WARNING: missing parameter for 'flipmap' keyword in shader '%s'\n", shader.name );
+				return qfalse;
+			}
+
+			if (!shader.noMipMaps)
+				flags |= IMGFLAG_MIPMAP;
+
+			if (!shader.noPicMip)
+				flags |= IMGFLAG_PICMIP;
+
+			stage->bundle[0].image[0] = R_FindImageFile( token, type, flags );
+			if ( !stage->bundle[0].image[0] )
+			{
+				ri.Printf( PRINT_WARNING, "WARNING: R_FindImageFile could not find '%s' in shader '%s'\n", token, shader.name );
+				return qfalse;
+			}
+		}
 
 		//
 		// clampmap <name>
@@ -3491,6 +3518,34 @@ qboolean ParseStageSimple( shaderStage_t *stage, char **text )
 	//			}
 			}
 		}
+
+		//
+		// flipmap <name>
+		//
+		else if ( !Q_stricmp( token, "flippmap" ) )
+		{
+			imgType_t type = IMGTYPE_COLORALPHA;
+			imgFlags_t flags = IMGFLAG_MIRRORED;
+
+			token = COM_ParseExt( text, qfalse );
+			if ( !token[0] )
+			{
+				ri.Printf( PRINT_WARNING, "WARNING: missing parameter for 'flipmap' keyword in shader '%s'\n", shader.name );
+				return qfalse;
+			}
+
+			if (!shader.noMipMaps)
+				flags |= IMGFLAG_MIPMAP;
+
+			if (!shader.noPicMip)
+				flags |= IMGFLAG_PICMIP;
+
+				stage->bundle[0].image[0] = tr.whiteImage;
+				COM_StripExtension( token, imageName, MAX_QPATH );
+				itype = type; iflags = flags;
+				loadlater = 1;
+		}
+
 		//
 		// clampmap <name>
 		//

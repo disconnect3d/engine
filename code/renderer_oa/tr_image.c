@@ -1337,9 +1337,6 @@ static void Upload32( unsigned *data,
 		
 	}
 
-
-
-
 	if( r_greyscale->value )
 	{
 			// leilei - replaced with saturation processing
@@ -2053,6 +2050,8 @@ image_t *R_CreateImage( const char *name, byte *pic, int width, int height,
 	if (voodootype){			// leilei - 3dfx needs the old behavior
 		if (flags & IMGFLAG_CLAMPTOEDGE)
 			glWrapClampMode = GL_CLAMP; 
+		else if (flags & IMGFLAG_MIRRORED)
+			glWrapClampMode = GL_MIRRORED_REPEAT; 	// unknown behavior on 3dfx???
 		else
 			glWrapClampMode = GL_REPEAT;
 	}
@@ -2060,6 +2059,8 @@ image_t *R_CreateImage( const char *name, byte *pic, int width, int height,
 	{
 		if (flags & IMGFLAG_CLAMPTOEDGE)
 			glWrapClampMode = GL_CLAMP_TO_EDGE; 
+		else if (flags & IMGFLAG_MIRRORED)
+			glWrapClampMode = GL_MIRRORED_REPEAT; 
 		else
 			glWrapClampMode = GL_REPEAT;
 	}
