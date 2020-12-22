@@ -2422,7 +2422,7 @@ image_t	*R_FindImageFile( const char *name, imgType_t type, imgFlags_t flags )
 
 	// leilei - iconmip hack
 
-	if ( !Q_strncmp( name, "icons/", 5 )  || ((!Q_strncmp( name, "gfx/2d", 6 )) && (Q_strncmp( name, "gfx/2d/bigchars", 14 )))) {
+	if ( !Q_strncmp( name, "icons/", 6 )  || ((!Q_strncmp( name, "gfx/2d", 6 )) && (Q_strncmp( name, "gfx/2d/bigchars", 15 )))) {
 		isicon = 1;
 	}
 	else {
